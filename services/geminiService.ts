@@ -1,24 +1,22 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Manuskrip } from "../types";
 
-// IMPORTANT: In a real-world application, the API key should be handled securely
-// and not be hardcoded or exposed on the client-side. We are using `process.env`
-// as a placeholder for a secure environment variable injection method.
-const API_KEY = process.env.API_KEY;
+// Mengambil API key dari environment variables, ini sudah benar untuk Vite.
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!API_KEY) {
   console.warn("API key for Gemini is not set. AI features will not work.");
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
+// 1. Inisialisasi klien dengan cara yang benar
+const genAI = new GoogleGenerativeAI(API_KEY!);
 
 export async function askAboutManuscript(question: string, manuscript: Manuskrip) {
   if (!API_KEY) {
-    throw new Error("API_KEY is not configured for Gemini Service.");
+    throw new Error("API_KEY tidak dikonfigurasi untuk Layanan Gemini.");
   }
-  
-  // Create a simplified and clean version of manuscript data for the prompt
+
+  // Membuat konteks yang bersih untuk prompt
   const manuscriptContext = {
     judul: manuscript.judul_dari_tim,
     pengarang: manuscript.pengarang,
@@ -30,7 +28,7 @@ export async function askAboutManuscript(question: string, manuscript: Manuskrip
     kolofon: manuscript.kolofon,
     kondisi: manuscript.kondisi_fisik_naskah,
   };
-  
+
   const prompt = `
 Anda adalah seorang ahli filologi dan sejarawan yang berspesialisasi dalam manuskrip Islam Nusantara.
 Berdasarkan data manuskrip berikut, jawab pertanyaan pengguna dengan informatif, ringkas, dan dalam bahasa Indonesia.
@@ -46,10 +44,19 @@ Pertanyaan Pengguna: "${question}"
 Jawaban Anda:
 `;
 
-  const response = await ai.models.generateContentStream({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+  try {
+    // 2. Dapatkan model terlebih dahulu
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  return response;
+    // 3. Panggil generateContentStream pada model dengan prompt
+    const result = await model.generateContentStream(prompt);
+
+    // 4. Kembalikan stream untuk di-handle oleh frontend
+    return result.stream;
+
+  } catch (error) {
+    console.error("Error saat memanggil Gemini API:", error);
+    // Melempar error agar bisa ditangkap oleh komponen UI
+    throw new Error("Gagal mendapatkan respons dari AI.");
+  }
 }

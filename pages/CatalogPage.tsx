@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../src/supabaseClient';
 import { Manuskrip } from '../types';
 import ManuscriptCard from '../components/ManuscriptCard';
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons';
@@ -35,10 +35,6 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     };
     fetchManuscripts();
   }, []);
-
-  if (loading) {
-    return <div>Memuat katalog...</div>;
-  }
 
   const categoryCounts = useMemo(() => {
     return manuscripts.reduce((acc, ms) => {
@@ -82,6 +78,10 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
       setCurrentPage(page);
     }
   };
+
+  if (loading) {
+    return <div className="text-center py-16">Memuat katalog...</div>;
+  }
 
   return (
     <div>
@@ -139,3 +139,8 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
           </button>
         </div>
       )}
+    </div>
+  );
+};
+
+export default CatalogPage;

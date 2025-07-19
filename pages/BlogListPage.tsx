@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { Link } from 'react-router-dom'; // IMPORT: Link
 import { blogPosts } from '../data/mockData';
 import { BlogStatus } from '../types';
 import { CalendarIcon } from '../components/icons';
@@ -15,9 +15,11 @@ const BlogListPage: React.FC = () => {
             <div className="space-y-10">
                 {publishedPosts.map(post => (
                     <div key={post.id} className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg">
-                        <h2 className="text-3xl font-bold font-serif text-primary-900 dark:text-white hover:text-primary-700 dark:hover:text-accent-400">
-                           {post.judul_artikel}
-                        </h2>
+                        <Link to={`/blog/${post.id}`}> {/* FIX: Title is now a link */}
+                            <h2 className="text-3xl font-bold font-serif text-primary-900 dark:text-white hover:text-primary-700 dark:hover:text-accent-400">
+                               {post.judul_artikel}
+                            </h2>
+                        </Link>
                         <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400 my-4">
                             <div className="flex items-center">
                                 <CalendarIcon className="h-4 w-4 mr-1.5" />
@@ -27,9 +29,11 @@ const BlogListPage: React.FC = () => {
                             <span>Oleh: <strong>{post.penulis}</strong></span>
                         </div>
                         <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                            {post.isi_artikel}
+                            {post.isi_artikel.substring(0, 200)}... {/* Shorten content for list view */}
                         </p>
-                         {/* In a real app, a "Read More" link would go to a detail page */}
+                         <Link to={`/blog/${post.id}`} className="text-primary-600 dark:text-accent-400 hover:underline font-semibold mt-4 inline-block">
+                            Baca Selengkapnya
+                         </Link>
                     </div>
                 ))}
             </div>

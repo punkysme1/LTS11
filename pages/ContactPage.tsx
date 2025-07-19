@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 const ContactPage: React.FC = () => {
@@ -31,7 +30,7 @@ const ContactPage: React.FC = () => {
                 </div>
                 <div className="rounded-lg shadow-lg overflow-hidden">
                     <iframe
-                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3959.439796792476!2d112.59381581525646!3d-7.073994371302302!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e77e0b1f3a38a8f%3A0x6bf1c9c7f2a74c7!2sPondok%20Pesantren%20Qomaruddin!5e0!3m2!1sen!2sid!4v1678886543210!5m2!1sen!2sid"
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3960.170281290352!2d112.5898033153549!3d-6.98939799495394!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e77e2f5f1c3f5d5%3A0x2d1b7e6f363b5e43!2sPondok%20Pesantren%20Qomaruddin!5e0!3m2!1sen!2sid!4v1678886543210!5m2!1sen!2sid"
                         width="100%"
                         height="450"
                         style={{ border: 0 }}

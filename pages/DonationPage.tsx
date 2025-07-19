@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { Link } from 'react-router-dom'; // IMPORT: Link
 
 const DonationPage: React.FC = () => {
     return (
@@ -25,7 +25,7 @@ const DonationPage: React.FC = () => {
                     <p className="font-semibold">a.n. Yayasan Pondok Pesantren Qomaruddin</p>
                 </div>
                 <p className="mt-6 text-center">
-                    Untuk konfirmasi donasi atau jika Anda memiliki pertanyaan lebih lanjut, silakan hubungi kami melalui halaman <a href="#/kontak" className="text-primary-600 hover:underline">Kontak</a>.
+                    Untuk konfirmasi donasi atau jika Anda memiliki pertanyaan lebih lanjut, silakan hubungi kami melalui halaman <Link to="/kontak" className="text-primary-600 hover:underline">Kontak</Link>. {/* FIX: Changed to Link component */}
                 </p>
                 <p className="mt-4 text-center font-semibold">
                     Terima kasih atas kepedulian dan dukungan Anda.
