@@ -1,59 +1,88 @@
-
-import React, { useState, useMemo } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
+import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext'; // <-- 1. Impor AuthProvider
 import Header from './components/Header';
 import Footer from './components/Footer';
-import HomePage from './pages/HomePage';
-import CatalogPage from './pages/CatalogPage';
-import ManuscriptDetailPage from './pages/ManuscriptDetailPage';
-import GuestBookPage from './pages/GuestBookPage';
-import ProfilePage from './pages/ProfilePage';
-import ContactPage from './pages/ContactPage';
-import DonationPage from './pages/DonationPage';
-import BlogListPage from './pages/BlogListPage';
-import AdminPage from './pages/AdminPage';
-import { ThemeContext } from './contexts/ThemeContext';
+import NotFound from './pages/NotFound';
 
-function App() {
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [searchTerm, setSearchTerm] = useState('');
+// --- Lazy Loading Components ---
+const Home = lazy(() => import('./pages/Home'));
+const Catalog = lazy(() => import('./pages/Catalog'));
+const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetail'));
+const Blog = lazy(() => import('./pages/Blog'));
+const BlogPostDetail = lazy(() => import('./pages/BlogPostDetail'));
+const Guestbook = lazy(() => import('./pages/Guestbook'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Contact = lazy(() => import('./pages/Contact'));
+const Donation = lazy(() => import('./pages/Donation'));
+const AdminPage = lazy(() => import('./pages/AdminPage')); // <-- Rute admin utama
+
+export const ThemeContext = createContext({
+  theme: 'light',
+  toggleTheme: () => {},
+});
+
+// Komponen ini tetap sama, tapi rute admin disederhanakan
+const AppContent: React.FC = () => {
+    const location = useLocation();
+    const isAdminRoute = location.pathname.startsWith('/admin');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    return (
+        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
+            {!isAdminRoute && <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
+            <main className="flex-grow">
+                <Suspense fallback={<div className="flex justify-center items-center h-screen">Memuat...</div>}>
+                    <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/katalog" element={<Catalog searchTerm={searchTerm} />} />
+                        <Route path="/manuskrip/:id" element={<ManuscriptDetail />} />
+                        <Route path="/blog" element={<Blog />} />
+                        <Route path="/blog/:id" element={<BlogPostDetail />} />
+                        <Route path="/buku-tamu" element={<Guestbook />} />
+                        <Route path="/profil" element={<Profile />} />
+                        <Route path="/kontak" element={<Contact />} />
+                        <Route path="/donasi" element={<Donation />} />
+                        {/* 3. Rute admin disederhanakan */}
+                        <Route path="/admin/*" element={<AdminPage />} />
+                        <Route path="*" element={<NotFound />} />
+                    </Routes>
+                </Suspense>
+            </main>
+            {!isAdminRoute && <Footer />}
+        </div>
+    );
+};
+
+const App: React.FC = () => {
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    if (newTheme === 'dark') {
+    setTheme((prevTheme) => {
+      const newTheme = prevTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('theme', newTheme);
+      return newTheme;
+    });
+  };
+
+  useEffect(() => {
+    if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  };
-
-  const themeValue = useMemo(() => ({ theme, toggleTheme }), [theme]);
+  }, [theme]);
 
   return (
-    <ThemeContext.Provider value={themeValue}>
-      <HashRouter>
-        <div className="flex flex-col min-h-screen">
-          <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
-          <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/katalog" element={<CatalogPage searchTerm={searchTerm} />} />
-              <Route path="/katalog/:id" element={<ManuscriptDetailPage />} />
-              <Route path="/blog" element={<BlogListPage />} />
-              <Route path="/buku-tamu" element={<GuestBookPage />} />
-              <Route path="/profil" element={<ProfilePage />} />
-              <Route path="/kontak" element={<ContactPage />} />
-              <Route path="/donasi" element={<DonationPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
-      </HashRouter>
-    </ThemeContext.Provider>
+    // 2. Bungkus semua komponen dengan AuthProvider
+    <AuthProvider>
+      <ThemeContext.Provider value={{ theme, toggleTheme }}>
+        <HashRouter>
+          <AppContent />
+        </HashRouter>
+      </ThemeContext.Provider>
+    </AuthProvider>
   );
-}
+};
 
 export default App;
