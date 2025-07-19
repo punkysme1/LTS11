@@ -1,0 +1,5 @@
+{
+  "name": "Galeri Manuskrip Sampurnan",
+  "description": "A web application for cataloging, digital exhibition, and management of the Sampurnan manuscript collection, featuring a public interface for visitors and detailed manuscript views.",
+  "requestFramePermissions": []
+}
