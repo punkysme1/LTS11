@@ -1,28 +1,27 @@
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext'; // <-- 1. Impor AuthProvider
+import { AuthProvider } from './src/contexts/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
 
-// --- Lazy Loading Components ---
-const Home = lazy(() => import('./pages/Home'));
-const Catalog = lazy(() => import('./pages/Catalog'));
-const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetail'));
-const Blog = lazy(() => import('./pages/Blog'));
-const BlogPostDetail = lazy(() => import('./pages/BlogPostDetail'));
-const Guestbook = lazy(() => import('./pages/Guestbook'));
-const Profile = lazy(() => import('./pages/Profile'));
-const Contact = lazy(() => import('./pages/Contact'));
-const Donation = lazy(() => import('./pages/Donation'));
-const AdminPage = lazy(() => import('./pages/AdminPage')); // <-- Rute admin utama
+// --- Lazy Loading Components (Path diperbaiki) ---
+const Home = lazy(() => import('./pages/HomePage'));
+const Catalog = lazy(() => import('./pages/CatalogPage'));
+const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetailPage'));
+const Blog = lazy(() => import('./pages/BlogListPage'));
+const BlogPostDetail = lazy(() => import('./pages/BlogPostDetailPage')); // <-- FIX: Path diubah di sini
+const Guestbook = lazy(() => import('./pages/GuestBookPage'));
+const Profile = lazy(() => import('./pages/ProfilePage'));
+const Contact = lazy(() => import('./pages/ContactPage'));
+const Donation = lazy(() => import('./pages/DonationPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
 
 export const ThemeContext = createContext({
   theme: 'light',
   toggleTheme: () => {},
 });
 
-// Komponen ini tetap sama, tapi rute admin disederhanakan
 const AppContent: React.FC = () => {
     const location = useLocation();
     const isAdminRoute = location.pathname.startsWith('/admin');
@@ -43,7 +42,6 @@ const AppContent: React.FC = () => {
                         <Route path="/profil" element={<Profile />} />
                         <Route path="/kontak" element={<Contact />} />
                         <Route path="/donasi" element={<Donation />} />
-                        {/* 3. Rute admin disederhanakan */}
                         <Route path="/admin/*" element={<AdminPage />} />
                         <Route path="*" element={<NotFound />} />
                     </Routes>
@@ -74,7 +72,6 @@ const App: React.FC = () => {
   }, [theme]);
 
   return (
-    // 2. Bungkus semua komponen dengan AuthProvider
     <AuthProvider>
       <ThemeContext.Provider value={{ theme, toggleTheme }}>
         <HashRouter>

@@ -1,5 +1,5 @@
-
 export interface Manuskrip {
+  // Kunci utama, tipe string
   kode_inventarisasi: string;
   judul_dari_tim: string;
   afiliasi: string;
@@ -10,7 +10,7 @@ export interface Manuskrip {
   link_digital_afiliasi: string;
   link_digital_tppkp_qomaruddin: string;
   url_kover: string;
-  url_konten: string; // Newline-separated URLs
+  url_konten: string; // URL yang dipisahkan baris baru
   klasifikasi_kailani: string;
   kategori_ilmu_pesantren: string;
   deskripsi_umum: string;
@@ -21,8 +21,8 @@ export interface Manuskrip {
   konversi_masehi: number;
   lokasi_penyalina: string;
   asal_usul_naskah: string;
-  bahasa: string; // Comma-separated
-  aksara: string; // Comma-separated
+  bahasa: string; // Dipisahkan koma
+  aksara: string; // Dipisahkan koma
   kover: string;
   ukuran_kover: string;
   jilid: string;
@@ -45,32 +45,43 @@ export interface Manuskrip {
   keterbacaan: string;
   kelengkapan_naskah: string;
   catatan_catatan: string;
+  // FIX: Tambahkan field 'created_at' yang dibuat otomatis oleh Supabase
+  created_at: string;
 }
 
+// FIX: Ubah nilai Enum agar cocok dengan standar database (huruf kecil, tanpa spasi)
+// Ini akan memperbaiki error saat memfilter atau menyimpan status.
 export enum BlogStatus {
-  DRAFT = 'Draft',
-  PUBLISHED = 'Diterbitkan',
+  DRAFT = 'draft',
+  PUBLISHED = 'published',
 }
 
 export interface BlogPost {
+  // Kunci utama, tipe number (default Supabase)
   id: number;
   judul_artikel: string;
   isi_artikel: string;
   penulis: string;
-  tanggal_publikasi: string; // ISO date string
+  tanggal_publikasi: string; // string tanggal ISO
   status: BlogStatus;
+  // FIX: Tambahkan field 'created_at'
+  created_at: string;
 }
 
+// FIX: Ubah nilai Enum agar cocok dengan standar database
 export enum GuestBookStatus {
-  PENDING = 'Menunggu Persetujuan',
-  APPROVED = 'Disetujui',
+  PENDING = 'pending',
+  APPROVED = 'approved',
 }
 
 export interface GuestBookEntry {
+  // Kunci utama, tipe number (default Supabase)
   id: number;
   nama_pengunjung: string;
   asal_institusi: string;
   pesan: string;
-  tanggal_kirim: string; // ISO date string
+  tanggal_kirim: string; // string tanggal ISO
   status: GuestBookStatus;
+  // FIX: Tambahkan field 'created_at'
+  created_at: string;
 }

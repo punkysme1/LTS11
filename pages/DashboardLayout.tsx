@@ -1,34 +1,20 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../src/contexts/AuthContext';
+import { Link } from 'react-router-dom';
+import { BookOpenIcon, CalendarIcon, NewspaperIcon, PencilIcon, HomeIcon } from '../components/icons';
 
-// Impor ikon yang mungkin Anda perlukan
-import { BookOpenIcon, CalendarIcon, SearchIcon } from '../components/icons'; // Sesuaikan path jika perlu
+// --- FIX: Gunakan default import (tanpa {}) agar sesuai dengan file komponennya ---
+import ManageManuscripts from './admin/ManageManuscripts';
+import ManageBlog from './admin/ManageBlog';
+import ManageGuestbook from './admin/ManageGuestbook';
 
-// Komponen-komponen Dummy untuk Manajemen
-const ManageManuscripts = () => <div className="p-4 bg-white rounded-lg shadow">Konten Manajemen Manuskrip di sini.</div>;
-const ManageBlog = () => <div className="p-4 bg-white rounded-lg shadow">Konten Manajemen Blog di sini.</div>;
-const ManageGuestbook = () => <div className="p-4 bg-white rounded-lg shadow">Konten Manajemen Buku Tamu di sini.</div>;
-
-const DashboardHome = () => {
-    // Di sini Anda bisa fetch data summary dari Supabase
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-                <h3 className="text-lg font-semibold">Total Manuskrip</h3>
-                <p className="text-3xl font-bold mt-2">150</p>
-            </div>
-            <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-                <h3 className="text-lg font-semibold">Total Artikel</h3>
-                <p className="text-3xl font-bold mt-2">12</p>
-            </div>
-            <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-                <h3 className="text-lg font-semibold">Pesan Buku Tamu</h3>
-                <p className="text-3xl font-bold mt-2">45</p>
-            </div>
-        </div>
-    );
-};
-
+// Komponen DashboardHome
+const DashboardHome = () => (
+    <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <h3 className="text-xl font-semibold">Selamat Datang di Dashboard Admin</h3>
+        <p className="mt-2 text-gray-600 dark:text-gray-300">Pilih menu di samping untuk mulai mengelola konten.</p>
+    </div>
+);
 
 const DashboardLayout: React.FC = () => {
     const { user, signOut } = useAuth();
@@ -48,12 +34,12 @@ const DashboardLayout: React.FC = () => {
                 return <DashboardHome />;
         }
     };
-    
+
     const navItems = [
-        { id: 'dashboard', name: 'Dashboard', icon: <BookOpenIcon className="w-5 h-5" /> },
-        { id: 'manuskrip', name: 'Manuskrip', icon: <CalendarIcon className="w-5 h-5" /> },
-        { id: 'blog', name: 'Blog', icon: <SearchIcon className="w-5 h-5" /> },
-        { id: 'bukutamu', name: 'Buku Tamu', icon: <BookOpenIcon className="w-5 h-5" /> },
+        { id: 'dashboard', name: 'Dashboard', icon: <HomeIcon className="w-5 h-5" /> },
+        { id: 'manuskrip', name: 'Manuskrip', icon: <PencilIcon className="w-5 h-5" /> },
+        { id: 'blog', name: 'Blog', icon: <NewspaperIcon className="w-5 h-5" /> },
+        { id: 'bukutamu', name: 'Buku Tamu', icon: <CalendarIcon className="w-5 h-5" /> },
     ];
 
     return (
@@ -85,6 +71,10 @@ const DashboardLayout: React.FC = () => {
                 <header className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 shadow">
                     <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 capitalize">{activePage}</h1>
                     <div className="flex items-center space-x-4">
+                        <Link to="/" className="flex items-center px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+                            <HomeIcon className="w-5 h-5 mr-2"/>
+                            <span className="hidden sm:inline">Kembali ke Situs</span>
+                        </Link>
                         <span className="text-sm hidden md:block">{user?.email}</span>
                         <button onClick={signOut} className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600">
                             Logout
