@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { manuscripts, blogPosts } from '../data/mockData';
-import { Manuskrip, BlogPost, BlogStatus } from '../types';
+import { Manuskrip, BlogPost } from '../types'; // Tipe data tetap digunakan
+import { supabase } from '../src/supabaseClient'; // Pastikan path ini benar
 import ManuscriptCard from '../components/ManuscriptCard';
 import BlogCard from '../components/BlogCard';
 import { BookOpenIcon, CalendarIcon } from '../components/icons';
@@ -10,25 +9,59 @@ import { BookOpenIcon, CalendarIcon } from '../components/icons';
 const HomePage: React.FC = () => {
     const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
     const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
+    const [totalManuscripts, setTotalManuscripts] = useState(0);
     const [lastUpdate, setLastUpdate] = useState('');
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Sort manuscripts by code descending to get the "latest"
-        const sortedManuscripts = [...manuscripts].sort((a, b) => b.kode_inventarisasi.localeCompare(a.kode_inventarisasi));
-        setLatestManuscripts(sortedManuscripts.slice(0, 4));
+        const fetchData = async () => {
+            setLoading(true);
 
-        // Get latest published blog posts
-        const publishedPosts = blogPosts
-            .filter(p => p.status === BlogStatus.PUBLISHED)
-            .sort((a, b) => new Date(b.tanggal_publikasi).getTime() - new Date(a.tanggal_publikasi).getTime());
-        setLatestPosts(publishedPosts.slice(0, 3));
-        
-        if (publishedPosts.length > 0) {
-            setLastUpdate(new Date(publishedPosts[0].tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }));
-        } else {
-            setLastUpdate(new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }));
-        }
+            // Fetch 4 manuskrip terbaru
+            const { data: manuscriptsData, error: manuscriptsError } = await supabase
+                .from('manuskrip')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(4);
+            
+            if (manuscriptsData) setLatestManuscripts(manuscriptsData);
+
+            // Fetch 3 artikel terpublikasi terbaru
+            const { data: postsData, error: postsError } = await supabase
+                .from('blog')
+                .select('*')
+                .eq('status', 'PUBLISHED')
+                .order('tanggal_publikasi', { ascending: false })
+                .limit(3);
+
+            if (postsData) {
+                setLatestPosts(postsData);
+                if (postsData.length > 0) {
+                    setLastUpdate(new Date(postsData[0].tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }));
+                }
+            }
+
+            // Fetch total jumlah manuskrip
+            const { count, error: countError } = await supabase
+                .from('manuskrip')
+                .select('*', { count: 'exact', head: true });
+            
+            if (count) setTotalManuscripts(count);
+            
+            // Handle errors jika perlu
+            if (manuscriptsError) console.error("Error fetching manuscripts:", manuscriptsError.message);
+            if (postsError) console.error("Error fetching blog posts:", postsError.message);
+            if (countError) console.error("Error fetching count:", countError.message);
+
+            setLoading(false);
+        };
+
+        fetchData();
     }, []);
+
+    if (loading) {
+        return <div className="text-center py-20">Memuat data...</div>
+    }
 
     return (
         <div className="space-y-16">
@@ -43,12 +76,14 @@ const HomePage: React.FC = () => {
                 <div className="mt-8 flex justify-center items-center space-x-6 text-gray-600 dark:text-gray-300">
                     <div className="flex items-center">
                         <BookOpenIcon className="h-5 w-5 mr-2" />
-                        <span>Total <strong>{manuscripts.length}</strong> Manuskrip</span>
+                        <span>Total <strong>{totalManuscripts}</strong> Manuskrip</span>
                     </div>
-                    <div className="flex items-center">
-                        <CalendarIcon className="h-5 w-5 mr-2" />
-                        <span>Update Terakhir: <strong>{lastUpdate}</strong></span>
-                    </div>
+                    {lastUpdate && (
+                        <div className="flex items-center">
+                            <CalendarIcon className="h-5 w-5 mr-2" />
+                            <span>Update Terakhir: <strong>{lastUpdate}</strong></span>
+                        </div>
+                    )}
                 </div>
                 <div className="mt-10">
                     <Link

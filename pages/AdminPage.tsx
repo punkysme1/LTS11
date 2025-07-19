@@ -1,11 +1,31 @@
-
-import React from 'react';
+import React, { useState } from 'react';
+import { supabase } from '../src/supabaseClient'; // Pastikan path ini benar
 
 const AdminPage: React.FC = () => {
-    const handleLogin = (e: React.FormEvent) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [message, setMessage] = useState<string | null>(null);
+
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        // In a real app, this would handle authentication
-        alert('Fungsi login belum diimplementasikan.');
+        setLoading(true);
+        setError(null);
+
+        const { error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+        });
+
+        if (error) {
+            setError(error.message);
+        } else {
+            setMessage("Login berhasil! Anda akan diarahkan...");
+            // Di aplikasi nyata, Anda akan mengarahkan pengguna ke dashboard admin
+            // contoh: window.location.href = '/admin/dashboard';
+        }
+        setLoading(false);
     };
     
     return (
@@ -17,16 +37,17 @@ const AdminPage: React.FC = () => {
                 </p>
                 <form onSubmit={handleLogin} className="space-y-6">
                     <div>
-                        <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                            Username
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                            Email
                         </label>
                         <input
-                            type="text"
-                            id="username"
-                            name="username"
+                            type="email"
+                            id="email"
+                            name="email"
                             required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600"
-                            defaultValue="admin"
                         />
                     </div>
                     <div>
@@ -38,19 +59,25 @@ const AdminPage: React.FC = () => {
                             id="password"
                             name="password"
                             required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600"
-                            defaultValue="password"
                         />
                     </div>
+
+                    {error && <p className="text-sm text-red-500">{error}</p>}
+                    {message && <p className="text-sm text-green-500">{message}</p>}
+
                     <div>
-                        <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                            Login
+                        <button 
+                            type="submit" 
+                            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-gray-400"
+                            disabled={loading}
+                        >
+                            {loading ? 'Memproses...' : 'Login'}
                         </button>
                     </div>
                 </form>
-                <p className="mt-6 text-xs text-center text-gray-500 dark:text-gray-400">
-                    Ini adalah halaman placeholder. Fungsionalitas CRUD, upload massal, dan moderasi belum diimplementasikan.
-                </p>
             </div>
         </div>
     );
