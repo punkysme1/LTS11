@@ -1,33 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../src/supabaseClient'; // Import supabase
+import { supabase } from '../src/supabaseClient';
 import { Manuskrip } from '../types';
 import { askAboutManuscript } from '../services/geminiService';
 import { SparklesIcon } from '../components/icons';
 
+import Lightbox from "yet-another-react-lightbox";
+import "yet-another-react-lightbox/styles.css";
+
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
-    const [loading, setLoading] = useState(true); // Tambahkan state loading
-    const [error, setError] = useState<string | null>(null); // Tambahkan state error
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('info');
+
     const [mainImage, setMainImage] = useState('');
-    const [contentImages, setContentImages] = useState<string[]>([]);
-    
+
+    const [lightboxOpen, setLightboxOpen] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [allImages, setAllImages] = useState<string[]>([]);
+
     const [aiQuestion, setAiQuestion] = useState('');
     const [aiResponse, setAiResponse] = useState('');
     const [isAiLoading, setIsAiLoading] = useState(false);
 
+
     useEffect(() => {
         const fetchManuscriptDetail = async () => {
+            // PERUBAHAN DI SINI: Hapus isNaN(Number(id))
+            if (!id) { // Cukup periksa apakah id ada (bukan null atau undefined)
+                setError('ID manuskrip tidak ada di URL.'); // Ubah pesan error agar lebih spesifik
+                setLoading(false);
+                return;
+            }
+
             setLoading(true);
             setError(null);
+
             try {
                 const { data, error } = await supabase
                     .from('manuskrip')
                     .select('*')
-                    .eq('kode_inventarisasi', id)
-                    .single(); // Mengambil satu baris data
+                    .eq('kode_inventarisasi', id) // Gunakan id (string) langsung
+                    .single();
 
                 if (error) {
                     throw error;
@@ -35,9 +51,18 @@ const ManuscriptDetailPage: React.FC = () => {
                 
                 if (data) {
                     setManuscript(data as Manuskrip);
-                    setMainImage(data.url_kover || '');
-                    const urls = (data.url_konten || '').split('\n').filter(url => url.trim() !== '');
-                    setContentImages(urls);
+                    
+                    const coverUrl = data.url_kover || '';
+                    const contentUrls = (data.url_konten || '')
+                                        .split('\n')
+                                        .map(url => url.trim())
+                                        .filter(url => url !== '');
+                    
+                    const combinedImages = [coverUrl, ...contentUrls].filter(url => url !== '');
+                    setAllImages(combinedImages);
+                    
+                    setMainImage(coverUrl || (contentUrls.length > 0 ? contentUrls[0] : ''));
+
                 } else {
                     setError('Manuskrip tidak ditemukan.');
                 }
@@ -52,7 +77,12 @@ const ManuscriptDetailPage: React.FC = () => {
         if (id) {
             fetchManuscriptDetail();
         }
-    }, [id]); // Dependensi id agar fetch ulang jika id berubah
+    }, [id]);
+
+    const openLightbox = useCallback((index: number) => {
+        setCurrentImageIndex(index);
+        setLightboxOpen(true);
+    }, []);
 
     const handleAiSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -62,8 +92,6 @@ const ManuscriptDetailPage: React.FC = () => {
         setAiResponse('');
 
         try {
-            // Pastikan askAboutManuscript diimplementasikan dengan benar di services/geminiService.ts
-            // Ini akan memerlukan penyesuaian di geminiService.ts jika belum diimplementasikan
             const stream = await askAboutManuscript(aiQuestion, manuscript);
             for await (const chunk of stream) {
                 setAiResponse(prev => prev + chunk.text);
@@ -80,12 +108,8 @@ const ManuscriptDetailPage: React.FC = () => {
         return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat detail manuskrip...</div>;
     }
 
-    if (error) {
-        return <div className="text-center py-16 text-red-600 dark:text-red-400">Error: {error}</div>;
-    }
-
-    if (!manuscript) {
-        return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Manuskrip tidak ditemukan.</div>;
+    if (error || !manuscript) {
+        return <div className="text-center py-16 text-red-600 dark:text-red-400">{error || 'Artikel tidak ditemukan.'}</div>;
     }
     
     const DetailItem: React.FC<{ label: string; value?: React.ReactNode }> = ({ label, value }) => (
@@ -103,9 +127,9 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Afiliasi" value={manuscript.afiliasi} />
                         <DetailItem label="Nama Koleksi" value={manuscript.nama_koleksi} />
                         <DetailItem label="Nomor Koleksi" value={manuscript.nomor_koleksi} />
-                        <DetailItem label="Nomor Digitalisasi" value={manuscript.nomor_digitalisasi} /> {/* Tambahan */}
+                        <DetailItem label="Nomor Digitalisasi" value={manuscript.nomor_digitalisasi} />
                         <DetailItem label="Link Digital Afiliasi" value={manuscript.link_digital_afiliasi ? <a href={manuscript.link_digital_afiliasi} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_afiliasi}</a> : null} />
-                        <DetailItem label="Link Digital TPPKP Qomaruddin" value={manuscript.link_digital_tppkp_qomaruddin ? <a href={manuscript.link_digital_tppkp_qomaruddin} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_tppkp_qomaruddin}</a> : null} /> {/* Tambahan */}
+                        <DetailItem label="Link Digital TPPKP Qomaruddin" value={manuscript.link_digital_tppkp_qomaruddin ? <a href={manuscript.link_digital_tppkp_qomaruddin} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_tppkp_qomaruddin}</a> : null} />
                     </dl>
                 );
             case 'fisik':
@@ -114,20 +138,20 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Kondisi Fisik" value={manuscript.kondisi_fisik_naskah} />
                         <DetailItem label="Ukuran Dimensi" value={manuscript.ukuran_dimensi} />
                         <DetailItem label="Kover" value={manuscript.kover} />
-                        <DetailItem label="Ukuran Kover" value={manuscript.ukuran_kover} /> {/* Tambahan */}
+                        <DetailItem label="Ukuran Kover" value={manuscript.ukuran_kover} />
                         <DetailItem label="Jilid" value={manuscript.jilid} />
-                        <DetailItem label="Ukuran Kertas" value={manuscript.ukuran_kertas} /> {/* Tambahan */}
+                        <DetailItem label="Ukuran Kertas" value={manuscript.ukuran_kertas} />
                         <DetailItem label="Tinta" value={manuscript.tinta} />
                         <DetailItem label="Watermark" value={manuscript.watermark} />
-                        <DetailItem label="Countermark" value={manuscript.countermark} /> {/* Tambahan */}
+                        <DetailItem label="Countermark" value={manuscript.countermark} />
                         <DetailItem label="Jumlah Halaman" value={manuscript.jumlah_halaman} />
                         <DetailItem label="Halaman Kosong" value={manuscript.halaman_kosong} />
-                        <DetailItem label="Jumlah Baris per Halaman" value={manuscript.jumlah_baris_per_halaman} /> {/* Tambahan */}
-                        <DetailItem label="Rubrikasi" value={manuscript.rubrikasi} /> {/* Tambahan */}
-                        <DetailItem label="Iluminasi" value={manuscript.iluminasi} /> {/* Tambahan */}
-                        <DetailItem label="Ilustrasi" value={manuscript.ilustrasi} /> {/* Tambahan */}
-                        <DetailItem label="Catatan Pinggir" value={manuscript.catatan_pinggir} /> {/* Tambahan */}
-                        <DetailItem label="Catatan Makna" value={manuscript.catatan_makna} /> {/* Tambahan */}
+                        <DetailItem label="Jumlah Baris per Halaman" value={manuscript.jumlah_baris_per_halaman} />
+                        <DetailItem label="Rubrikasi" value={manuscript.rubrikasi} />
+                        <DetailItem label="Iluminasi" value={manuscript.iluminasi} />
+                        <DetailItem label="Ilustrasi" value={manuscript.ilustrasi} />
+                        <DetailItem label="Catatan Pinggir" value={manuscript.catatan_pinggir} />
+                        <DetailItem label="Catatan Makna" value={manuscript.catatan_makna} />
                         <DetailItem label="Keterbacaan" value={manuscript.keterbacaan} />
                         <DetailItem label="Kelengkapan Naskah" value={manuscript.kelengkapan_naskah} />
                     </dl>
@@ -144,7 +168,7 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Aksara" value={manuscript.aksara} />
                         <DetailItem label="Kolofon" value={manuscript.kolofon} />
                         <DetailItem label="Catatan Tambahan" value={manuscript.catatan_catatan} />
-                        <DetailItem label="Catatan Marginal" value={manuscript.catatan_marginal} /> {/* Tambahan */}
+                        <DetailItem label="Catatan Marginal" value={manuscript.catatan_marginal} />
                     </dl>
                 );
             default: return null;
@@ -161,17 +185,29 @@ const ManuscriptDetailPage: React.FC = () => {
                 <div className="lg:col-span-2">
                     <div className="aspect-[3/4] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 mb-4 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                         {mainImage ? (
-                            <img src={mainImage} alt="Kover utama" className="w-full h-full object-contain"/>
+                            <img
+                                src={mainImage}
+                                alt="Kover utama"
+                                className="w-full h-full object-contain cursor-pointer"
+                                onClick={() => openLightbox(allImages.indexOf(mainImage))}
+                            />
                         ) : (
                             <span className="text-gray-500 dark:text-gray-400">Tidak ada gambar</span>
                         )}
                     </div>
+                    {/* Thumbnails */}
                     <div className="grid grid-cols-5 gap-2">
-                         {manuscript.url_kover && (
-                             <img src={manuscript.url_kover} onClick={() => setMainImage(manuscript.url_kover)} alt="thumbnail kover" className={`cursor-pointer rounded-md border-2 ${mainImage === manuscript.url_kover ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 object-cover w-full h-16`}/>
-                         )}
-                        {contentImages.slice(0, 4).map((img, index) => (
-                           <img key={index} src={img} onClick={() => setMainImage(img)} alt={`thumbnail ${index + 1}`} className={`cursor-pointer rounded-md border-2 ${mainImage === img ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 object-cover w-full h-16`}/>
+                         {allImages.map((imgUrl, index) => (
+                            <img
+                                key={index}
+                                src={imgUrl}
+                                onClick={() => {
+                                    setMainImage(imgUrl);
+                                    openLightbox(index);
+                                }}
+                                alt={`thumbnail ${index + 1}`}
+                                className={`cursor-pointer rounded-md border-2 ${mainImage === imgUrl ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 object-cover w-full h-16`}
+                            />
                         ))}
                     </div>
                 </div>
@@ -220,6 +256,19 @@ const ManuscriptDetailPage: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Lightbox Component */}
+            {lightboxOpen && allImages.length > 0 && (
+                <Lightbox
+                    open={lightboxOpen}
+                    close={() => setLightboxOpen(false)}
+                    slides={allImages.map(url => ({ src: url }))}
+                    index={currentImageIndex}
+                    on={{
+                        view: ({ index }) => setCurrentImageIndex(index),
+                    }}
+                />
+            )}
         </div>
     );
 };
