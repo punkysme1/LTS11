@@ -17,6 +17,12 @@ const ManuscriptDetailPage: React.FC = () => {
     const [isAiLoading, setIsAiLoading] = useState(false);
 
     useEffect(() => {
+        // --- CATATAN PENTING ---
+        // Anda mungkin perlu mengganti ini dengan pengambilan data dari Supabase
+        // Contoh:
+        // const { data, error } = await supabase.from('manuskrip').select('*').eq('kode_inventarisasi', id).single();
+        // if (error) console.error(error);
+        // else setManuscript(data);
         const foundManuscript = manuscripts.find(ms => ms.kode_inventarisasi === id) || null;
         setManuscript(foundManuscript);
         if (foundManuscript) {
@@ -34,6 +40,7 @@ const ManuscriptDetailPage: React.FC = () => {
         setAiResponse('');
 
         try {
+            // Pastikan askAboutManuscript diimplementasikan dengan benar di services/geminiService.ts
             const stream = await askAboutManuscript(aiQuestion, manuscript);
             for await (const chunk of stream) {
                 setAiResponse(prev => prev + chunk.text);
@@ -47,7 +54,7 @@ const ManuscriptDetailPage: React.FC = () => {
     };
 
     if (!manuscript) {
-        return <div className="text-center py-16">Manuskrip tidak ditemukan.</div>;
+        return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Manuskrip tidak ditemukan.</div>;
     }
     
     const DetailItem: React.FC<{ label: string; value?: React.ReactNode }> = ({ label, value }) => (
@@ -65,7 +72,7 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Afiliasi" value={manuscript.afiliasi} />
                         <DetailItem label="Nama Koleksi" value={manuscript.nama_koleksi} />
                         <DetailItem label="Nomor Koleksi" value={manuscript.nomor_koleksi} />
-                        <DetailItem label="Link Digital" value={<a href={manuscript.link_digital_afiliasi} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_afiliasi}</a>} />
+                        <DetailItem label="Link Digital" value={manuscript.link_digital_afiliasi ? <a href={manuscript.link_digital_afiliasi} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_afiliasi}</a> : null} />
                     </dl>
                 );
             case 'fisik':
@@ -88,7 +95,7 @@ const ManuscriptDetailPage: React.FC = () => {
                      <dl className="divide-y divide-gray-200 dark:divide-gray-700">
                         <DetailItem label="Pengarang" value={manuscript.pengarang} />
                         <DetailItem label="Penyalin" value={manuscript.penyalin} />
-                        <DetailItem label="Tahun Penulisan" value={`${manuscript.tahun_penulisan_di_teks} (${manuscript.konversi_masehi} M)`} />
+                        <DetailItem label="Tahun Penulisan" value={`${manuscript.tahun_penulisan_di_teks || '-'} (${manuscript.konversi_masehi || '-'} M)`} />
                         <DetailItem label="Lokasi Penyalina" value={manuscript.lokasi_penyalina} />
                         <DetailItem label="Asal Usul Naskah" value={manuscript.asal_usul_naskah} />
                         <DetailItem label="Bahasa" value={manuscript.bahasa} />
@@ -109,13 +116,19 @@ const ManuscriptDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                 {/* Image Gallery */}
                 <div className="lg:col-span-2">
-                    <div className="aspect-[3/4] rounded-lg overflow-hidden border dark:border-gray-700 mb-4">
-                        <img src={mainImage} alt="Kover utama" className="w-full h-full object-contain"/>
+                    <div className="aspect-[3/4] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 mb-4 bg-gray-100 dark:bg-gray-700 flex items-center justify-center"> {/* Menambahkan bg fallback */}
+                        {mainImage ? (
+                            <img src={mainImage} alt="Kover utama" className="w-full h-full object-contain"/>
+                        ) : (
+                            <span className="text-gray-500 dark:text-gray-400">Tidak ada gambar</span>
+                        )}
                     </div>
                     <div className="grid grid-cols-5 gap-2">
-                         <img src={manuscript.url_kover} onClick={() => setMainImage(manuscript.url_kover)} alt="thumbnail kover" className={`cursor-pointer rounded-md border-2 ${mainImage === manuscript.url_kover ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500`}/>
+                         {manuscript.url_kover && (
+                             <img src={manuscript.url_kover} onClick={() => setMainImage(manuscript.url_kover)} alt="thumbnail kover" className={`cursor-pointer rounded-md border-2 ${mainImage === manuscript.url_kover ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 object-cover w-full h-16`}/>
+                         )}
                         {contentImages.slice(0, 4).map((img, index) => (
-                           <img key={index} src={img} onClick={() => setMainImage(img)} alt={`thumbnail ${index + 1}`} className={`cursor-pointer rounded-md border-2 ${mainImage === img ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500`}/>
+                           <img key={index} src={img} onClick={() => setMainImage(img)} alt={`thumbnail ${index + 1}`} className={`cursor-pointer rounded-md border-2 ${mainImage === img ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 object-cover w-full h-16`}/>
                         ))}
                     </div>
                 </div>
@@ -124,9 +137,9 @@ const ManuscriptDetailPage: React.FC = () => {
                 <div className="lg:col-span-3">
                     <div className="border-b border-gray-200 dark:border-gray-700">
                         <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                            <button onClick={() => setActiveTab('info')} className={`${activeTab === 'info' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Informasi Utama</button>
-                            <button onClick={() => setActiveTab('fisik')} className={`${activeTab === 'fisik' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Atribut Fisik</button>
-                            <button onClick={() => setActiveTab('produksi')} className={`${activeTab === 'produksi' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Konten & Produksi</button>
+                            <button onClick={() => setActiveTab('info')} className={`${activeTab === 'info' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200`}>Informasi Utama</button>
+                            <button onClick={() => setActiveTab('fisik')} className={`${activeTab === 'fisik' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200`}>Atribut Fisik</button>
+                            <button onClick={() => setActiveTab('produksi')} className={`${activeTab === 'produksi' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200`}>Konten & Produksi</button>
                         </nav>
                     </div>
                     <div className="mt-6">{renderTabContent()}</div>
@@ -135,7 +148,7 @@ const ManuscriptDetailPage: React.FC = () => {
 
             {/* Ask AI Section */}
             <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
-                <h3 className="text-2xl font-bold font-serif flex items-center gap-2">
+                <h3 className="text-2xl font-bold font-serif flex items-center gap-2 text-gray-900 dark:text-gray-100">
                     <SparklesIcon className="w-6 h-6 text-accent-500" />
                     Tanya AI tentang Naskah Ini
                 </h3>
@@ -146,10 +159,10 @@ const ManuscriptDetailPage: React.FC = () => {
                         value={aiQuestion}
                         onChange={(e) => setAiQuestion(e.target.value)}
                         placeholder="Contoh: Apa poin utama dari kitab ini?"
-                        className="flex-grow p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500"
+                        className="flex-grow p-2 border border-gray-300 rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-primary-500 focus:border-primary-500"
                         disabled={isAiLoading}
                     />
-                    <button type="submit" className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center justify-center" disabled={isAiLoading}>
+                    <button type="submit" className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center transition-colors duration-200" disabled={isAiLoading}>
                         {isAiLoading ? (
                             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -159,7 +172,7 @@ const ManuscriptDetailPage: React.FC = () => {
                     </button>
                 </form>
                 {aiResponse && (
-                    <div className="mt-4 p-4 bg-primary-50 dark:bg-gray-900 rounded-md">
+                    <div className="mt-4 p-4 bg-primary-50 dark:bg-gray-900 rounded-md border border-primary-200 dark:border-gray-700"> {/* Menambahkan border */}
                         <p className="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200">{aiResponse}</p>
                     </div>
                 )}
