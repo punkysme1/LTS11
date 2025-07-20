@@ -8,10 +8,10 @@ interface CatalogPageProps {
   searchTerm: string;
 }
 
-const ITEMS_PER_PAGE = 20; // Dikonfirmasi: 20 item per halaman
+const ITEMS_PER_PAGE = 20;
 
 const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
-  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
+  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]); // Deklarasi yang benar: manuscripts
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
@@ -46,6 +46,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     }, {} as Record<string, number>);
   }, [manuscripts]);
 
+  // PERBAIKAN DI SINI: ganti 'manuskripts' menjadi 'manuscripts'
   const uniqueKategori = useMemo(() => [...new Set(manuscripts.map(m => m.kategori_ilmu_pesantren).filter(Boolean))], [manuscripts]);
   const uniqueBahasa = useMemo(() => [...new Set(manuscripts.flatMap(m => m.bahasa ? m.bahasa.split(',').map(b => b.trim()) : []).filter(Boolean))], [manuscripts]);
   const uniqueAksara = useMemo(() => [...new Set(manuscripts.flatMap(m => m.aksara ? m.aksara.split(',').map(a => a.trim()) : []).filter(Boolean))], [manuscripts]);
@@ -122,7 +123,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
 
       {/* Grid */}
       {paginatedManuscripts.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-10 gap-y-12">
           {paginatedManuscripts.map(ms => (
             <ManuscriptCard key={ms.kode_inventarisasi} manuscript={ms} />
           ))}
@@ -139,8 +140,6 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
           <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
             <ChevronLeftIcon className="h-5 w-5" />
           </button>
-          {/* Tampilkan tombol angka halaman jika Anda ingin 1 2 3 ... Next */}
-          {/* Ini adalah implementasi dasar pagination. Untuk 1 2 3 ... Next, diperlukan logika yang lebih kompleks */}
           {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNumber => (
             <button
               key={pageNumber}

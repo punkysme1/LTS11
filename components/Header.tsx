@@ -41,24 +41,24 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
     return (
         <header className="bg-white dark:bg-gray-900 shadow-md sticky top-0 z-40">
             <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-                {/* PERUBAHAN JUDUL WEB DI SINI */}
+                {/* Logo Web (ukuran font ini tidak berubah) */}
                 <Link to="/" className="flex items-center space-x-2 font-bold font-serif text-primary-800 dark:text-white">
                     <BookOpenIcon className="h-8 w-8 text-primary-600 dark:text-accent-400 flex-shrink-0" />
                     <div className="flex flex-col items-start leading-none">
-                        <span className="text-xl md:text-2xl">Galeri Manuskrip</span>
-                        <span className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Sampurnan</span>
+                        <span className="text-sm md:text-sm">Galeri Manuskrip</span>
+                        <span className="text-xs md:text-xs text-gray-500 dark:text-gray-400">Sampurnan</span>
                     </div>
                 </Link>
 
-                {/* Desktop Navigation */}
+                {/* Navigasi Desktop - PERUBAHAN UKURAN FONT DI SINI */}
                 <nav className="hidden lg:flex flex-grow justify-center space-x-8">
                     {navItems.map(item => (
-                        <Link 
-                            key={item.name} 
-                            to={item.path} 
-                            className={`relative text-lg font-medium py-2 px-3 transition-colors duration-300 ease-in-out 
-                                ${location.pathname === item.path 
-                                    ? 'text-primary-600 dark:text-accent-400 after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:w-full after:h-0.5 after:bg-primary-600 after:dark:bg-accent-400' 
+                        <Link
+                            key={item.name}
+                            to={item.path}
+                            className={`relative text-sm font-medium py-2 px-3 transition-colors duration-300 ease-in-out {/* text-lg diubah ke text-sm */}
+                                ${location.pathname === item.path
+                                    ? 'text-primary-600 dark:text-accent-400 after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:w-full after:h-0.5 after:bg-primary-600 after:dark:bg-accent-400'
                                     : 'text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-accent-400'}`}
                         >
                             {item.name}
@@ -83,16 +83,16 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
 
                 {/* Mobile Menu & Search Toggle */}
                 <div className="lg:hidden flex items-center space-x-2">
-                    <button 
-                        onClick={toggleMobileSearch} 
+                    <button
+                        onClick={toggleMobileSearch}
                         className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-300"
                         aria-label="Toggle search"
                     >
                         <SearchIcon className="h-6 w-6" />
                     </button>
                     <ThemeToggle />
-                    <button 
-                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+                    <button
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                         className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-300"
                         aria-label="Toggle navigation menu"
                     >
@@ -117,17 +117,17 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                 </div>
             )}
 
-            {/* Mobile Navigation Menu */}
+            {/* Navigasi Mobile - PERUBAHAN UKURAN FONT DI SINI */}
             {isMobileMenuOpen && (
                 <div className="lg:hidden bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                     <nav className="flex flex-col items-start px-4 py-4 space-y-2">
                         {navItems.map(item => (
-                            <Link 
-                                key={item.name} 
-                                to={item.path} 
-                                className={`w-full text-lg font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out 
-                                    ${location.pathname === item.path 
-                                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' 
+                            <Link
+                                key={item.name}
+                                to={item.path}
+                                className={`w-full text-sm font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out {/* text-lg diubah ke text-sm */}
+                                    ${location.pathname === item.path
+                                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200'
                                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`}
                             >
                                 {item.name}

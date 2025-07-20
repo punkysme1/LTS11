@@ -17,13 +17,12 @@ const HomePage: React.FC = () => {
         const fetchData = async () => {
             setLoading(true);
 
-            // PERUBAHAN DI SINI: Fetch 8 manuskrip terbaru
             const { data: manuscriptsData, error: manuscriptsError } = await supabase
                 .from('manuskrip')
                 .select('*')
                 .order('created_at', { ascending: false })
-                .limit(8); // UBAH DARI 4 MENJADI 8
-            
+                .limit(8);
+
             if (manuscriptsData) setLatestManuscripts(manuscriptsData);
             else console.error("Error fetching latest manuscripts:", manuscriptsError?.message);
 
@@ -44,7 +43,7 @@ const HomePage: React.FC = () => {
             const { count, error: countError } = await supabase
                 .from('manuskrip')
                 .select('*', { count: 'exact', head: true });
-            
+
             if (count !== null) setTotalManuscripts(count);
             else console.error("Error fetching manuscript count:", countError?.message);
 
@@ -62,7 +61,6 @@ const HomePage: React.FC = () => {
         <div className="space-y-16">
             {/* Hero Section */}
             <section className="text-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 py-20 px-4 rounded-xl shadow-lg">
-                {/* PERUBAHAN JUDUL WEB DI SINI */}
                 <h1 className="text-5xl md:text-6xl font-extrabold font-serif text-primary-900 dark:text-white leading-tight">
                     Galeri Manuskrip
                 </h1>
@@ -94,7 +92,7 @@ const HomePage: React.FC = () => {
                     </Link>
                 </div>
             </section>
-            
+
             {/* Latest Manuscripts Section */}
             <section className="py-8">
                 <div className="flex justify-between items-center mb-8">
@@ -107,8 +105,7 @@ const HomePage: React.FC = () => {
                 {latestManuscripts.length === 0 ? (
                     <p className="text-center text-gray-600 dark:text-gray-400">Belum ada manuskrip terbaru yang ditemukan.</p>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                        {/* Jumlah kolom per breakpoint disesuaikan agar 8 item terlihat rapi */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-10 gap-y-12"> {/* PERUBAHAN DI SINI: gap-x-10 gap-y-12 */}
                         {latestManuscripts.map(ms => (
                             <ManuscriptCard key={ms.kode_inventarisasi} manuscript={ms} />
                         ))}

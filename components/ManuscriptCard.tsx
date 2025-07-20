@@ -9,11 +9,11 @@ interface ManuscriptCardProps {
 
 const ManuscriptCard: React.FC<ManuscriptCardProps> = ({ manuscript }) => {
   return (
-    <Link 
+    <Link
       to={`/manuskrip/${manuscript.kode_inventarisasi}`}
       className="group block bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden"
     >
-      <div className="aspect-[4/5] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center"> {/* PERUBAHAN DI SINI */}
+      <div className="aspect-[5/4] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center"> {/* PERUBAHAN DI SINI: aspect-[5/4] */}
         {manuscript.url_kover ? (
           <img
             src={manuscript.url_kover}
