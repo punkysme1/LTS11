@@ -1,8 +1,8 @@
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'; // UBAH HashRouter menjadi BrowserRouter
 import { AuthProvider } from './src/contexts/AuthContext';
-import Header from './components/Header'; // Import Header
-import Footer from './components/Footer'; // Import Footer
+import Header from './components/Header';
+import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
 
 // --- Lazy Loading Components ---
@@ -29,9 +29,9 @@ const AppContent: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     return (
-        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans"> {/* font-sans diterapkan di sini */}
+        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
             {!isAdminRoute && <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
-            <main className="flex-grow container mx-auto px-4 py-8"> {/* Menambahkan container dan padding umum */}
+            <main className="flex-grow container mx-auto px-4 py-8">
                 <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-700 dark:text-gray-300">Memuat...</div>}>
                     <Routes>
                         <Route path="/" element={<Home />} />
@@ -75,9 +75,9 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <ThemeContext.Provider value={{ theme, toggleTheme }}>
-        <HashRouter>
+        <BrowserRouter> {/* UBAH HashRouter menjadi BrowserRouter */}
           <AppContent />
-        </HashRouter>
+        </BrowserRouter>
       </ThemeContext.Provider>
     </AuthProvider>
   );
