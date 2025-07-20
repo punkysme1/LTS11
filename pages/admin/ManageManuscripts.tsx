@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../src/supabaseClient';
 import { Manuskrip } from '../../types';
-import * as XLSX from 'xlsx'; // Import library xlsx
+import * as XLSX from 'xlsx';
 
 // Membungkus FormField dengan React.memo untuk optimasi
+// Perhatikan: properti 'disabled' sekarang diterima langsung oleh MemoizedFormField
 const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?: string, disabled?: boolean, rows?: number, value: string | number | undefined, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void }> = React.memo(({ name, label, type = 'text', disabled = false, rows, value, onChange }) => {
     const displayValue = (type === 'number' && (value === 0 || value === null || value === undefined)) ? '' : (value || '');
 
@@ -66,7 +67,6 @@ const ManageManuscripts: React.FC = () => {
 
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        // Konversi nilai ke number jika tipe input adalah number
         setFormData(prev => ({ 
             ...prev, 
             [name]: type === 'number' ? (value === '' ? null : Number(value)) : value 
@@ -113,8 +113,8 @@ const ManageManuscripts: React.FC = () => {
             return;
         }
 
-        const { error } = editingPost
-            ? await supabase.from('manuskrip').update(formData).eq('kode_inventarisasi', editingPost.kode_inventarisasi)
+        const { error } = editingManuscript
+            ? await supabase.from('manuskrip').update(formData).eq('kode_inventarisasi', editingManuscript.kode_inventarisasi)
             : await supabase.from('manuskrip').insert([formData]);
 
         if (error) alert('Gagal menyimpan: ' + error.message);
@@ -125,7 +125,6 @@ const ManageManuscripts: React.FC = () => {
         }
     };
 
-    // Definisikan header untuk template Excel (harus sesuai dengan nama kolom di database)
     const excelHeaders = [
         "kode_inventarisasi", "judul_dari_tim", "afiliasi", "nama_koleksi", 
         "nomor_koleksi", "judul_dari_afiliasi", "nomor_digitalisasi", 
@@ -164,11 +163,10 @@ const ManageManuscripts: React.FC = () => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0]; // Ambil nama sheet pertama
+                const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-                // Filter data yang valid (memiliki kode_inventarisasi)
                 const cleanData = json.filter(row => row.kode_inventarisasi);
                 if (cleanData.length === 0) {
                     setError('File Excel kosong atau tidak memiliki kolom "kode_inventarisasi".');
@@ -176,15 +174,14 @@ const ManageManuscripts: React.FC = () => {
                     return;
                 }
 
-                // Konversi tipe data yang sesuai (misal: number)
                 const formattedData = cleanData.map(row => {
                     const newRow: Partial<Manuskrip> = {};
                     for (const key in row) {
-                        if (excelHeaders.includes(key)) { // Hanya proses kolom yang dikenal
+                        if (excelHeaders.includes(key)) {
                             let value = row[key];
                             if (key === "konversi_masehi" || key === "jumlah_halaman") {
                                 value = value === null || value === undefined || value === '' ? null : Number(value);
-                                if (isNaN(value)) value = null; // Pastikan NaN menjadi null
+                                if (isNaN(value)) value = null;
                             }
                             newRow[key as keyof Manuskrip] = value;
                         }
@@ -216,14 +213,12 @@ const ManageManuscripts: React.FC = () => {
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Manajemen Manuskrip</h2>
                     <div className="flex items-center space-x-2">
-                        {/* Tombol Download Template */}
                         <button onClick={handleDownloadTemplate} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm bg-gray-600 hover:bg-gray-700 text-white">
                             Download Template (.xlsx)
                         </button>
-                        {/* Input Upload Massal */}
                         <label className={`inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${isUploading ? 'bg-gray-400 cursor-not-allowed opacity-75' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
                             {isUploading ? 'Mengunggah...' : 'Upload Massal (.xlsx/.xls)'}
-                            <input type="file" accept=".xlsx,.xls" onChange={handleBulkUpload} disabled={isUploading} className="hidden" /> {/* accept diubah */}
+                            <input type="file" accept=".xlsx,.xls" onChange={handleBulkUpload} disabled={isUploading} className="hidden" />
                         </label>
                         <button onClick={handleAdd} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm bg-primary-600 hover:bg-primary-700 text-white">Tambah Baru</button>
                     </div>
@@ -260,10 +255,14 @@ const ManageManuscripts: React.FC = () => {
             {showModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-                        <h3 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">{editingManuscript ? 'Edit Manuskrip' : 'Tambah Manuskrip'}</h3>
+                        {/* Judul modal ini yang menggunakan editingManuscript */}
+                        <h3 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
+                            {editingManuscript ? 'Edit Manuskrip' : 'Tambah Manuskrip'}
+                        </h3>
                         <div className="p-4 overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Info Utama & Klasifikasi</h4>
+                                {/* Properti disabled sekarang diteruskan langsung sebagai prop */}
                                 <MemoizedFormField name="kode_inventarisasi" label="Kode Inventarisasi (Wajib)" disabled={!!editingManuscript} value={formData.kode_inventarisasi} onChange={handleInputChange} />
                                 <MemoizedFormField name="judul_dari_tim" label="Judul Tim (Wajib)" value={formData.judul_dari_tim} onChange={handleInputChange} />
                                 <MemoizedFormField name="judul_dari_afiliasi" label="Judul dari Afiliasi" value={formData.judul_dari_afiliasi} onChange={handleInputChange} />

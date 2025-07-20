@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../src/supabaseClient';
-import { BlogPost, BlogStatus } from '../../types'; // Pastikan BlogStatus diimpor
+import { BlogPost, BlogStatus } from '../../types';
 
 // Membungkus FormField dengan React.memo untuk optimasi
 const MemoizedFormField: React.FC<{ name: keyof BlogPost, label: string, type?: string, rows?: number, options?: { value: string, label: string }[], value: string, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void }> = React.memo(({ name, label, type = 'text', rows, options, value, onChange }) => {
@@ -72,7 +72,7 @@ const ManageBlog: React.FC = () => {
     const handleAdd = () => {
         setEditingPost(null);
         setFormData({ 
-            status: BlogStatus.DRAFT, // Menggunakan enum yang sudah dikoreksi (Draft)
+            status: BlogStatus.DRAFT, 
             tanggal_publikasi: new Date().toISOString().split('T')[0],
             url_thumbnail: ''
         }); 
@@ -109,7 +109,7 @@ const ManageBlog: React.FC = () => {
 
         const dataToSave = {
             ...formData,
-            status: formData.status as BlogStatus, // Memastikan tipe BlogStatus
+            status: formData.status as BlogStatus, 
             tanggal_publikasi: formData.status === BlogStatus.PUBLISHED && !formData.tanggal_publikasi
                                 ? new Date().toISOString()
                                 : formData.tanggal_publikasi
@@ -184,7 +184,10 @@ const ManageBlog: React.FC = () => {
             {showModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                         <h3 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">{editingPost ? 'Edit Artikel' : 'Tulis Artikel'}</h3>
+                         {/* Judul modal ini yang menggunakan editingPost */}
+                         <h3 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
+                             {editingPost ? 'Edit Artikel' : 'Tulis Artikel'}
+                         </h3>
                          <div className="p-4 space-y-4 overflow-y-auto flex-1">
                             <MemoizedFormField name="judul_artikel" label="Judul Artikel" value={formData.judul_artikel || ''} onChange={handleInputChange} />
                             <MemoizedFormField name="penulis" label="Penulis" value={formData.penulis || ''} onChange={handleInputChange} />
@@ -195,8 +198,8 @@ const ManageBlog: React.FC = () => {
                                 label="Status" 
                                 type="select" 
                                 options={[
-                                    { value: BlogStatus.DRAFT, label: 'Draft' }, // Nilai enum yang dikoreksi
-                                    { value: BlogStatus.PUBLISHED, label: 'Published' } // Nilai enum yang dikoreksi
+                                    { value: BlogStatus.DRAFT, label: 'Draft' },
+                                    { value: BlogStatus.PUBLISHED, label: 'Published' }
                                 ]} 
                                 value={formData.status || ''} 
                                 onChange={handleInputChange}
