@@ -1,3 +1,4 @@
+// src/components/ManuscriptCard.tsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Manuskrip } from '../types';
@@ -9,19 +10,19 @@ interface ManuscriptCardProps {
 const ManuscriptCard: React.FC<ManuscriptCardProps> = ({ manuscript }) => {
   return (
     <Link 
-      to={`/manuskrip/${manuscript.kode_inventarisasi}`} // <--- PERUBAHAN KRUSIAL DI SINI
+      to={`/manuskrip/${manuscript.kode_inventarisasi}`}
       className="group block bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden"
     >
-      <div className="aspect-[2/3] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center"> {/* Tambahkan background dan centering untuk fallback */}
-        {manuscript.url_kover ? ( // Tambahkan pengecekan url_kover
+      <div className="aspect-[4/5] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center"> {/* PERUBAHAN DI SINI */}
+        {manuscript.url_kover ? (
           <img
             src={manuscript.url_kover}
             alt={`Kover ${manuscript.judul_dari_tim}`}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy" // Tambahkan lazy loading
+            loading="lazy"
           />
         ) : (
-          <span className="text-gray-400 dark:text-gray-500 text-sm">Tidak ada gambar</span> // Fallback jika tidak ada gambar
+          <span className="text-gray-400 dark:text-gray-500 text-sm">Tidak ada gambar</span>
         )}
       </div>
       <div className="p-4">

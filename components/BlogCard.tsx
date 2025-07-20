@@ -1,25 +1,25 @@
+// src/components/BlogCard.tsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { BlogPost } from '../types';
-import { CalendarIcon } from './icons';
+import { CalendarIcon } from './icons'; // Pastikan ikon ini ada
 
 interface BlogCardProps {
   post: BlogPost;
 }
 
 const BlogCard: React.FC<BlogCardProps> = ({ post }) => {
-  // Memastikan tanggal publikasi ada sebelum mencoba memformatnya
   const displayDate = post.tanggal_publikasi 
     ? new Date(post.tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
     : 'Tanggal tidak tersedia';
 
   return (
     <Link 
-      to={`/blog/${post.id}`} // <--- PERUBAHAN KRUSIAL DI SINI: Mengarah ke detail artikel berdasarkan ID
-      className="group block bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden" // Mengubah p-6 ke overflow-hidden untuk gambar
+      to={`/blog/${post.id}`} 
+      className="group block bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden"
     >
       <div className="relative w-full aspect-video bg-gray-100 dark:bg-gray-700 overflow-hidden">
-        {post.url_thumbnail ? ( // <--- TAMBAHAN: Menampilkan thumbnail gambar jika ada
+        {post.url_thumbnail ? (
           <img
             src={post.url_thumbnail}
             alt={`Thumbnail ${post.judul_artikel}`}
@@ -32,7 +32,7 @@ const BlogCard: React.FC<BlogCardProps> = ({ post }) => {
           </div>
         )}
       </div>
-      <div className="p-6"> {/* Konten teks di dalam padding terpisah */}
+      <div className="p-6">
         <h3 className="text-xl font-bold font-serif text-primary-800 dark:text-primary-200 group-hover:text-primary-600 dark:group-hover:text-accent-400">
           {post.judul_artikel}
         </h3>
@@ -40,7 +40,7 @@ const BlogCard: React.FC<BlogCardProps> = ({ post }) => {
         <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
           <CalendarIcon className="h-4 w-4 mr-2"/>
           <span>{displayDate}</span>
-          {post.penulis && ( // <--- Pastikan penulis ada sebelum menampilkan
+          {post.penulis && (
             <>
               <span className="mx-2">·</span>
               <span>{post.penulis}</span>

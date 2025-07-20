@@ -1,11 +1,11 @@
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './src/contexts/AuthContext';
-import Header from './components/Header';
-import Footer from './components/Footer';
+import Header from './components/Header'; // Import Header
+import Footer from './components/Footer'; // Import Footer
 import NotFound from './pages/NotFound';
 
-// --- Lazy Loading Components (Path diperbaiki) ---
+// --- Lazy Loading Components ---
 const Home = lazy(() => import('./pages/HomePage'));
 const Catalog = lazy(() => import('./pages/CatalogPage'));
 const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetailPage'));
@@ -17,6 +17,7 @@ const Contact = lazy(() => import('./pages/ContactPage'));
 const Donation = lazy(() => import('./pages/DonationPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 
+// Definisikan ThemeContext di sini
 export const ThemeContext = createContext({
   theme: 'light',
   toggleTheme: () => {},
@@ -28,16 +29,16 @@ const AppContent: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     return (
-        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans"> {/* font-sans diterapkan di sini */}
             {!isAdminRoute && <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
-            <main className="flex-grow">
+            <main className="flex-grow container mx-auto px-4 py-8"> {/* Menambahkan container dan padding umum */}
                 <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-700 dark:text-gray-300">Memuat...</div>}>
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/katalog" element={<Catalog searchTerm={searchTerm} />} />
-                        <Route path="/manuskrip/:id" element={<ManuscriptDetail />} /> {/* Pastikan rute ini ada */}
+                        <Route path="/manuskrip/:id" element={<ManuscriptDetail />} />
                         <Route path="/blog" element={<Blog />} />
-                        <Route path="/blog/:id" element={<BlogPostDetail />} /> {/* Pastikan rute ini ada dan benar */}
+                        <Route path="/blog/:id" element={<BlogPostDetail />} />
                         <Route path="/buku-tamu" element={<Guestbook />} />
                         <Route path="/profil" element={<Profile />} />
                         <Route path="/kontak" element={<Contact />} />

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Manuskrip, BlogPost, BlogStatus } from '../types'; // Import BlogStatus dari types
+import { Manuskrip, BlogPost, BlogStatus } from '../types';
 import { supabase } from '../src/supabaseClient';
 import ManuscriptCard from '../components/ManuscriptCard';
 import BlogCard from '../components/BlogCard';
-import { BookOpenIcon, CalendarIcon } from '../components/icons';
+import { BookOpenIcon, CalendarIcon, ArrowRightIcon } from '../components/icons';
 
 const HomePage: React.FC = () => {
     const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
@@ -17,21 +17,20 @@ const HomePage: React.FC = () => {
         const fetchData = async () => {
             setLoading(true);
 
-            // Fetch 4 manuskrip terbaru
+            // PERUBAHAN DI SINI: Fetch 8 manuskrip terbaru
             const { data: manuscriptsData, error: manuscriptsError } = await supabase
                 .from('manuskrip')
                 .select('*')
                 .order('created_at', { ascending: false })
-                .limit(4);
+                .limit(8); // UBAH DARI 4 MENJADI 8
             
             if (manuscriptsData) setLatestManuscripts(manuscriptsData);
             else console.error("Error fetching latest manuscripts:", manuscriptsError?.message);
 
-            // Fetch 3 artikel terpublikasi terbaru
             const { data: postsData, error: postsError } = await supabase
                 .from('blog')
                 .select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at')
-                .eq('status', BlogStatus.PUBLISHED) // Menggunakan nilai enum yang sudah dikoreksi (Published)
+                .eq('status', BlogStatus.PUBLISHED)
                 .order('tanggal_publikasi', { ascending: false })
                 .limit(3);
 
@@ -42,7 +41,6 @@ const HomePage: React.FC = () => {
                 }
             } else console.error("Error fetching latest blog posts:", postsError?.message);
 
-            // Fetch total jumlah manuskrip
             const { count, error: countError } = await supabase
                 .from('manuskrip')
                 .select('*', { count: 'exact', head: true });
@@ -63,53 +61,79 @@ const HomePage: React.FC = () => {
     return (
         <div className="space-y-16">
             {/* Hero Section */}
-            <section className="text-center bg-primary-50 dark:bg-primary-950/50 py-20 px-4 rounded-xl">
-                <h1 className="text-5xl md:text-6xl font-extrabold font-serif text-primary-900 dark:text-white">
-                    Galeri Manuskrip Sampurnan
+            <section className="text-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 py-20 px-4 rounded-xl shadow-lg">
+                {/* PERUBAHAN JUDUL WEB DI SINI */}
+                <h1 className="text-5xl md:text-6xl font-extrabold font-serif text-primary-900 dark:text-white leading-tight">
+                    Galeri Manuskrip
                 </h1>
-                <p className="mt-4 max-w-2xl mx-auto text-lg text-primary-700 dark:text-primary-200">
-                    Menjelajahi khazanah intelektual dan warisan budaya melalui koleksi naskah kuno Pondok Pesantren Qomaruddin.
+                <p className="text-3xl md:text-4xl font-extrabold font-serif text-primary-700 dark:text-primary-300 leading-tight mt-2">
+                    Sampurnan
                 </p>
-                <div className="mt-8 flex justify-center items-center space-x-6 text-gray-600 dark:text-gray-300">
-                    <div className="flex items-center">
-                        <BookOpenIcon className="h-5 w-5 mr-2" />
+                <p className="mt-6 max-w-3xl mx-auto text-xl text-primary-700 dark:text-primary-200">
+                    Mempersembahkan koleksi naskah kuno dari Pondok Pesantren Qomaruddin, jembatan menuju warisan budaya dan ilmu pengetahuan.
+                </p>
+                <div className="mt-10 flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6 text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center text-lg bg-white dark:bg-gray-700 px-5 py-3 rounded-full shadow-md">
+                        <BookOpenIcon className="h-6 w-6 mr-3 text-primary-600 dark:text-accent-400" />
                         <span>Total <strong>{totalManuscripts}</strong> Manuskrip</span>
                     </div>
                     {lastUpdate && (
-                        <div className="flex items-center">
-                            <CalendarIcon className="h-5 w-5 mr-2" />
+                        <div className="flex items-center text-lg bg-white dark:bg-gray-700 px-5 py-3 rounded-full shadow-md">
+                            <CalendarIcon className="h-6 w-6 mr-3 text-primary-600 dark:text-accent-400" />
                             <span>Update Terakhir: <strong>{lastUpdate}</strong></span>
                         </div>
                     )}
                 </div>
-                <div className="mt-10">
+                <div className="mt-12">
                     <Link
                         to="/katalog"
-                        className="px-8 py-3 bg-primary-600 text-white font-semibold rounded-full hover:bg-primary-700 dark:bg-accent-500 dark:hover:bg-accent-600 transition-colors duration-300 shadow-lg"
+                        className="inline-flex items-center px-10 py-4 bg-primary-600 text-white font-bold text-xl rounded-full hover:bg-primary-700 dark:bg-accent-500 dark:hover:bg-accent-600 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
                     >
                         Jelajahi Katalog
+                        <ArrowRightIcon className="ml-3 h-6 w-6" />
                     </Link>
                 </div>
             </section>
             
             {/* Latest Manuscripts Section */}
-            <section>
-                <h2 className="text-3xl font-bold font-serif text-center mb-8 text-gray-900 dark:text-white">Manuskrip Terbaru</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                    {latestManuscripts.map(ms => (
-                        <ManuscriptCard key={ms.kode_inventarisasi} manuscript={ms} />
-                    ))}
+            <section className="py-8">
+                <div className="flex justify-between items-center mb-8">
+                    <h2 className="text-4xl font-bold font-serif text-gray-900 dark:text-white">Manuskrip Terbaru</h2>
+                    <Link to="/katalog" className="text-primary-600 dark:text-accent-400 hover:underline text-lg flex items-center">
+                        Lihat Semua
+                        <ArrowRightIcon className="ml-2 h-5 w-5" />
+                    </Link>
                 </div>
+                {latestManuscripts.length === 0 ? (
+                    <p className="text-center text-gray-600 dark:text-gray-400">Belum ada manuskrip terbaru yang ditemukan.</p>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                        {/* Jumlah kolom per breakpoint disesuaikan agar 8 item terlihat rapi */}
+                        {latestManuscripts.map(ms => (
+                            <ManuscriptCard key={ms.kode_inventarisasi} manuscript={ms} />
+                        ))}
+                    </div>
+                )}
             </section>
 
             {/* Latest Blog Posts Section */}
-            <section>
-                <h2 className="text-3xl font-bold font-serif text-center mb-8 text-gray-900 dark:text-white">Artikel Terkini</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {latestPosts.map(post => (
-                        <BlogCard key={post.id} post={post} />
-                    ))}
+            <section className="py-8">
+                <div className="flex justify-between items-center mb-8">
+                    <h2 className="text-4xl font-bold font-serif text-gray-900 dark:text-white">Artikel Terkini</h2>
+                    <Link to="/blog" className="text-primary-600 dark:text-accent-400 hover:underline text-lg flex items-center">
+                        Lihat Semua
+                        <ArrowRightIcon className="ml-2 h-5 w-5" />
+                    </Link>
                 </div>
+                {latestPosts.length === 0 ? (
+                    <p className="text-center text-gray-600 dark:text-gray-400">Belum ada artikel terbaru yang dipublikasikan.</p>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {latestPosts.map(post => (
+                            <BlogCard key={post.id} post={post} />
+                        ))}
+                    </div>
+                )}
             </section>
         </div>
     );

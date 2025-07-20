@@ -1,22 +1,20 @@
-
+// src/components/ThemeToggle.tsx
 import React, { useContext } from 'react';
-import { ThemeContext } from '../contexts/ThemeContext';
-import { SunIcon, MoonIcon } from './icons';
+import { ThemeContext } from '../App'; // Asumsi ThemeContext ada di App.tsx
+import { SunIcon, MoonIcon } from './icons'; // Pastikan ikon ini ada
 
-export const ThemeToggle: React.FC = () => {
-  const { theme, toggleTheme } = useContext(ThemeContext);
+const ThemeToggle: React.FC = () => {
+    const { theme, toggleTheme } = useContext(ThemeContext);
 
-  return (
-    <button
-      onClick={toggleTheme}
-      className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900"
-      aria-label="Toggle theme"
-    >
-      {theme === 'light' ? (
-        <MoonIcon className="h-6 w-6" />
-      ) : (
-        <SunIcon className="h-6 w-6" />
-      )}
-    </button>
-  );
+    return (
+        <button 
+            onClick={toggleTheme} 
+            className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-300"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+            {theme === 'dark' ? <SunIcon className="h-6 w-6" /> : <MoonIcon className="h-6 w-6" />}
+        </button>
+    );
 };
+
+export default ThemeToggle;

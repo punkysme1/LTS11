@@ -8,7 +8,7 @@ interface CatalogPageProps {
   searchTerm: string;
 }
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 20; // Dikonfirmasi: 20 item per halaman
 
 const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
   const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
@@ -25,7 +25,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
       setLoading(true);
       const { data, error } = await supabase
         .from('manuskrip')
-        .select('*'); // Mengambil semua kolom
+        .select('*');
       if (error) {
         console.error('Error fetching manuscripts:', error);
       } else {
@@ -39,16 +39,16 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
   const categoryCounts = useMemo(() => {
     return manuscripts.reduce((acc, ms) => {
       const category = ms.kategori_ilmu_pesantren;
-      if (category) { // Pastikan kategori tidak null/undefined
+      if (category) {
         acc[category] = (acc[category] || 0) + 1;
       }
       return acc;
     }, {} as Record<string, number>);
   }, [manuscripts]);
 
-  const uniqueKategori = useMemo(() => [...new Set(manuscripts.map(m => m.kategori_ilmu_pesantren).filter(Boolean))], [manuscripts]); // Filter Boolean untuk menghapus null/undefined
-  const uniqueBahasa = useMemo(() => [...new Set(manuscripts.flatMap(m => m.bahasa ? m.bahasa.split(',').map(b => b.trim()) : []).filter(Boolean))], [manuscripts]); // Handle null/undefined bahasa
-  const uniqueAksara = useMemo(() => [...new Set(manuscripts.flatMap(m => m.aksara ? m.aksara.split(',').map(a => a.trim()) : []).filter(Boolean))], [manuscripts]); // Handle null/undefined aksara
+  const uniqueKategori = useMemo(() => [...new Set(manuscripts.map(m => m.kategori_ilmu_pesantren).filter(Boolean))], [manuscripts]);
+  const uniqueBahasa = useMemo(() => [...new Set(manuscripts.flatMap(m => m.bahasa ? m.bahasa.split(',').map(b => b.trim()) : []).filter(Boolean))], [manuscripts]);
+  const uniqueAksara = useMemo(() => [...new Set(manuscripts.flatMap(m => m.aksara ? m.aksara.split(',').map(a => a.trim()) : []).filter(Boolean))], [manuscripts]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -139,7 +139,17 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
           <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
             <ChevronLeftIcon className="h-5 w-5" />
           </button>
-          <span className="text-gray-700 dark:text-gray-300">Halaman <strong>{currentPage}</strong> dari <strong>{totalPages}</strong></span>
+          {/* Tampilkan tombol angka halaman jika Anda ingin 1 2 3 ... Next */}
+          {/* Ini adalah implementasi dasar pagination. Untuk 1 2 3 ... Next, diperlukan logika yang lebih kompleks */}
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNumber => (
+            <button
+              key={pageNumber}
+              onClick={() => goToPage(pageNumber)}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${currentPage === pageNumber ? 'bg-primary-600 text-white dark:bg-accent-500' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'} hover:bg-primary-500 dark:hover:bg-accent-400 transition-colors`}
+            >
+              {pageNumber}
+            </button>
+          ))}
           <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
             <ChevronRightIcon className="h-5 w-5" />
           </button>
