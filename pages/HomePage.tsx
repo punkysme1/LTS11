@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Manuskrip, BlogPost } from '../types'; // Tipe data tetap digunakan
-import { supabase } from '../src/supabaseClient'; // Pastikan path ini benar
+import { Manuskrip, BlogPost, BlogStatus } from '../types'; // Import BlogStatus dari types
+import { supabase } from '../src/supabaseClient';
 import ManuscriptCard from '../components/ManuscriptCard';
 import BlogCard from '../components/BlogCard';
 import { BookOpenIcon, CalendarIcon } from '../components/icons';
@@ -25,33 +25,30 @@ const HomePage: React.FC = () => {
                 .limit(4);
             
             if (manuscriptsData) setLatestManuscripts(manuscriptsData);
+            else console.error("Error fetching latest manuscripts:", manuscriptsError?.message);
 
             // Fetch 3 artikel terpublikasi terbaru
             const { data: postsData, error: postsError } = await supabase
                 .from('blog')
-                .select('*')
-                .eq('status', 'PUBLISHED')
+                .select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at')
+                .eq('status', BlogStatus.PUBLISHED) // Menggunakan nilai enum yang sudah dikoreksi (Published)
                 .order('tanggal_publikasi', { ascending: false })
                 .limit(3);
 
             if (postsData) {
                 setLatestPosts(postsData);
-                if (postsData.length > 0) {
+                if (postsData.length > 0 && postsData[0].tanggal_publikasi) {
                     setLastUpdate(new Date(postsData[0].tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }));
                 }
-            }
+            } else console.error("Error fetching latest blog posts:", postsError?.message);
 
             // Fetch total jumlah manuskrip
             const { count, error: countError } = await supabase
                 .from('manuskrip')
                 .select('*', { count: 'exact', head: true });
             
-            if (count) setTotalManuscripts(count);
-            
-            // Handle errors jika perlu
-            if (manuscriptsError) console.error("Error fetching manuscripts:", manuscriptsError.message);
-            if (postsError) console.error("Error fetching blog posts:", postsError.message);
-            if (countError) console.error("Error fetching count:", countError.message);
+            if (count !== null) setTotalManuscripts(count);
+            else console.error("Error fetching manuscript count:", countError?.message);
 
             setLoading(false);
         };
@@ -60,7 +57,7 @@ const HomePage: React.FC = () => {
     }, []);
 
     if (loading) {
-        return <div className="text-center py-20">Memuat data...</div>
+        return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat data...</div>
     }
 
     return (
@@ -97,7 +94,7 @@ const HomePage: React.FC = () => {
             
             {/* Latest Manuscripts Section */}
             <section>
-                <h2 className="text-3xl font-bold font-serif text-center mb-8">Manuskrip Terbaru</h2>
+                <h2 className="text-3xl font-bold font-serif text-center mb-8 text-gray-900 dark:text-white">Manuskrip Terbaru</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                     {latestManuscripts.map(ms => (
                         <ManuscriptCard key={ms.kode_inventarisasi} manuscript={ms} />
@@ -107,7 +104,7 @@ const HomePage: React.FC = () => {
 
             {/* Latest Blog Posts Section */}
             <section>
-                <h2 className="text-3xl font-bold font-serif text-center mb-8">Artikel Terkini</h2>
+                <h2 className="text-3xl font-bold font-serif text-center mb-8 text-gray-900 dark:text-white">Artikel Terkini</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {latestPosts.map(post => (
                         <BlogCard key={post.id} post={post} />

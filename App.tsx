@@ -10,7 +10,7 @@ const Home = lazy(() => import('./pages/HomePage'));
 const Catalog = lazy(() => import('./pages/CatalogPage'));
 const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetailPage'));
 const Blog = lazy(() => import('./pages/BlogListPage'));
-const BlogPostDetail = lazy(() => import('./pages/BlogPostDetailPage')); // <-- FIX: Path diubah di sini
+const BlogPostDetail = lazy(() => import('./pages/BlogPostDetailPage'));
 const Guestbook = lazy(() => import('./pages/GuestBookPage'));
 const Profile = lazy(() => import('./pages/ProfilePage'));
 const Contact = lazy(() => import('./pages/ContactPage'));
@@ -31,13 +31,13 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
             {!isAdminRoute && <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
             <main className="flex-grow">
-                <Suspense fallback={<div className="flex justify-center items-center h-screen">Memuat...</div>}>
+                <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-700 dark:text-gray-300">Memuat...</div>}>
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/katalog" element={<Catalog searchTerm={searchTerm} />} />
-                        <Route path="/manuskrip/:id" element={<ManuscriptDetail />} />
+                        <Route path="/manuskrip/:id" element={<ManuscriptDetail />} /> {/* Pastikan rute ini ada */}
                         <Route path="/blog" element={<Blog />} />
-                        <Route path="/blog/:id" element={<BlogPostDetail />} />
+                        <Route path="/blog/:id" element={<BlogPostDetail />} /> {/* Pastikan rute ini ada dan benar */}
                         <Route path="/buku-tamu" element={<Guestbook />} />
                         <Route path="/profil" element={<Profile />} />
                         <Route path="/kontak" element={<Contact />} />

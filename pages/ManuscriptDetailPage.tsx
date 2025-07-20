@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { manuscripts } from '../data/mockData';
+import { supabase } from '../src/supabaseClient'; // Import supabase
 import { Manuskrip } from '../types';
 import { askAboutManuscript } from '../services/geminiService';
 import { SparklesIcon } from '../components/icons';
@@ -8,6 +8,8 @@ import { SparklesIcon } from '../components/icons';
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
+    const [loading, setLoading] = useState(true); // Tambahkan state loading
+    const [error, setError] = useState<string | null>(null); // Tambahkan state error
     const [activeTab, setActiveTab] = useState('info');
     const [mainImage, setMainImage] = useState('');
     const [contentImages, setContentImages] = useState<string[]>([]);
@@ -17,20 +19,40 @@ const ManuscriptDetailPage: React.FC = () => {
     const [isAiLoading, setIsAiLoading] = useState(false);
 
     useEffect(() => {
-        // --- CATATAN PENTING ---
-        // Anda mungkin perlu mengganti ini dengan pengambilan data dari Supabase
-        // Contoh:
-        // const { data, error } = await supabase.from('manuskrip').select('*').eq('kode_inventarisasi', id).single();
-        // if (error) console.error(error);
-        // else setManuscript(data);
-        const foundManuscript = manuscripts.find(ms => ms.kode_inventarisasi === id) || null;
-        setManuscript(foundManuscript);
-        if (foundManuscript) {
-            setMainImage(foundManuscript.url_kover);
-            const urls = foundManuscript.url_konten.split('\n').filter(url => url.trim() !== '');
-            setContentImages(urls);
+        const fetchManuscriptDetail = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error } = await supabase
+                    .from('manuskrip')
+                    .select('*')
+                    .eq('kode_inventarisasi', id)
+                    .single(); // Mengambil satu baris data
+
+                if (error) {
+                    throw error;
+                }
+                
+                if (data) {
+                    setManuscript(data as Manuskrip);
+                    setMainImage(data.url_kover || '');
+                    const urls = (data.url_konten || '').split('\n').filter(url => url.trim() !== '');
+                    setContentImages(urls);
+                } else {
+                    setError('Manuskrip tidak ditemukan.');
+                }
+            } catch (err: any) {
+                console.error('Error fetching manuscript detail:', err.message);
+                setError('Gagal memuat detail manuskrip: ' + err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (id) {
+            fetchManuscriptDetail();
         }
-    }, [id]);
+    }, [id]); // Dependensi id agar fetch ulang jika id berubah
 
     const handleAiSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,6 +63,7 @@ const ManuscriptDetailPage: React.FC = () => {
 
         try {
             // Pastikan askAboutManuscript diimplementasikan dengan benar di services/geminiService.ts
+            // Ini akan memerlukan penyesuaian di geminiService.ts jika belum diimplementasikan
             const stream = await askAboutManuscript(aiQuestion, manuscript);
             for await (const chunk of stream) {
                 setAiResponse(prev => prev + chunk.text);
@@ -52,6 +75,14 @@ const ManuscriptDetailPage: React.FC = () => {
             setIsAiLoading(false);
         }
     };
+
+    if (loading) {
+        return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat detail manuskrip...</div>;
+    }
+
+    if (error) {
+        return <div className="text-center py-16 text-red-600 dark:text-red-400">Error: {error}</div>;
+    }
 
     if (!manuscript) {
         return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Manuskrip tidak ditemukan.</div>;
@@ -72,7 +103,9 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Afiliasi" value={manuscript.afiliasi} />
                         <DetailItem label="Nama Koleksi" value={manuscript.nama_koleksi} />
                         <DetailItem label="Nomor Koleksi" value={manuscript.nomor_koleksi} />
-                        <DetailItem label="Link Digital" value={manuscript.link_digital_afiliasi ? <a href={manuscript.link_digital_afiliasi} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_afiliasi}</a> : null} />
+                        <DetailItem label="Nomor Digitalisasi" value={manuscript.nomor_digitalisasi} /> {/* Tambahan */}
+                        <DetailItem label="Link Digital Afiliasi" value={manuscript.link_digital_afiliasi ? <a href={manuscript.link_digital_afiliasi} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_afiliasi}</a> : null} />
+                        <DetailItem label="Link Digital TPPKP Qomaruddin" value={manuscript.link_digital_tppkp_qomaruddin ? <a href={manuscript.link_digital_tppkp_qomaruddin} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_tppkp_qomaruddin}</a> : null} /> {/* Tambahan */}
                     </dl>
                 );
             case 'fisik':
@@ -81,11 +114,20 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Kondisi Fisik" value={manuscript.kondisi_fisik_naskah} />
                         <DetailItem label="Ukuran Dimensi" value={manuscript.ukuran_dimensi} />
                         <DetailItem label="Kover" value={manuscript.kover} />
+                        <DetailItem label="Ukuran Kover" value={manuscript.ukuran_kover} /> {/* Tambahan */}
                         <DetailItem label="Jilid" value={manuscript.jilid} />
-                        <DetailItem label="Jumlah Halaman" value={manuscript.jumlah_halaman} />
-                        <DetailItem label="Halaman Kosong" value={manuscript.halaman_kosong} />
+                        <DetailItem label="Ukuran Kertas" value={manuscript.ukuran_kertas} /> {/* Tambahan */}
                         <DetailItem label="Tinta" value={manuscript.tinta} />
                         <DetailItem label="Watermark" value={manuscript.watermark} />
+                        <DetailItem label="Countermark" value={manuscript.countermark} /> {/* Tambahan */}
+                        <DetailItem label="Jumlah Halaman" value={manuscript.jumlah_halaman} />
+                        <DetailItem label="Halaman Kosong" value={manuscript.halaman_kosong} />
+                        <DetailItem label="Jumlah Baris per Halaman" value={manuscript.jumlah_baris_per_halaman} /> {/* Tambahan */}
+                        <DetailItem label="Rubrikasi" value={manuscript.rubrikasi} /> {/* Tambahan */}
+                        <DetailItem label="Iluminasi" value={manuscript.iluminasi} /> {/* Tambahan */}
+                        <DetailItem label="Ilustrasi" value={manuscript.ilustrasi} /> {/* Tambahan */}
+                        <DetailItem label="Catatan Pinggir" value={manuscript.catatan_pinggir} /> {/* Tambahan */}
+                        <DetailItem label="Catatan Makna" value={manuscript.catatan_makna} /> {/* Tambahan */}
                         <DetailItem label="Keterbacaan" value={manuscript.keterbacaan} />
                         <DetailItem label="Kelengkapan Naskah" value={manuscript.kelengkapan_naskah} />
                     </dl>
@@ -102,6 +144,7 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Aksara" value={manuscript.aksara} />
                         <DetailItem label="Kolofon" value={manuscript.kolofon} />
                         <DetailItem label="Catatan Tambahan" value={manuscript.catatan_catatan} />
+                        <DetailItem label="Catatan Marginal" value={manuscript.catatan_marginal} /> {/* Tambahan */}
                     </dl>
                 );
             default: return null;
@@ -116,7 +159,7 @@ const ManuscriptDetailPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                 {/* Image Gallery */}
                 <div className="lg:col-span-2">
-                    <div className="aspect-[3/4] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 mb-4 bg-gray-100 dark:bg-gray-700 flex items-center justify-center"> {/* Menambahkan bg fallback */}
+                    <div className="aspect-[3/4] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 mb-4 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                         {mainImage ? (
                             <img src={mainImage} alt="Kover utama" className="w-full h-full object-contain"/>
                         ) : (
@@ -172,7 +215,7 @@ const ManuscriptDetailPage: React.FC = () => {
                     </button>
                 </form>
                 {aiResponse && (
-                    <div className="mt-4 p-4 bg-primary-50 dark:bg-gray-900 rounded-md border border-primary-200 dark:border-gray-700"> {/* Menambahkan border */}
+                    <div className="mt-4 p-4 bg-primary-50 dark:bg-gray-900 rounded-md border border-primary-200 dark:border-gray-700">
                         <p className="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200">{aiResponse}</p>
                     </div>
                 )}

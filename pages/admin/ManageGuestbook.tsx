@@ -34,20 +34,27 @@ const ManageGuestbook: React.FC = () => {
 
     return (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <h2 className="text-xl font-bold mb-4">Manajemen Buku Tamu</h2>
-            {loading ? <p>Memuat...</p> : (
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Manajemen Buku Tamu</h2>
+            {loading ? <p className="text-gray-600 dark:text-gray-300">Memuat...</p> : (
                 <div className="space-y-4">
                     {entries.map(entry => (
-                        <div key={entry.id} className="border p-4 rounded-md">
-                            <p><strong>{entry.nama_pengunjung}</strong> dari <em>{entry.asal_institusi}</em></p>
-                            <p className="my-2">"{entry.pesan}"</p>
-                            <div className="flex justify-between items-center text-sm text-gray-500">
-                                <span>{new Date(entry.tanggal_kirim).toLocaleString('id-ID')}</span>
-                                <div className="flex items-center space-x-2">
+                        <div key={entry.id} className="border border-gray-200 dark:border-gray-700 p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
+                            <p className="text-gray-800 dark:text-gray-200">
+                                <strong>{entry.nama_pengunjung}</strong> dari <em>{entry.asal_institusi}</em>
+                            </p>
+                            <p className="my-2 text-gray-700 dark:text-gray-300">"{entry.pesan}"</p>
+                            <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+                                <span>
+                                    {new Date(entry.tanggal_kirim).toLocaleString('id-ID')} - 
+                                    <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry.status === GuestBookStatus.APPROVED ? 'bg-green-100 text-green-800 dark:bg-green-700 dark:text-green-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100'}`}>
+                                        {entry.status}
+                                    </span>
+                                </span>
+                                <div className="flex items-center space-x-4"> {/* Menambah space-x-4 untuk jarak tombol */}
                                     {entry.status !== GuestBookStatus.APPROVED && (
-                                        <button onClick={() => handleApprove(entry.id)} className="text-green-600">Setujui</button>
+                                        <button onClick={() => handleApprove(entry.id)} className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 font-medium">Setujui</button>
                                     )}
-                                    <button onClick={() => handleDelete(entry.id)} className="text-red-600">Hapus</button>
+                                    <button onClick={() => handleDelete(entry.id)} className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-medium">Hapus</button>
                                 </div>
                             </div>
                         </div>
