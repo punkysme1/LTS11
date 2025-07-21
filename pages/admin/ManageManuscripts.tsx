@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Tambah useMemo
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../src/supabaseClient';
 import { Manuskrip } from '../../types';
 import * as XLSX from 'xlsx';
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../components/icons'; // Tambahkan SearchIcon
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../../components/icons'; 
 
 // Membungkus FormField dengan React.memo untuk optimasi
 const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?: string, disabled?: boolean, rows?: number, value: string | number | undefined, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void }> = React.memo(({ name, label, type = 'text', disabled = false, rows, value, onChange }) => {
