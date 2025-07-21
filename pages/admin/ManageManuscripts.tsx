@@ -35,6 +35,7 @@ const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?:
     );
 });
 
+const MAX_URL_FIELDS = 15; // Batasan maksimal URL gambar
 
 const ManageManuscripts: React.FC = () => {
     const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
@@ -44,6 +45,8 @@ const ManageManuscripts: React.FC = () => {
     const [editingManuscript, setEditingManuscript] = useState<Manuskrip | null>(null);
     const [formData, setFormData] = useState<Partial<Manuskrip>>({});
     const [isUploading, setIsUploading] = useState(false);
+    const [urlContentFields, setUrlContentFields] = useState<string[]>([]); // State baru untuk field URL konten
+
 
     const fetchManuscripts = useCallback(async () => {
         setLoading(true);
@@ -72,9 +75,33 @@ const ManageManuscripts: React.FC = () => {
         }));
     }, []);
 
+    const handleUrlFieldChange = useCallback((index: number, value: string) => {
+        setUrlContentFields(prevUrls => {
+            const newUrls = [...prevUrls];
+            newUrls[index] = value;
+            return newUrls;
+        });
+    }, []);
+
+    const handleAddUrlField = useCallback(() => {
+        if (urlContentFields.length < MAX_URL_FIELDS) {
+            setUrlContentFields(prevUrls => [...prevUrls, '']);
+        } else {
+            alert(`Maksimal ${MAX_URL_FIELDS} URL gambar.`);
+        }
+    }, [urlContentFields]);
+
+    const handleRemoveUrlField = useCallback((indexToRemove: number) => {
+        setUrlContentFields(prevUrls => {
+            const newUrls = prevUrls.filter((_, index) => index !== indexToRemove);
+            return newUrls.length > 0 ? newUrls : ['']; // Pastikan minimal ada satu field kosong
+        });
+    }, []);
+
     const handleAdd = () => {
         setEditingManuscript(null);
         setFormData({});
+        setUrlContentFields(['']); // Inisialisasi dengan satu field kosong
         setShowModal(true);
     };
 
@@ -92,6 +119,14 @@ const ManageManuscripts: React.FC = () => {
         
         setEditingManuscript(data);
         setFormData(data);
+
+        // Urai string url_konten menjadi array untuk field input
+        const parsedUrls = (data.url_konten || '')
+                            .split('\n')
+                            .map(url => url.trim())
+                            .filter(url => url !== '');
+        setUrlContentFields(parsedUrls.length > 0 ? parsedUrls : ['']); // Minimal satu field kosong
+
         setShowModal(true);
     };
     
@@ -112,23 +147,30 @@ const ManageManuscripts: React.FC = () => {
             return;
         }
 
-        // --- TAMBAHAN LOGGING DI SINI ---
-        console.log('Menyimpan data manuskrip...');
-        console.log('formData yang akan dikirim:', formData);
-        console.log('editingPost:', editingPost);
+        // Gabungkan array URL konten kembali menjadi string yang dipisahkan baris baru
+        const finalUrlKonten = urlContentFields.filter(url => url.trim() !== '').join('\n');
+        
+        const dataToSave = {
+            ...formData,
+            url_konten: finalUrlKonten, // Perbarui url_konten dengan string gabungan
+        };
 
+        console.log('Menyimpan data manuskrip...');
+        console.log('formData yang akan dikirim:', dataToSave);
+        
         let supabaseCall;
-        if (editingPost) {
-            console.log('Melakukan UPDATE untuk ID:', editingPost.kode_inventarisasi);
-            supabaseCall = await supabase.from('manuskrip').update(formData).eq('kode_inventarisasi', editingPost.kode_inventarisasi);
+        if (editingManuscript) {
+            console.log('Melakukan UPDATE untuk ID:', editingManuscript.kode_inventarisasi);
+            console.log('Data editingManuscript:', editingManuscript);
+            supabaseCall = await supabase.from('manuskrip').update(dataToSave).eq('kode_inventarisasi', editingManuscript.kode_inventarisasi);
         } else {
             console.log('Melakukan INSERT');
-            supabaseCall = await supabase.from('manuskrip').insert([formData]);
+            console.log('editingManuscript (saat insert, seharusnya null):', editingManuscript);
+            supabaseCall = await supabase.from('manuskrip').insert([dataToSave]);
         }
 
         const { data, error } = supabaseCall;
 
-        // --- CEK ERROR DENGAN LEBIH RINCI ---
         if (error) {
             console.error('Error dari Supabase:', error);
             console.error('Pesan Error:', error.message);
@@ -292,7 +334,46 @@ const ManageManuscripts: React.FC = () => {
                                 
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">URL Gambar</h4>
                                 <MemoizedFormField name="url_kover" label="URL Kover" value={formData.url_kover} onChange={handleInputChange} />
-                                <MemoizedFormField name="url_konten" label="URL Konten (pisahkan dengan baris baru)" type="textarea" rows={5} value={formData.url_konten} onChange={handleInputChange} />
+                                
+                                {/* Bagian baru untuk multiple URL Konten */}
+                                <div className="col-span-full">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL Konten (maks. {MAX_URL_FIELDS} link per baris)</label>
+                                    <div className="space-y-2">
+                                        {urlContentFields.map((url, index) => (
+                                            <div key={index} className="flex items-center space-x-2">
+                                                <input
+                                                    type="text"
+                                                    value={url}
+                                                    onChange={(e) => handleUrlFieldChange(index, e.target.value)}
+                                                    placeholder={`URL Konten ${index + 1}`}
+                                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
+                                                />
+                                                {urlContentFields.length > 1 && ( // Tampilkan tombol hapus jika lebih dari 1 field
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveUrlField(index)}
+                                                        className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
+                                                        title="Hapus URL ini"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {urlContentFields.length < MAX_URL_FIELDS && (
+                                        <button
+                                            type="button"
+                                            onClick={handleAddUrlField}
+                                            className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200 dark:bg-primary-700 dark:text-primary-200 dark:hover:bg-primary-600"
+                                        >
+                                            + Tambah URL
+                                        </button>
+                                    )}
+                                </div>
+                                {/* End Bagian baru untuk multiple URL Konten */}
 
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Atribut Fisik</h4>
                                 <MemoizedFormField name="kondisi_fisik_naskah" label="Kondisi Fisik" value={formData.kondisi_fisik_naskah} onChange={handleInputChange} />
