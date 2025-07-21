@@ -4,7 +4,6 @@ import { Manuskrip } from '../../types';
 import * as XLSX from 'xlsx';
 
 // Membungkus FormField dengan React.memo untuk optimasi
-// Perhatikan: properti 'disabled' sekarang diterima langsung oleh MemoizedFormField
 const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?: string, disabled?: boolean, rows?: number, value: string | number | undefined, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void }> = React.memo(({ name, label, type = 'text', disabled = false, rows, value, onChange }) => {
     const displayValue = (type === 'number' && (value === 0 || value === null || value === undefined)) ? '' : (value || '');
 
@@ -113,13 +112,31 @@ const ManageManuscripts: React.FC = () => {
             return;
         }
 
-        const { error } = editingManuscript
-            ? await supabase.from('manuskrip').update(formData).eq('kode_inventarisasi', editingManuscript.kode_inventarisasi)
-            : await supabase.from('manuskrip').insert([formData]);
+        // --- TAMBAHAN LOGGING DI SINI ---
+        console.log('Menyimpan data manuskrip...');
+        console.log('formData yang akan dikirim:', formData);
+        console.log('editingPost:', editingPost);
 
-        if (error) alert('Gagal menyimpan: ' + error.message);
-        else {
-            alert('Data berhasil disimpan.');
+        let supabaseCall;
+        if (editingPost) {
+            console.log('Melakukan UPDATE untuk ID:', editingPost.kode_inventarisasi);
+            supabaseCall = await supabase.from('manuskrip').update(formData).eq('kode_inventarisasi', editingPost.kode_inventarisasi);
+        } else {
+            console.log('Melakukan INSERT');
+            supabaseCall = await supabase.from('manuskrip').insert([formData]);
+        }
+
+        const { data, error } = supabaseCall;
+
+        // --- CEK ERROR DENGAN LEBIH RINCI ---
+        if (error) {
+            console.error('Error dari Supabase:', error);
+            console.error('Pesan Error:', error.message);
+            console.error('Detail Error:', error.details);
+            alert('Gagal menyimpan: ' + (error.message || 'Terjadi kesalahan tidak dikenal.'));
+        } else {
+            console.log('Operasi Supabase berhasil. Data yang dikembalikan:', data);
+            alert('Artikel berhasil disimpan.');
             setShowModal(false);
             fetchManuscripts();
         }
@@ -255,14 +272,12 @@ const ManageManuscripts: React.FC = () => {
             {showModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-                        {/* Judul modal ini yang menggunakan editingManuscript */}
                         <h3 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                             {editingManuscript ? 'Edit Manuskrip' : 'Tambah Manuskrip'}
                         </h3>
                         <div className="p-4 overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Info Utama & Klasifikasi</h4>
-                                {/* Properti disabled sekarang diteruskan langsung sebagai prop */}
                                 <MemoizedFormField name="kode_inventarisasi" label="Kode Inventarisasi (Wajib)" disabled={!!editingManuscript} value={formData.kode_inventarisasi} onChange={handleInputChange} />
                                 <MemoizedFormField name="judul_dari_tim" label="Judul Tim (Wajib)" value={formData.judul_dari_tim} onChange={handleInputChange} />
                                 <MemoizedFormField name="judul_dari_afiliasi" label="Judul dari Afiliasi" value={formData.judul_dari_afiliasi} onChange={handleInputChange} />
