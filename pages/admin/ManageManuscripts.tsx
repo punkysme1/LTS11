@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Tambah useMemo
 import { supabase } from '../../src/supabaseClient';
 import { Manuskrip } from '../../types';
 import * as XLSX from 'xlsx';
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../components/icons'; // Tambahkan SearchIcon
 
 // Membungkus FormField dengan React.memo untuk optimasi
 const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?: string, disabled?: boolean, rows?: number, value: string | number | undefined, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void }> = React.memo(({ name, label, type = 'text', disabled = false, rows, value, onChange }) => {
@@ -35,7 +36,8 @@ const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?:
     );
 });
 
-const MAX_URL_FIELDS = 15; // Batasan maksimal URL gambar
+const MAX_URL_FIELDS = 15;
+const ITEMS_PER_PAGE_ADMIN = 10; // Kustomisasi: 10 manuskrip per halaman
 
 const ManageManuscripts: React.FC = () => {
     const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
@@ -45,14 +47,17 @@ const ManageManuscripts: React.FC = () => {
     const [editingManuscript, setEditingManuscript] = useState<Manuskrip | null>(null);
     const [formData, setFormData] = useState<Partial<Manuskrip>>({});
     const [isUploading, setIsUploading] = useState(false);
-    const [urlContentFields, setUrlContentFields] = useState<string[]>([]); // State baru untuk field URL konten
+    const [urlContentFields, setUrlContentFields] = useState<string[]>([]);
 
+    const [searchTermAdmin, setSearchTermAdmin] = useState(''); // State untuk search
+    const [currentPageAdmin, setCurrentPageAdmin] = useState(1); // State untuk paginasi
 
     const fetchManuscripts = useCallback(async () => {
         setLoading(true);
+        // Mengambil semua data yang dibutuhkan untuk pencarian dan paginasi client-side
         const { data, error } = await supabase
             .from('manuskrip')
-            .select('kode_inventarisasi, judul_dari_tim, pengarang')
+            .select('*') // Ambil semua kolom untuk filter lokal
             .order('created_at', { ascending: false });
 
         if (error) {
@@ -66,6 +71,41 @@ const ManageManuscripts: React.FC = () => {
     useEffect(() => {
         fetchManuscripts();
     }, [fetchManuscripts]);
+
+    // Logika pencarian dan paginasi
+    const filteredManuscripts = useMemo(() => {
+        if (!searchTermAdmin) {
+            return manuscripts;
+        }
+        const lowerCaseSearchTerm = searchTermAdmin.toLowerCase();
+        return manuscripts.filter(ms => 
+            (ms.judul_dari_tim && ms.judul_dari_tim.toLowerCase().includes(lowerCaseSearchTerm)) ||
+            (ms.pengarang && ms.pengarang.toLowerCase().includes(lowerCaseSearchTerm)) ||
+            (ms.kode_inventarisasi && ms.kode_inventarisasi.toLowerCase().includes(lowerCaseSearchTerm))
+        );
+    }, [manuscripts, searchTermAdmin]);
+
+    const totalPagesAdmin = useMemo(() => {
+        return Math.ceil(filteredManuscripts.length / ITEMS_PER_PAGE_ADMIN);
+    }, [filteredManuscripts]);
+
+    const paginatedManuscripts = useMemo(() => {
+        const startIndex = (currentPageAdmin - 1) * ITEMS_PER_PAGE_ADMIN;
+        const endIndex = startIndex + ITEMS_PER_PAGE_ADMIN;
+        return filteredManuscripts.slice(startIndex, endIndex);
+    }, [filteredManuscripts, currentPageAdmin]);
+
+    const goToPageAdmin = useCallback((page: number) => {
+        if (page >= 1 && page <= totalPagesAdmin) {
+            setCurrentPageAdmin(page);
+        }
+    }, [totalPagesAdmin]);
+
+    const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTermAdmin(e.target.value);
+        setCurrentPageAdmin(1); // Reset halaman ke 1 setiap kali mencari
+    }, []);
+
 
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -94,14 +134,14 @@ const ManageManuscripts: React.FC = () => {
     const handleRemoveUrlField = useCallback((indexToRemove: number) => {
         setUrlContentFields(prevUrls => {
             const newUrls = prevUrls.filter((_, index) => index !== indexToRemove);
-            return newUrls.length > 0 ? newUrls : ['']; // Pastikan minimal ada satu field kosong
+            return newUrls.length > 0 ? newUrls : [''];
         });
     }, []);
 
     const handleAdd = () => {
         setEditingManuscript(null);
         setFormData({});
-        setUrlContentFields(['']); // Inisialisasi dengan satu field kosong
+        setUrlContentFields(['']);
         setShowModal(true);
     };
 
@@ -120,12 +160,11 @@ const ManageManuscripts: React.FC = () => {
         setEditingManuscript(data);
         setFormData(data);
 
-        // Urai string url_konten menjadi array untuk field input
         const parsedUrls = (data.url_konten || '')
                             .split('\n')
                             .map(url => url.trim())
                             .filter(url => url !== '');
-        setUrlContentFields(parsedUrls.length > 0 ? parsedUrls : ['']); // Minimal satu field kosong
+        setUrlContentFields(parsedUrls.length > 0 ? parsedUrls : ['']);
 
         setShowModal(true);
     };
@@ -147,12 +186,11 @@ const ManageManuscripts: React.FC = () => {
             return;
         }
 
-        // Gabungkan array URL konten kembali menjadi string yang dipisahkan baris baru
         const finalUrlKonten = urlContentFields.filter(url => url.trim() !== '').join('\n');
         
         const dataToSave = {
             ...formData,
-            url_konten: finalUrlKonten, // Perbarui url_konten dengan string gabungan
+            url_konten: finalUrlKonten,
         };
 
         console.log('Menyimpan data manuskrip...');
@@ -269,9 +307,20 @@ const ManageManuscripts: React.FC = () => {
         <div className="p-6">
             {error && <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-900 dark:text-red-200" role="alert">{error}</div>}
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-y-3">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Manajemen Manuskrip</h2>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                        {/* Kolom Pencarian */}
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Cari..."
+                                value={searchTermAdmin}
+                                onChange={handleSearchInputChange}
+                                className="pl-9 pr-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-accent-400 text-sm dark:text-white"
+                            />
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        </div>
                         <button onClick={handleDownloadTemplate} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm bg-gray-600 hover:bg-gray-700 text-white">
                             Download Template (.xlsx)
                         </button>
@@ -283,6 +332,7 @@ const ManageManuscripts: React.FC = () => {
                     </div>
                 </div>
                 {loading ? <p className="text-gray-600 dark:text-gray-300">Memuat...</p> : (
+                    <>
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                            <thead className="bg-gray-50 dark:bg-gray-700">
@@ -294,20 +344,57 @@ const ManageManuscripts: React.FC = () => {
                                 </tr>
                            </thead>
                             <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                                {manuscripts.map(ms => (
-                                    <tr key={ms.kode_inventarisasi}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{ms.kode_inventarisasi}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{ms.judul_dari_tim}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{ms.pengarang || '-'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button onClick={() => handleEdit(ms)} className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 mr-4">Edit</button>
-                                            <button onClick={() => handleDelete(ms.kode_inventarisasi)} className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Hapus</button>
+                                {paginatedManuscripts.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                                            {searchTermAdmin ? "Tidak ada hasil untuk pencarian Anda." : "Tidak ada manuskrip untuk ditampilkan."}
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    paginatedManuscripts.map(ms => (
+                                        <tr key={ms.kode_inventarisasi}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{ms.kode_inventarisasi}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{ms.judul_dari_tim}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{ms.pengarang || '-'}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={() => handleEdit(ms)} className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 mr-4">Edit</button>
+                                                <button onClick={() => handleDelete(ms.kode_inventarisasi)} className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Hapus</button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
+                    {/* Pagination Controls */}
+                    {totalPagesAdmin > 1 && (
+                        <div className="mt-4 flex justify-center items-center space-x-2">
+                            <button
+                                onClick={() => goToPageAdmin(currentPageAdmin - 1)}
+                                disabled={currentPageAdmin === 1}
+                                className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                            >
+                                <ChevronLeftIcon className="h-5 w-5" />
+                            </button>
+                            {Array.from({ length: totalPagesAdmin }, (_, i) => i + 1).map(pageNumber => (
+                                <button
+                                    key={pageNumber}
+                                    onClick={() => goToPageAdmin(pageNumber)}
+                                    className={`px-3 py-1 rounded-md text-sm font-medium ${currentPageAdmin === pageNumber ? 'bg-primary-600 text-white dark:bg-accent-500' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'} hover:bg-primary-500 dark:hover:bg-accent-400 transition-colors`}
+                                >
+                                    {pageNumber}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => goToPageAdmin(currentPageAdmin + 1)}
+                                disabled={currentPageAdmin === totalPagesAdmin}
+                                className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                            >
+                                <ChevronRightIcon className="h-5 w-5" />
+                            </button>
+                        </div>
+                    )}
+                    </>
                 )}
             </div>
 
@@ -348,7 +435,7 @@ const ManageManuscripts: React.FC = () => {
                                                     placeholder={`URL Konten ${index + 1}`}
                                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                                                 />
-                                                {urlContentFields.length > 1 && ( // Tampilkan tombol hapus jika lebih dari 1 field
+                                                {urlContentFields.length > 1 && (
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveUrlField(index)}
