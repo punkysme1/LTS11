@@ -1,4 +1,3 @@
-// Header.tsx
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { BookOpenIcon, MenuIcon, XIcon, SearchIcon } from './icons';
@@ -14,7 +13,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, signOut } = useAuth(); // Dapatkan user dan signOut
+    const { user, signOut } = useAuth(); // Dapatkan user dan fungsi signOut
 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -26,7 +25,8 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
 
     useEffect(() => {
         const handler = setTimeout(() => {
-            if (user && searchTerm.trim() !== '' && location.pathname === '/katalog') { // Hanya simpan jika di halaman katalog
+            // Simpan histori pencarian hanya jika pengguna login, ada searchTerm, dan berada di halaman katalog
+            if (user && searchTerm.trim() !== '' && location.pathname === '/katalog') {
                 saveSearchHistory(user.id, searchTerm);
             }
         }, 500);
@@ -42,27 +42,29 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
             navigate('/katalog');
         }
     };
-    
-    // Perbarui navLinks untuk menampilkan "Login" atau "Profil" dan "Daftar User" sesuai status login
-    const navLinks = [
+
+    // --- PERUBAHAN NAVIGASI DI SINI ---
+    const primaryNavLinks = [
         { name: 'Beranda', path: '/' },
         { name: 'Katalog', path: '/katalog' },
         { name: 'Blog', path: '/blog' },
         { name: 'Buku Tamu', path: '/buku-tamu' },
         { name: 'Donasi', path: '/donasi' },
         { name: 'Kontak', path: '/kontak' },
+        { name: 'Profil', path: '/profil' }, // Ini untuk Profil Lembaga
     ];
 
-    const loggedOutLinks = [
+    const authLinksLoggedOut = [
         { name: 'Daftar', path: '/register' },
         { name: 'Login', path: '/login' },
     ];
 
-    const loggedInLinks = [
-        { name: 'Profil', path: '/profil' },
-        // { name: 'Logout', onClick: signOut } // Contoh, bisa ditaruh di profil page
+    const authLinksLoggedIn = [
+        { name: 'User', path: '/user' }, // Ini untuk Profil Pengguna
+        // Anda bisa menambahkan 'Logout' di sini jika tidak ingin di dalam halaman user
+        // { name: 'Logout', onClick: signOut }
     ];
-
+    // --- AKHIR PERUBAHAN NAVIGASI ---
 
     const activeLinkClass = "text-primary-500 dark:text-accent-400 font-semibold";
     const inactiveLinkClass = "text-gray-600 dark:text-gray-300 hover:text-primary-500 dark:hover:text-accent-400";
@@ -81,8 +83,8 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                     </Link>
 
                     {/* Navigasi Desktop */}
-                    <nav className="hidden md:flex items-center space-x-6"> {/* Ubah dari lg:flex menjadi md:flex agar menu navigasi muncul di tablet */}
-                        {navLinks.map(link => (
+                    <nav className="hidden md:flex items-center space-x-6">
+                        {primaryNavLinks.map(link => (
                             <NavLink
                                 key={link.name}
                                 to={link.path}
@@ -91,9 +93,9 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                                 {link.name}
                             </NavLink>
                         ))}
-                        {/* Tampilkan link Login/Daftar atau Profil/Logout berdasarkan status user */}
+                        {/* Tampilkan link Auth berdasarkan status user */}
                         {user ? (
-                            loggedInLinks.map(link => (
+                            authLinksLoggedIn.map(link => (
                                 <NavLink
                                     key={link.name}
                                     to={link.path}
@@ -103,7 +105,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                                 </NavLink>
                             ))
                         ) : (
-                            loggedOutLinks.map(link => (
+                            authLinksLoggedOut.map(link => (
                                 <NavLink
                                     key={link.name}
                                     to={link.path}
@@ -117,7 +119,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
 
                     {/* Desktop Search & Dark Mode Toggle */}
                     <div className="flex items-center space-x-4">
-                        <div className="relative hidden md:block"> {/* Sembunyikan search bar di mobile kecil */}
+                        <div className="relative hidden md:block">
                             <input
                                 type="text"
                                 placeholder="Cari manuskrip..."
@@ -133,7 +135,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                         {/* Tombol menu mobile/hamburger hanya terlihat di mobile */}
                         <button
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-300 md:hidden" // Hanya tampil di mobile
+                            className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-300 md:hidden"
                             aria-label="Toggle navigation menu"
                         >
                             {isMobileMenuOpen ? <XIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
@@ -141,7 +143,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                     </div>
                 </div>
 
-                {/* Mobile Search Input (selalu muncul di mobile) */}
+                {/* Mobile Search Input */}
                 <div className="md:hidden px-4 py-3 border-t border-gray-200 dark:border-gray-700">
                     <div className="relative">
                         <input
@@ -161,7 +163,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                 {isMobileMenuOpen && (
                     <div className="md:hidden bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                         <nav className="flex flex-col items-start px-4 py-4 space-y-2">
-                            {navLinks.map(link => (
+                            {primaryNavLinks.map(link => (
                                 <NavLink
                                     key={link.name}
                                     to={link.path}
@@ -171,7 +173,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                                 </NavLink>
                             ))}
                             {user ? (
-                                loggedInLinks.map(link => (
+                                authLinksLoggedIn.map(link => (
                                     <NavLink
                                         key={link.name}
                                         to={link.path}
@@ -181,7 +183,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                                     </NavLink>
                                 ))
                             ) : (
-                                loggedOutLinks.map(link => (
+                                authLinksLoggedOut.map(link => (
                                     <NavLink
                                         key={link.name}
                                         to={link.path}

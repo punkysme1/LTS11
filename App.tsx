@@ -1,4 +1,3 @@
-// App.tsx
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './src/contexts/AuthContext';
@@ -12,15 +11,16 @@ const Catalog = lazy(() => import('./pages/CatalogPage'));
 const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetailPage'));
 const Blog = lazy(() => import('./pages/BlogListPage'));
 const BlogPostDetail = lazy(() => import('./pages/BlogPostDetailPage'));
-const ProfileUser = lazy(() => import('./pages/ProfileUserPage')); // Halaman profil pengguna
-// Tambahkan import untuk RegisterPage
+// ASUMSI: ProfilePage.tsx adalah untuk Profil Lembaga
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+// UBAH INI: UserPage adalah untuk Profil Pengguna (history, dll.)
+const UserPage = lazy(() => import('./pages/ProfileUserPage')); // Ganti nama import dari ProfileUser menjadi UserPage
 const Register = lazy(() => import('./pages/RegisterPage')); 
 const Guestbook = lazy(() => import('./pages/GuestBookPage'));
 const Contact = lazy(() => import('./pages/ContactPage'));
 const Donation = lazy(() => import('./pages/DonationPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
-// Asumsikan ada LoginPage.tsx yang sudah diimpor melalui AdminPage.tsx, atau bisa ditambahkan langsung jika dibutuhkan di rute terpisah
-const Login = lazy(() => import('./pages/LoginPage')); // Menambahkan ini jika Anda ingin rute /login eksplisit
+const Login = lazy(() => import('./pages/LoginPage'));
 
 // Definisikan ThemeContext di sini
 export const ThemeContext = createContext({
@@ -45,12 +45,15 @@ const AppContent: React.FC = () => {
                         <Route path="/blog" element={<Blog />} />
                         <Route path="/blog/:id" element={<BlogPostDetail />} />
                         <Route path="/buku-tamu" element={<Guestbook />} />
-                        <Route path="/profil" element={<ProfileUser />} /> {/* Rute profil pengguna */}
+                        {/* Rute untuk Profil Lembaga */}
+                        <Route path="/profil" element={<ProfilePage />} />
+                        {/* Rute baru untuk Profil Pengguna */}
+                        <Route path="/user" element={<UserPage />} /> 
                         <Route path="/kontak" element={<Contact />} />
                         <Route path="/donasi" element={<Donation />} />
                         <Route path="/admin/*" element={<AdminPage />} />
-                        <Route path="/register" element={<Register />} /> {/* Rute baru untuk pendaftaran */}
-                        <Route path="/login" element={<Login />} /> {/* Menambahkan rute /login eksplisit jika belum ada */}
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/login" element={<Login />} />
                         <Route path="*" element={<NotFound />} />
                     </Routes>
                 </Suspense>
