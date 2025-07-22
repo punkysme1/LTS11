@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../src/supabaseClient';
 import { Manuskrip } from '../../types';
 import * as XLSX from 'xlsx';
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../../components/icons'; 
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../components/icons';
 
 // Membungkus FormField dengan React.memo untuk optimasi
 const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?: string, disabled?: boolean, rows?: number, value: string | number | undefined, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void }> = React.memo(({ name, label, type = 'text', disabled = false, rows, value, onChange }) => {
@@ -12,24 +12,24 @@ const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?:
         <div>
             <label htmlFor={name as string} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
             {type === 'textarea' ? (
-                <textarea 
+                <textarea
                     id={name as string}
-                    name={name as string} 
-                    value={displayValue as string} 
-                    onChange={onChange} 
-                    disabled={disabled} 
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" 
+                    name={name as string}
+                    value={displayValue as string}
+                    onChange={onChange}
+                    disabled={disabled}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                     rows={rows || 3}
                 ></textarea>
             ) : (
-                <input 
+                <input
                     id={name as string}
-                    type={type} 
-                    name={name as string} 
-                    value={displayValue as string} 
-                    onChange={onChange} 
-                    disabled={disabled} 
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" 
+                    type={type}
+                    name={name as string}
+                    value={displayValue as string}
+                    onChange={onChange}
+                    disabled={disabled}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                 />
             )}
         </div>
@@ -37,7 +37,8 @@ const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?:
 });
 
 const MAX_URL_FIELDS = 15;
-const ITEMS_PER_PAGE_ADMIN = 10; // Kustomisasi: 10 manuskrip per halaman
+const MAX_REFERENCE_FIELDS = 10; // Batasan maksimal referensi
+const ITEMS_PER_PAGE_ADMIN = 10;
 
 const ManageManuscripts: React.FC = () => {
     const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
@@ -48,16 +49,16 @@ const ManageManuscripts: React.FC = () => {
     const [formData, setFormData] = useState<Partial<Manuskrip>>({});
     const [isUploading, setIsUploading] = useState(false);
     const [urlContentFields, setUrlContentFields] = useState<string[]>([]);
+    const [referenceFields, setReferenceFields] = useState<Array<{ judul: string; penulis: string; tahun: string; link: string }>>([]); // State baru untuk referensi
 
-    const [searchTermAdmin, setSearchTermAdmin] = useState(''); // State untuk search
-    const [currentPageAdmin, setCurrentPageAdmin] = useState(1); // State untuk paginasi
+    const [searchTermAdmin, setSearchTermAdmin] = useState('');
+    const [currentPageAdmin, setCurrentPageAdmin] = useState(1);
 
     const fetchManuscripts = useCallback(async () => {
         setLoading(true);
-        // Mengambil semua data yang dibutuhkan untuk pencarian dan paginasi client-side
         const { data, error } = await supabase
             .from('manuskrip')
-            .select('*') // Ambil semua kolom untuk filter lokal
+            .select('*')
             .order('created_at', { ascending: false });
 
         if (error) {
@@ -72,13 +73,12 @@ const ManageManuscripts: React.FC = () => {
         fetchManuscripts();
     }, [fetchManuscripts]);
 
-    // Logika pencarian dan paginasi
     const filteredManuscripts = useMemo(() => {
         if (!searchTermAdmin) {
             return manuscripts;
         }
         const lowerCaseSearchTerm = searchTermAdmin.toLowerCase();
-        return manuscripts.filter(ms => 
+        return manuscripts.filter(ms =>
             (ms.judul_dari_tim && ms.judul_dari_tim.toLowerCase().includes(lowerCaseSearchTerm)) ||
             (ms.pengarang && ms.pengarang.toLowerCase().includes(lowerCaseSearchTerm)) ||
             (ms.kode_inventarisasi && ms.kode_inventarisasi.toLowerCase().includes(lowerCaseSearchTerm))
@@ -103,17 +103,43 @@ const ManageManuscripts: React.FC = () => {
 
     const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTermAdmin(e.target.value);
-        setCurrentPageAdmin(1); // Reset halaman ke 1 setiap kali mencari
+        setCurrentPageAdmin(1);
     }, []);
 
 
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        setFormData(prev => ({ 
-            ...prev, 
-            [name]: type === 'number' ? (value === '' ? null : Number(value)) : value 
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === 'number' ? (value === '' ? null : Number(value)) : value
         }));
     }, []);
+
+    // --- LOGIKA BARU UNTUK REFERENSI ---
+    const handleReferenceFieldChange = useCallback((index: number, field: keyof (typeof referenceFields)[0], value: string) => {
+        setReferenceFields(prevRefs => {
+            const newRefs = [...prevRefs];
+            newRefs[index] = { ...newRefs[index], [field]: value };
+            return newRefs;
+        });
+    }, []);
+
+    const handleAddReferenceField = useCallback(() => {
+        if (referenceFields.length < MAX_REFERENCE_FIELDS) {
+            setReferenceFields(prevRefs => [...prevRefs, { judul: '', penulis: '', tahun: '', link: '' }]);
+        } else {
+            alert(`Maksimal ${MAX_REFERENCE_FIELDS} referensi.`);
+        }
+    }, [referenceFields]);
+
+    const handleRemoveReferenceField = useCallback((indexToRemove: number) => {
+        setReferenceFields(prevRefs => {
+            const newRefs = prevRefs.filter((_, index) => index !== indexToRemove);
+            return newRefs.length > 0 ? newRefs : [{ judul: '', penulis: '', tahun: '', link: '' }]; // Minimal satu field kosong
+        });
+    }, []);
+    // --- AKHIR LOGIKA BARU UNTUK REFERENSI ---
+
 
     const handleUrlFieldChange = useCallback((index: number, value: string) => {
         setUrlContentFields(prevUrls => {
@@ -142,6 +168,7 @@ const ManageManuscripts: React.FC = () => {
         setEditingManuscript(null);
         setFormData({});
         setUrlContentFields(['']);
+        setReferenceFields([{ judul: '', penulis: '', tahun: '', link: '' }]); // Inisialisasi referensi
         setShowModal(true);
     };
 
@@ -156,7 +183,7 @@ const ManageManuscripts: React.FC = () => {
             alert('Gagal memuat data detail: ' + error.message);
             return;
         }
-        
+
         setEditingManuscript(data);
         setFormData(data);
 
@@ -166,9 +193,16 @@ const ManageManuscripts: React.FC = () => {
                             .filter(url => url !== '');
         setUrlContentFields(parsedUrls.length > 0 ? parsedUrls : ['']);
 
+        // Urai data referensi dari JSONB menjadi array objek untuk field input
+        const parsedReferences = (data.referensi || []) as Array<{ judul: string; penulis: string; tahun: number; link: string }>;
+        setReferenceFields(parsedReferences.length > 0 ? parsedReferences.map(ref => ({
+            ...ref,
+            tahun: ref.tahun ? String(ref.tahun) : '' // Konversi tahun ke string untuk input
+        })) : [{ judul: '', penulis: '', tahun: '', link: '' }]);
+
         setShowModal(true);
     };
-    
+
     const handleDelete = async (kode_inventarisasi: string) => {
         if (window.confirm(`Yakin ingin menghapus manuskrip ${kode_inventarisasi}?`)) {
             const { error } = await supabase.from('manuskrip').delete().eq('kode_inventarisasi', kode_inventarisasi);
@@ -187,15 +221,26 @@ const ManageManuscripts: React.FC = () => {
         }
 
         const finalUrlKonten = urlContentFields.filter(url => url.trim() !== '').join('\n');
+
+        // Konversi referenceFields ke format yang benar untuk JSONB
+        const finalReferences = referenceFields
+            .filter(ref => ref.judul.trim() !== '') // Hanya simpan referensi yang memiliki judul
+            .map(ref => ({
+                judul: ref.judul.trim(),
+                penulis: ref.penulis.trim(),
+                tahun: ref.tahun ? Number(ref.tahun) : null, // Konversi tahun ke number atau null
+                link: ref.link.trim()
+            }));
         
         const dataToSave = {
             ...formData,
             url_konten: finalUrlKonten,
+            referensi: finalReferences.length > 0 ? finalReferences : null, // Set null jika tidak ada referensi
         };
 
         console.log('Menyimpan data manuskrip...');
         console.log('formData yang akan dikirim:', dataToSave);
-        
+
         let supabaseCall;
         if (editingManuscript) {
             console.log('Melakukan UPDATE untuk ID:', editingManuscript.kode_inventarisasi);
@@ -223,19 +268,21 @@ const ManageManuscripts: React.FC = () => {
     };
 
     const excelHeaders = [
-        "kode_inventarisasi", "judul_dari_tim", "afiliasi", "nama_koleksi", 
-        "nomor_koleksi", "judul_dari_afiliasi", "nomor_digitalisasi", 
-        "link_digital_afiliasi", "link_digital_tppkp_qomaruddin", "url_kover", 
-        "url_konten", "klasifikasi_kailani", "kategori_ilmu_pesantren", 
-        "deskripsi_umum", "hlm_pemisah", "pengarang", "penyalin", 
-        "tahun_penulisan_di_teks", "konversi_masehi", "lokasi_penyalina", 
-        "asal_usul_naskah", "bahasa", "aksara", "kover", "ukuran_kover", 
-        "jilid", "ukuran_kertas", "ukuran_dimensi", "watermark", 
-        "countermark", "tinta", "jumlah_halaman", "halaman_kosong", 
-        "jumlah_baris_per_halaman", "rubrikasi", "iluminasi", 
-        "ilustrasi", "catatan_pinggir", "catatan_makna", "kolofon", 
-        "catatan_marginal", "kondisi_fisik_naskah", "keterbacaan", 
-        "kelengkapan_naskah", "catatan_catatan"
+        "kode_inventarisasi", "judul_dari_tim", "afiliasi", "nama_koleksi",
+        "nomor_koleksi", "judul_dari_afiliasi", "nomor_digitalisasi",
+        "link_digital_afiliasi", "link_digital_tppkp_qomaruddin", "url_kover",
+        "url_konten", "klasifikasi_kailani", "kategori_ilmu_pesantren",
+        "deskripsi_umum", "hlm_pemisah", "pengarang", "penyalin",
+        "tahun_penulisan_di_teks", "konversi_masehi", "lokasi_penyalina",
+        "asal_usul_naskah", "bahasa", "aksara", "kover", "ukuran_kover",
+        "jilid", "ukuran_kertas", "ukuran_dimensi", "watermark",
+        "countermark", "tinta", "jumlah_halaman", "halaman_kosong",
+        "jumlah_baris_per_halaman", "rubrikasi", "iluminasi",
+        "ilustrasi", "catatan_pinggir", "catatan_makna", "kolofon",
+        "catatan_marginal", "kondisi_fisik_naskah", "keterbacaan",
+        "kelengkapan_naskah", "catatan_catatan",
+        // Headers baru untuk Excel
+        "kata_kunci", "glosarium", "referensi", "manuskrip_terkait", "tokoh_terkait", "jenis_kertas"
     ];
 
     const handleDownloadTemplate = () => {
@@ -244,7 +291,7 @@ const ManageManuscripts: React.FC = () => {
         XLSX.utils.book_append_sheet(wb, ws, "Manuskrip");
         XLSX.writeFile(wb, "template_manuskrip.xlsx");
     };
-    
+
     const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) {
@@ -279,6 +326,14 @@ const ManageManuscripts: React.FC = () => {
                             if (key === "konversi_masehi" || key === "jumlah_halaman") {
                                 value = value === null || value === undefined || value === '' ? null : Number(value);
                                 if (isNaN(value)) value = null;
+                            } else if (key === "referensi") {
+                                // Coba parse string JSON menjadi array objek
+                                try {
+                                    value = JSON.parse(value);
+                                } catch (e) {
+                                    console.error("Gagal parsing JSON referensi dari Excel:", value, e);
+                                    value = null; // Set null jika gagal parsing
+                                }
                             }
                             newRow[key as keyof Manuskrip] = value;
                         }
@@ -422,9 +477,9 @@ const ManageManuscripts: React.FC = () => {
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">URL Gambar</h4>
                                 <MemoizedFormField name="url_kover" label="URL Kover" value={formData.url_kover} onChange={handleInputChange} />
                                 
-                                {/* Bagian baru untuk multiple URL Konten */}
+                                {/* Bagian untuk multiple URL Konten */}
                                 <div className="col-span-full">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL Konten (maks. {MAX_URL_FIELDS} link per baris)</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL Konten (maks. {MAX_URL_FIELDS} link)</label>
                                     <div className="space-y-2">
                                         {urlContentFields.map((url, index) => (
                                             <div key={index} className="flex items-center space-x-2">
@@ -468,7 +523,7 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="kover" label="Kover" value={formData.kover} onChange={handleInputChange} />
                                 <MemoizedFormField name="ukuran_kover" label="Ukuran Kover" value={formData.ukuran_kover} onChange={handleInputChange} />
                                 <MemoizedFormField name="jilid" label="Jilid" value={formData.jilid} onChange={handleInputChange} />
-                                <MemoizedFormField name="ukuran_kertas" label="Ukuran Kertas" value={formData.ukuran_kertas} onChange={handleInputChange} />
+                                <MemoizedFormField name="ukuran_kertas" label="Ukuran Kertas" value={formData.ukuran_kertas} onChange={handleInputChange} /> {/* BARU: Jenis Kertas */}
                                 <MemoizedFormField name="watermark" label="Watermark" value={formData.watermark} onChange={handleInputChange} />
                                 <MemoizedFormField name="countermark" label="Countermark" value={formData.countermark} onChange={handleInputChange} />
                                 <MemoizedFormField name="tinta" label="Tinta" value={formData.tinta} onChange={handleInputChange} />
@@ -482,6 +537,7 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="catatan_makna" label="Catatan Makna" value={formData.catatan_makna} onChange={handleInputChange} />
                                 <MemoizedFormField name="keterbacaan" label="Keterbacaan" value={formData.keterbacaan} onChange={handleInputChange} />
                                 <MemoizedFormField name="kelengkapan_naskah" label="Kelengkapan Naskah" value={formData.kelengkapan_naskah} onChange={handleInputChange} />
+                                <MemoizedFormField name="hlm_pemisah" label="Halaman Pemisah" value={formData.hlm_pemisah} onChange={handleInputChange} /> {/* Sudah ada, pastikan label benar */}
 
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Konten & Produksi</h4>
                                 <MemoizedFormField name="pengarang" label="Pengarang" value={formData.pengarang} onChange={handleInputChange} />
@@ -496,6 +552,71 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="catatan_catatan" label="Catatan Tambahan" type="textarea" rows={5} value={formData.catatan_catatan} onChange={handleInputChange} />
                                 <MemoizedFormField name="catatan_marginal" label="Catatan Marginal" type="textarea" rows={5} value={formData.catatan_marginal} onChange={handleInputChange} />
                                 <MemoizedFormField name="deskripsi_umum" label="Deskripsi Umum" type="textarea" rows={5} value={formData.deskripsi_umum} onChange={handleInputChange} />
+
+                                {/* BAGIAN BARU UNTUK REFERENSI DAN LAINNYA */}
+                                <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Referensi & Metadata Tambahan</h4>
+                                <MemoizedFormField name="kata_kunci" label="Kata Kunci (pisahkan koma)" value={formData.kata_kunci} onChange={handleInputChange} />
+                                <MemoizedFormField name="glosarium" label="Glosarium" type="textarea" rows={3} value={formData.glosarium} onChange={handleInputChange} />
+                                <MemoizedFormField name="manuskrip_terkait" label="Manuskrip Terkait (Kode Inventarisasi, pisahkan koma)" value={formData.manuskrip_terkait} onChange={handleInputChange} />
+                                <MemoizedFormField name="tokoh_terkait" label="Tokoh Terkait (Nama, pisahkan koma)" value={formData.tokoh_terkait} onChange={handleInputChange} />
+
+                                <div className="col-span-full">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Daftar Referensi (maks. {MAX_REFERENCE_FIELDS})</label>
+                                    <div className="space-y-4 rounded-md p-3 border border-gray-200 dark:border-gray-700">
+                                        {referenceFields.map((ref, index) => (
+                                            <div key={index} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <input
+                                                        type="text"
+                                                        value={ref.judul}
+                                                        onChange={(e) => handleReferenceFieldChange(index, 'judul', e.target.value)}
+                                                        placeholder={`Referensi ${index + 1}: Judul`}
+                                                        className="input-field"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={ref.penulis}
+                                                        onChange={(e) => handleReferenceFieldChange(index, 'penulis', e.target.value)}
+                                                        placeholder="Penulis"
+                                                        className="input-field"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={ref.tahun}
+                                                        onChange={(e) => handleReferenceFieldChange(index, 'tahun', e.target.value)}
+                                                        placeholder="Tahun"
+                                                        className="input-field"
+                                                    />
+                                                    <input
+                                                        type="url"
+                                                        value={ref.link}
+                                                        onChange={(e) => handleReferenceFieldChange(index, 'link', e.target.value)}
+                                                        placeholder="Link Publikasi"
+                                                        className="input-field"
+                                                    />
+                                                </div>
+                                                {referenceFields.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveReferenceField(index)}
+                                                        className="mt-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 text-sm"
+                                                    >
+                                                        Hapus Referensi
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {referenceFields.length < MAX_REFERENCE_FIELDS && (
+                                            <button
+                                                type="button"
+                                                onClick={handleAddReferenceField}
+                                                className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200 dark:bg-primary-700 dark:text-primary-200 dark:hover:bg-primary-600"
+                                            >
+                                                + Tambah Referensi
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">

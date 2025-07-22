@@ -1,5 +1,5 @@
 export interface Manuskrip {
-  // Kunci utama, tipe string
+  // ... (field-field yang sudah ada)
   kode_inventarisasi: string;
   judul_dari_tim: string;
   afiliasi?: string;
@@ -14,19 +14,19 @@ export interface Manuskrip {
   klasifikasi_kailani?: string;
   kategori_ilmu_pesantren?: string;
   deskripsi_umum?: string;
-  hlm_pemisah?: string;
+  hlm_pemisah?: string; // Sudah ada di skema
   pengarang?: string;
   penyalin?: string;
   tahun_penulisan_di_teks?: string;
   konversi_masehi?: number;
   lokasi_penyalina?: string;
   asal_usul_naskah?: string;
-  bahasa?: string; // Dipisahkan koma
-  aksara?: string; // Dipisahkan koma
+  bahasa?: string;
+  aksara?: string;
   kover?: string;
   ukuran_kover?: string;
   jilid?: string;
-  ukuran_kertas?: string;
+  ukuran_kertas?: string; // BARU: Jenis Kertas
   ukuran_dimensi?: string;
   watermark?: string;
   countermark?: string;
@@ -46,6 +46,13 @@ export interface Manuskrip {
   kelengkapan_naskah?: string;
   catatan_catatan?: string;
   created_at: string;
+
+  // --- FIELD BARU UNTUK REFERENSI ---
+  kata_kunci?: string;
+  glosarium?: string;
+  referensi?: Array<{ judul: string; penulis: string; tahun: number; link: string }>;
+  manuskrip_terkait?: string; // Manuskrip yang berhubungan
+  tokoh_terkait?: string; // Tokoh yang berhubungan
 }
 
 // FIX: Ubah nilai Enum agar cocok dengan standar database (huruf kapital di awal: 'Draft', 'Published')
@@ -66,7 +73,6 @@ export interface BlogPost {
 }
 
 // FIX: Ubah nilai Enum agar cocok dengan standar database (ASUMSI huruf kapital di awal: 'Pending', 'Approved')
-// Anda HARUS MENGKONFIRMASI INI DARI DASHBOARD SUPABASE ANDA.
 export enum GuestBookStatus {
   PENDING = 'Pending',
   APPROVED = 'Approved',
@@ -80,4 +86,12 @@ export interface GuestBookEntry {
   tanggal_kirim?: string;
   status?: GuestBookStatus;
   created_at: string;
+}
+
+export interface SearchHistoryEntry {
+    id: number;
+    user_id: string; // UUID
+    query: string;
+    timestamp: string; // ISO string
+    created_at: string;
 }

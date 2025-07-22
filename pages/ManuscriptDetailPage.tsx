@@ -8,12 +8,28 @@ import { SparklesIcon } from '../components/icons';
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
+// Import library sitasi
+import { Cite, plugins } from '@citation-js/core';
+import '@citation-js/plugin-csl'; // Plugin CSL diperlukan
+// Jika Anda membutuhkan style yang tidak umum, mungkin perlu di-register manual
+// Contoh: register style bawaan dari https://github.com/citation-js/citation-js/tree/main/packages/plugin-csl/lib/assets/locales
+// plugins.add('csl', {
+//   locales: {
+//     'id-ID': require('@citation-js/plugin-csl/lib/assets/locales/id-ID.json'),
+//   },
+//   templates: {
+//     'harvard': require('@citation-js/plugin-csl/lib/assets/styles/harvard-cite-them-right.json'),
+//     'vancouver': require('@citation-js/plugin-csl/lib/assets/styles/vancouver.json')
+//   }
+// });
+
+
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState('info');
+    const [activeTab, setActiveTab] = useState('info'); // Default tab
 
     const [mainImage, setMainImage] = useState('');
 
@@ -25,12 +41,14 @@ const ManuscriptDetailPage: React.FC = () => {
     const [aiResponse, setAiResponse] = useState('');
     const [isAiLoading, setIsAiLoading] = useState(false);
 
+    // State untuk fitur sitasi
+    const [selectedCitationStyle, setSelectedCitationStyle] = useState('apa'); // Default APA
+    const [generatedCitation, setGeneratedCitation] = useState('');
 
     useEffect(() => {
         const fetchManuscriptDetail = async () => {
-            // PERUBAHAN DI SINI: Hapus isNaN(Number(id))
-            if (!id) { // Cukup periksa apakah id ada (bukan null atau undefined)
-                setError('ID manuskrip tidak ada di URL.'); // Ubah pesan error agar lebih spesifik
+            if (!id) {
+                setError('ID manuskrip tidak ada di URL.');
                 setLoading(false);
                 return;
             }
@@ -42,7 +60,7 @@ const ManuscriptDetailPage: React.FC = () => {
                 const { data, error } = await supabase
                     .from('manuskrip')
                     .select('*')
-                    .eq('kode_inventarisasi', id) // Gunakan id (string) langsung
+                    .eq('kode_inventarisasi', id)
                     .single();
 
                 if (error) {
@@ -78,6 +96,40 @@ const ManuscriptDetailPage: React.FC = () => {
             fetchManuscriptDetail();
         }
     }, [id]);
+
+    // Logika generasi sitasi
+    useEffect(() => {
+        if (manuscript) {
+            // Konversi data manuskrip ke format CSL-JSON
+            const cslData = {
+                id: manuscript.kode_inventarisasi,
+                type: 'book', // Asumsi tipe 'book', bisa disesuaikan jika ada field tipe manuskrip
+                title: manuscript.judul_dari_tim,
+                author: manuscript.pengarang ? [{ "family": manuscript.pengarang.split(' ').pop() || '', "given": manuscript.pengarang.split(' ').slice(0, -1).join(' ') }] : [],
+                issued: manuscript.konversi_masehi ? { 'date-parts': [[manuscript.konversi_masehi]] } : undefined,
+                'publisher-place': manuscript.lokasi_penyalina,
+                URL: manuscript.link_digital_afiliasi,
+                // Tambahkan field dari referensi JSONB jika relevan untuk sitasi
+                // Catatan: Jika Anda ingin mereferensikan item di array 'referensi', Anda perlu logika terpisah.
+                // Untuk sitasi buku/manuskrip, kita biasanya pakai data dasar saja.
+            };
+
+            const cite = new Cite(cslData);
+
+            try {
+                const citationHtml = cite.format('bibliography', {
+                    format: 'html',
+                    template: selectedCitationStyle, // 'apa', 'mla', 'chicago', 'ieee', 'harvard', 'vancouver'
+                    lang: 'id-ID' // atau 'en-US'
+                });
+                setGeneratedCitation(citationHtml);
+            } catch (e) {
+                console.error('Error generating citation:', e);
+                setGeneratedCitation(`Gagal membuat sitasi untuk gaya ${selectedCitationStyle}. Pastikan data manuskrip lengkap.`);
+            }
+        }
+    }, [manuscript, selectedCitationStyle]);
+
 
     const openLightbox = useCallback((index: number) => {
         setCurrentImageIndex(index);
@@ -140,7 +192,7 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Kover" value={manuscript.kover} />
                         <DetailItem label="Ukuran Kover" value={manuscript.ukuran_kover} />
                         <DetailItem label="Jilid" value={manuscript.jilid} />
-                        <DetailItem label="Ukuran Kertas" value={manuscript.ukuran_kertas} />
+                        <DetailItem label="Ukuran Kertas" value={manuscript.ukuran_kertas} /> {/* Tambahan: Jenis Kertas */}
                         <DetailItem label="Tinta" value={manuscript.tinta} />
                         <DetailItem label="Watermark" value={manuscript.watermark} />
                         <DetailItem label="Countermark" value={manuscript.countermark} />
@@ -153,7 +205,8 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Catatan Pinggir" value={manuscript.catatan_pinggir} />
                         <DetailItem label="Catatan Makna" value={manuscript.catatan_makna} />
                         <DetailItem label="Keterbacaan" value={manuscript.keterbacaan} />
-                        <DetailItem label="Kelengkapan Naskah" value={manuscript.kelengkapan_naskah} />
+                        <DetailItem label="Kelengkapan Naskah" value={manuskript.kelengkapan_naskah} />
+                        <DetailItem label="Halaman Pemisah" value={manuscript.hlm_pemisah} /> {/* Tambahan: Halaman Pemisah */}
                     </dl>
                 );
             case 'produksi':
@@ -170,6 +223,58 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Catatan Tambahan" value={manuscript.catatan_catatan} />
                         <DetailItem label="Catatan Marginal" value={manuscript.catatan_marginal} />
                     </dl>
+                );
+            case 'referensi': // --- TAB BARU UNTUK REFERENSI & SITASI ---
+                return (
+                    <div className="space-y-6">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Detail Referensi</h3>
+                        <dl className="divide-y divide-gray-200 dark:divide-gray-700">
+                            <DetailItem label="Kata Kunci" value={manuscript.kata_kunci} />
+                            <DetailItem label="Glosarium" value={manuscript.glosarium} />
+                            <DetailItem label="Manuskrip Terkait" value={manuscript.manuskrip_terkait} />
+                            <DetailItem label="Tokoh Terkait" value={manuscript.tokoh_terkait} />
+                        </dl>
+
+                        {manuscript.referensi && manuscript.referensi.length > 0 && (
+                            <div className="mt-6">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Daftar Referensi</h3>
+                                <ul className="space-y-4">
+                                    {manuscript.referensi.map((ref, index) => (
+                                        <li key={index} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md shadow-sm">
+                                            <p className="text-gray-800 dark:text-gray-200"><strong>Judul:</strong> {ref.judul}</p>
+                                            <p className="text-gray-700 dark:text-gray-300"><strong>Penulis:</strong> {ref.penulis}</p>
+                                            <p className="text-gray-700 dark:text-gray-300"><strong>Tahun:</strong> {ref.tahun}</p>
+                                            {ref.link && <p className="text-gray-700 dark:text-gray-300"><strong>Link:</strong> <a href={ref.link} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{ref.link}</a></p>}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Sitasi Otomatis</h3>
+                            <div className="flex flex-wrap gap-3 mb-4">
+                                {['apa', 'mla', 'chicago', 'harvard', 'ieee', 'vancouver'].map(style => (
+                                    <button
+                                        key={style}
+                                        onClick={() => setSelectedCitationStyle(style)}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium ${selectedCitationStyle === style ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'} hover:bg-primary-500 dark:hover:bg-gray-600 transition-colors`}
+                                    >
+                                        {style.toUpperCase()}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border border-gray-200 dark:border-gray-600">
+                                <code className="block whitespace-pre-wrap text-gray-800 dark:text-gray-200" dangerouslySetInnerHTML={{ __html: generatedCitation }}></code>
+                                <button
+                                    onClick={() => navigator.clipboard.writeText(generatedCitation.replace(/<[^>]*>?/gm, ''))} // Salin teks tanpa HTML
+                                    className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm"
+                                >
+                                    Salin Sitasi
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 );
             default: return null;
         }
@@ -219,13 +324,14 @@ const ManuscriptDetailPage: React.FC = () => {
                             <button onClick={() => setActiveTab('info')} className={`${activeTab === 'info' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200`}>Informasi Utama</button>
                             <button onClick={() => setActiveTab('fisik')} className={`${activeTab === 'fisik' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200`}>Atribut Fisik</button>
                             <button onClick={() => setActiveTab('produksi')} className={`${activeTab === 'produksi' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200`}>Konten & Produksi</button>
+                            <button onClick={() => setActiveTab('referensi')} className={`${activeTab === 'referensi' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200`}>Referensi</button> {/* TAB BARU */}
                         </nav>
                     </div>
                     <div className="mt-6">{renderTabContent()}</div>
                 </div>
             </div>
 
-            {/* Ask AI Section */}
+            {/* Ask AI Section (tetap di luar tab agar selalu terlihat atau sesuaikan) */}
             <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
                 <h3 className="text-2xl font-bold font-serif flex items-center gap-2 text-gray-900 dark:text-gray-100">
                     <SparklesIcon className="w-6 h-6 text-accent-500" />
