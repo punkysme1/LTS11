@@ -1,3 +1,4 @@
+// types.ts
 export interface Manuskrip {
   // ... (field-field yang sudah ada)
   kode_inventarisasi: string;
@@ -55,7 +56,6 @@ export interface Manuskrip {
   tokoh_terkait?: string; // Tokoh yang berhubungan
 }
 
-// FIX: Ubah nilai Enum agar cocok dengan standar database (huruf kapital di awal: 'Draft', 'Published')
 export enum BlogStatus {
   DRAFT = 'Draft',
   PUBLISHED = 'Published',
@@ -72,10 +72,10 @@ export interface BlogPost {
   created_at: string;
 }
 
-// FIX: Ubah nilai Enum agar cocok dengan standar database (ASUMSI huruf kapital di awal: 'Pending', 'Approved')
 export enum GuestBookStatus {
   PENDING = 'Pending',
   APPROVED = 'Approved',
+  REJECTED = 'Rejected',
 }
 
 export interface GuestBookEntry {
@@ -96,23 +96,37 @@ export interface SearchHistoryEntry {
     created_at: string;
 }
 
+// FIX: Pastikan ini diekspor dengan benar
+export enum UserProfileStatus {
+  PENDING = 'pending',
+  VERIFIED = 'verified',
+  REJECTED = 'rejected',
+}
+
+// Interface untuk data profil pengguna
 export interface UserProfileData {
     id: string; // ID pengguna dari auth.users
     full_name: string;
     domicile_address: string;
     institution_affiliation: string;
     is_alumni: boolean;
-    alumni_unit?: string; // Opsional
-    alumni_grad_year?: number; // Opsional
+    alumni_unit?: string;
+    alumni_grad_year?: number;
     occupation: string;
     phone_number: string;
+    status: UserProfileStatus; // Status profil (pending, verified, rejected)
     created_at: string;
     updated_at: string;
 }
 
+// Interface untuk data yang dikirim dari form pendaftaran (hanya email & password)
 export interface SignUpFormData {
     email: string;
     password: string;
+}
+
+// Interface untuk data yang dikirim saat melengkapi profil (setelah sign-up)
+export interface CompleteProfileFormData {
     full_name: string;
     domicile_address: string;
     institution_affiliation: string;

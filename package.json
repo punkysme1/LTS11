@@ -16,8 +16,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.0",
     "xlsx": "^0.18.5",
-    "yet-another-react-lightbox": "^3.19.0",
-    "citation-js": "^0.6.9"
+    "yet-another-react-lightbox": "^3.19.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.46",

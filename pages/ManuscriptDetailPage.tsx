@@ -8,12 +8,13 @@ import { SparklesIcon } from '../components/icons';
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
-import { Cite, plugins } from '@citation-js/core';
-import '@citation-js/plugin-csl';
+// HAPUS IMPORT LIBRARY SITASI INI
+// import { Cite, plugins } from '@citation-js/core';
+// import '@citation-js/plugin-csl';
 
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const [manuscript, setManuscript] = useState<Manuskrip | null>(null); // State yang benar: manuscript
+    const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('info');
@@ -28,8 +29,9 @@ const ManuscriptDetailPage: React.FC = () => {
     const [aiResponse, setAiResponse] = useState('');
     const [isAiLoading, setIsAiLoading] = useState(false);
 
-    const [selectedCitationStyle, setSelectedCitationStyle] = useState('apa');
-    const [generatedCitation, setGeneratedCitation] = useState('');
+    // HAPUS STATE UNTUK SITASI INI
+    // const [selectedCitationStyle, setSelectedCitationStyle] = useState('apa');
+    // const [generatedCitation, setGeneratedCitation] = useState('');
 
     useEffect(() => {
         const fetchManuscriptDetail = async () => {
@@ -83,33 +85,32 @@ const ManuscriptDetailPage: React.FC = () => {
         }
     }, [id]);
 
-    useEffect(() => {
-        if (manuscript) { // Pastikan manuscript ada
-            const cslData = {
-                id: manuscript.kode_inventarisasi,
-                type: 'book',
-                title: manuscript.judul_dari_tim,
-                author: manuscript.pengarang ? [{ "family": manuscript.pengarang.split(' ').pop() || '', "given": manuscript.pengarang.split(' ').slice(0, -1).join(' ') }] : [],
-                issued: manuscript.konversi_masehi ? { 'date-parts': [[manuscript.konversi_masehi]] } : undefined,
-                'publisher-place': manuscript.lokasi_penyalina,
-                URL: manuscript.link_digital_afiliasi,
-            };
-
-            const cite = new Cite(cslData);
-
-            try {
-                const citationHtml = cite.format('bibliography', {
-                    format: 'html',
-                    template: selectedCitationStyle,
-                    lang: 'id-ID'
-                });
-                setGeneratedCitation(citationHtml);
-            } catch (e) {
-                console.error('Error generating citation:', e);
-                setGeneratedCitation(`Gagal membuat sitasi untuk gaya ${selectedCitationStyle}. Pastikan data manuskrip lengkap.`);
-            }
-        }
-    }, [manuscript, selectedCitationStyle]);
+    // HAPUS useEffect UNTUK GENERASI SITASI INI
+    // useEffect(() => {
+    //     if (manuscript) {
+    //         const cslData = {
+    //             id: manuscript.kode_inventarisasi,
+    //             type: 'book',
+    //             title: manuscript.judul_dari_tim,
+    //             author: manuscript.pengarang ? [{ "family": manuscript.pengarang.split(' ').pop() || '', "given": manuscript.pengarang.split(' ').slice(0, -1).join(' ') }] : [],
+    //             issued: manuscript.konversi_masehi ? { 'date-parts': [[manuscript.konversi_masehi]] } : undefined,
+    //             'publisher-place': manuscript.lokasi_penyalina,
+    //             URL: manuscript.link_digital_afiliasi,
+    //         };
+    //         const cite = new Cite(cslData);
+    //         try {
+    //             const citationHtml = cite.format('bibliography', {
+    //                 format: 'html',
+    //                 template: selectedCitationStyle,
+    //                 lang: 'id-ID'
+    //             });
+    //             setGeneratedCitation(citationHtml);
+    //         } catch (e) {
+    //             console.error('Error generating citation:', e);
+    //             setGeneratedCitation(`Gagal membuat sitasi untuk gaya ${selectedCitationStyle}. Pastikan data manuskrip lengkap.`);
+    //         }
+    //     }
+    // }, [manuscript, selectedCitationStyle]);
 
 
     const openLightbox = useCallback((index: number) => {
@@ -156,11 +157,11 @@ const ManuscriptDetailPage: React.FC = () => {
                     <dl className="divide-y divide-gray-200 dark:divide-gray-700">
                         <DetailItem label="Deskripsi Umum" value={manuscript.deskripsi_umum} />
                         <DetailItem label="Klasifikasi Kailani" value={manuscript.klasifikasi_kailani} />
-                        <DetailItem label="Kategori Ilmu Pesantren" value={manuscript.kategori_ilmu_pesantren} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Afiliasi" value={manuscript.afiliasi} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Nama Koleksi" value={manuscript.nama_koleksi} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Nomor Koleksi" value={manuscript.nomor_koleksi} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Nomor Digitalisasi" value={manuscript.nomor_digitalisasi} /> {/* Perbaiki: manuskript -> manuscript */}
+                        <DetailItem label="Kategori Ilmu Pesantren" value={manuscript.kategori_ilmu_pesantren} />
+                        <DetailItem label="Afiliasi" value={manuscript.afiliasi} />
+                        <DetailItem label="Nama Koleksi" value={manuscript.nama_koleksi} />
+                        <DetailItem label="Nomor Koleksi" value={manuscript.nomor_koleksi} />
+                        <DetailItem label="Nomor Digitalisasi" value={manuscript.nomor_digitalisasi} />
                         <DetailItem label="Link Digital Afiliasi" value={manuscript.link_digital_afiliasi ? <a href={manuscript.link_digital_afiliasi} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_afiliasi}</a> : null} />
                         <DetailItem label="Link Digital TPPKP Qomaruddin" value={manuscript.link_digital_tppkp_qomaruddin ? <a href={manuscript.link_digital_tppkp_qomaruddin} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">{manuscript.link_digital_tppkp_qomaruddin}</a> : null} />
                     </dl>
@@ -168,52 +169,52 @@ const ManuscriptDetailPage: React.FC = () => {
             case 'fisik':
                 return (
                     <dl className="divide-y divide-gray-200 dark:divide-gray-700">
-                        <DetailItem label="Kondisi Fisik" value={manuscript.kondisi_fisik_naskah} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Ukuran Dimensi" value={manuscript.ukuran_dimensi} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Kover" value={manuscript.kover} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Ukuran Kover" value={manuscript.ukuran_kover} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Jilid" value={manuscript.jilid} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Ukuran Kertas" value={manuscript.ukuran_kertas} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Tinta" value={manuscript.tinta} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Watermark" value={manuscript.watermark} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Countermark" value={manuscript.countermark} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Jumlah Halaman" value={manuscript.jumlah_halaman} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Halaman Kosong" value={manuscript.halaman_kosong} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Jumlah Baris per Halaman" value={manuscript.jumlah_baris_per_halaman} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Rubrikasi" value={manuscript.rubrikasi} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Iluminasi" value={manuscript.iluminasi} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Ilustrasi" value={manuscript.ilustrasi} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Catatan Pinggir" value={manuscript.catatan_pinggir} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Catatan Makna" value={manuscript.catatan_makna} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Keterbacaan" value={manuscript.keterbacaan} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Kelengkapan Naskah" value={manuscript.kelengkapan_naskah} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Halaman Pemisah" value={manuscript.hlm_pemisah} /> {/* Perbaiki: manuskript -> manuscript */}
+                        <DetailItem label="Kondisi Fisik" value={manuscript.kondisi_fisik_naskah} />
+                        <DetailItem label="Ukuran Dimensi" value={manuscript.ukuran_dimensi} />
+                        <DetailItem label="Kover" value={manuscript.kover} />
+                        <DetailItem label="Ukuran Kover" value={manuscript.ukuran_kover} />
+                        <DetailItem label="Jilid" value={manuscript.jilid} />
+                        <DetailItem label="Ukuran Kertas" value={manuscript.ukuran_kertas} />
+                        <DetailItem label="Tinta" value={manuscript.tinta} />
+                        <DetailItem label="Watermark" value={manuscript.watermark} />
+                        <DetailItem label="Countermark" value={manuscript.countermark} />
+                        <DetailItem label="Jumlah Halaman" value={manuscript.jumlah_halaman} />
+                        <DetailItem label="Halaman Kosong" value={manuscript.halaman_kosong} />
+                        <DetailItem label="Jumlah Baris per Halaman" value={manuscript.jumlah_baris_per_halaman} />
+                        <DetailItem label="Rubrikasi" value={manuscript.rubrikasi} />
+                        <DetailItem label="Iluminasi" value={manuscript.iluminasi} />
+                        <DetailItem label="Ilustrasi" value={manuscript.ilustrasi} />
+                        <DetailItem label="Catatan Pinggir" value={manuscript.catatan_pinggir} />
+                        <DetailItem label="Catatan Makna" value={manuscript.catatan_makna} />
+                        <DetailItem label="Keterbacaan" value={manuscript.keterbacaan} />
+                        <DetailItem label="Kelengkapan Naskah" value={manuscript.kelengkapan_naskah} />
+                        <DetailItem label="Halaman Pemisah" value={manuscript.hlm_pemisah} />
                     </dl>
                 );
             case 'produksi':
                 return (
                      <dl className="divide-y divide-gray-200 dark:divide-gray-700">
-                        <DetailItem label="Pengarang" value={manuscript.pengarang} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Penyalin" value={manuscript.penyalin} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Tahun Penulisan" value={`${manuscript.tahun_penulisan_di_teks || '-'} (${manuscript.konversi_masehi || '-'} M)`} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Lokasi Penyalina" value={manuscript.lokasi_penyalina} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Asal Usul Naskah" value={manuscript.asal_usul_naskah} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Bahasa" value={manuscript.bahasa} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Aksara" value={manuscript.aksara} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Kolofon" value={manuscript.kolofon} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Catatan Tambahan" value={manuscript.catatan_catatan} /> {/* Perbaiki: manuskript -> manuscript */}
-                        <DetailItem label="Catatan Marginal" value={manuscript.catatan_marginal} /> {/* Perbaiki: manuskript -> manuscript */}
+                        <DetailItem label="Pengarang" value={manuscript.pengarang} />
+                        <DetailItem label="Penyalin" value={manuscript.penyalin} />
+                        <DetailItem label="Tahun Penulisan" value={`${manuscript.tahun_penulisan_di_teks || '-'} (${manuscript.konversi_masehi || '-'} M)`} />
+                        <DetailItem label="Lokasi Penyalina" value={manuscript.lokasi_penyalina} />
+                        <DetailItem label="Asal Usul Naskah" value={manuscript.asal_usul_naskah} />
+                        <DetailItem label="Bahasa" value={manuscript.bahasa} />
+                        <DetailItem label="Aksara" value={manuscript.aksara} />
+                        <DetailItem label="Kolofon" value={manuscript.kolofon} />
+                        <DetailItem label="Catatan Tambahan" value={manuscript.catatan_catatan} />
+                        <DetailItem label="Catatan Marginal" value={manuscript.catatan_marginal} />
                     </dl>
                 );
-            case 'referensi':
+            case 'referensi': // Tab referensi tetap ada untuk field yang baru
                 return (
                     <div className="space-y-6">
                         <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Detail Referensi</h3>
                         <dl className="divide-y divide-gray-200 dark:divide-gray-700">
-                            <DetailItem label="Kata Kunci" value={manuscript.kata_kunci} /> {/* Perbaiki: manuskript -> manuscript */}
-                            <DetailItem label="Glosarium" value={manuscript.glosarium} /> {/* Perbaiki: manuskript -> manuscript */}
-                            <DetailItem label="Manuskrip Terkait" value={manuscript.manuskrip_terkait} /> {/* Perbaiki: manuskript -> manuscript */}
-                            <DetailItem label="Tokoh Terkait" value={manuscript.tokoh_terkait} /> {/* Perbaiki: manuskript -> manuscript */}
+                            <DetailItem label="Kata Kunci" value={manuscript.kata_kunci} />
+                            <DetailItem label="Glosarium" value={manuscript.glosarium} />
+                            <DetailItem label="Manuskrip Terkait" value={manuscript.manuskrip_terkait} />
+                            <DetailItem label="Tokoh Terkait" value={manuscript.tokoh_terkait} />
                         </dl>
 
                         {manuscript.referensi && manuscript.referensi.length > 0 && (
@@ -232,7 +233,8 @@ const ManuscriptDetailPage: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        {/* HAPUS BAGIAN SITASI OTOMATIS INI */}
+                        {/* <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
                             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Sitasi Otomatis</h3>
                             <div className="flex flex-wrap gap-3 mb-4">
                                 {['apa', 'mla', 'chicago', 'harvard', 'ieee', 'vancouver'].map(style => (
@@ -254,7 +256,7 @@ const ManuscriptDetailPage: React.FC = () => {
                                     Salin Sitasi
                                 </button>
                             </div>
-                        </div>
+                        </div> */}
                     </div>
                 );
             default: return null;
