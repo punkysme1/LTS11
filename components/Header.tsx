@@ -1,6 +1,7 @@
-// Header.tsx
+// src/components/Header.tsx
+// PERBAIKAN DI SINI: Tambahkan NavLink ke import
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'; 
 import { BookOpenIcon, MenuIcon, XIcon, SearchIcon } from './icons';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../src/contexts/AuthContext'; // Import useAuth
@@ -61,19 +62,19 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
         <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-40 w-full border-b border-gray-200 dark:border-gray-700">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center space-x-4">
-                        <Link to="/" className="flex items-center space-x-2 font-bold font-serif text-primary-800 dark:text-white">
-                            <BookOpenIcon className="h-8 w-8 text-primary-600 dark:text-accent-400 flex-shrink-0" />
-                            <div className="flex flex-col items-start leading-none">
-                                <span className="text-sm md:text-sm">Galeri Manuskrip</span>
-                                <span className="text-xs md:text-xs text-gray-500 dark:text-gray-400">Sampurnan</span>
-                            </div>
-                        </Link>
-                    </div>
+                    {/* Logo Web */}
+                    <Link to="/" className="flex items-center space-x-2 font-bold font-serif text-primary-800 dark:text-white">
+                        <BookOpenIcon className="h-8 w-8 text-primary-600 dark:text-accent-400 flex-shrink-0" />
+                        <div className="flex flex-col items-start leading-none">
+                            <span className="text-sm md:text-sm">Galeri Manuskrip</span>
+                            <span className="text-xs md:text-xs text-gray-500 dark:text-gray-400">Sampurnan</span>
+                        </div>
+                    </Link>
 
+                    {/* Navigasi Desktop */}
                     <div className="hidden md:flex items-center space-x-6">
                         {navLinks.map(link => (
-                            <NavLink
+                            <NavLink // NavLink membutuhkan import
                                 key={link.name}
                                 to={link.path}
                                 className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200`}
@@ -83,6 +84,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                         ))}
                     </div>
 
+                    {/* Desktop Search & Dark Mode Toggle */}
                     <div className="flex items-center space-x-4">
                         <div className="relative">
                             <input
