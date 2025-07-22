@@ -95,3 +95,30 @@ export interface SearchHistoryEntry {
     timestamp: string; // ISO string
     created_at: string;
 }
+
+export interface UserProfileData {
+    id: string; // ID pengguna dari auth.users
+    full_name: string;
+    domicile_address: string;
+    institution_affiliation: string;
+    is_alumni: boolean;
+    alumni_unit?: string; // Opsional
+    alumni_grad_year?: number; // Opsional
+    occupation: string;
+    phone_number: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SignUpFormData {
+    email: string;
+    password: string;
+    full_name: string;
+    domicile_address: string;
+    institution_affiliation: string;
+    is_alumni: boolean;
+    alumni_unit?: string;
+    alumni_grad_year?: number;
+    occupation: string;
+    phone_number: string;
+}
