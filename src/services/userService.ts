@@ -35,15 +35,17 @@ export const createUserProfile = async (userId: string, profileData: CompletePro
             alumni_grad_year: profileData.is_alumni ? profileData.alumni_grad_year : null,
             occupation: profileData.occupation,
             phone_number: profileData.phone_number,
-            status: UserProfileStatus.PENDING,
-        }, { onConflict: 'id' });
+            status: UserProfileStatus.PENDING, // Default status saat pertama kali lengkapi profil
+        }, { onConflict: 'id' })
+        .select() // Tambahkan .select() agar mengembalikan data yang di-upsert
+        .single(); // Tambahkan .single() untuk memastikan hanya satu baris data yang dikembalikan
 
     if (profileError) {
         console.error('Error saat membuat/memperbarui profil pengguna:', profileError.message);
         return { profile: null, error: profileError.message };
     }
 
-    return { profile: profileResult ? profileResult[0] : null, error: null };
+    return { profile: profileResult, error: null }; // profileResult sudah single object dari .single()
 };
 
 
@@ -51,15 +53,15 @@ export const getUserProfile = async (userId: string): Promise<UserProfileData | 
     const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('id', userId);
-        // PERUBAHAN DI SINI: Hapus .single()
+        .eq('id', userId)
+        .single(); // Tambahkan .single() untuk mendapatkan satu objek atau null
 
-    if (error) {
+    if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is ok
         console.error('Error fetching user profile:', error.message);
         return null;
     }
-    // Jika data adalah array, kembalikan elemen pertama jika ada, atau null jika array kosong
-    return (data && data.length > 0 ? data[0] : null) as UserProfileData | null;
+    // Jika data adalah objek (karena .single()), kembalikan langsung
+    return data as UserProfileData | null;
 };
 
 export const updateUserProfileStatus = async (userId: string, status: UserProfileStatus) => {

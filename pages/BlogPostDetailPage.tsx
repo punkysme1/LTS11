@@ -1,19 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+// BlogPostDetailPage.tsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../src/supabaseClient';
 import { BlogPost } from '../types';
 import { CalendarIcon } from '../components/icons';
+import { useAuth } from '../src/contexts/AuthContext'; // Import useAuth
+import CommentForm from '../components/CommentForm'; // Import CommentForm
+import CommentList from '../components/CommentList'; // Import CommentList
 
 const BlogPostDetailPage: React.FC = () => {
-    const { id } = useParams<{ id: string }>(); // ID dari URL adalah string
+    const { id } = useParams<{ id: string }>();
+    const { role } = useAuth(); // Dapatkan role pengguna
     const [post, setPost] = useState<BlogPost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPost = async () => {
-            // Pastikan ID valid (bisa dikonversi ke number jika diperlukan oleh Supabase .eq)
-            if (!id || isNaN(Number(id))) { // Menambahkan validasi untuk memastikan ID adalah angka
+            if (!id || isNaN(Number(id))) {
                 setError('ID artikel tidak valid.');
                 setLoading(false);
                 return;
@@ -22,11 +26,10 @@ const BlogPostDetailPage: React.FC = () => {
             setLoading(true);
             setError(null);
 
-            // Fetch data dari Supabase
             const { data, error } = await supabase
                 .from('blog')
-                .select('*') // Mengambil semua kolom, termasuk url_thumbnail
-                .eq('id', Number(id)) // Konversi ID ke number karena tipe di DB adalah BIGSERIAL (number)
+                .select('*')
+                .eq('id', Number(id))
                 .single();
 
             if (error) {
@@ -39,7 +42,7 @@ const BlogPostDetailPage: React.FC = () => {
         };
 
         fetchPost();
-    }, [id]); // Dependensi id agar fetch ulang jika id berubah
+    }, [id]);
 
     if (loading) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat artikel...</div>;
@@ -49,7 +52,6 @@ const BlogPostDetailPage: React.FC = () => {
         return <div className="text-center py-20 text-red-600 dark:text-red-400">{error || 'Artikel tidak ditemukan.'}</div>;
     }
 
-    // Pastikan tanggal_publikasi ada sebelum mencoba memformatnya
     const displayDate = post.tanggal_publikasi
         ? new Date(post.tanggal_publikasi).toLocaleDateString('id-ID', {
             year: 'numeric',
@@ -61,7 +63,7 @@ const BlogPostDetailPage: React.FC = () => {
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <article className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 md:p-12">
-                {post.url_thumbnail && ( // <--- TAMBAHAN: Tampilkan gambar thumbnail jika ada
+                {post.url_thumbnail && (
                     <div className="mb-8 overflow-hidden rounded-lg aspect-video bg-gray-100 dark:bg-gray-700">
                         <img
                             src={post.url_thumbnail}
@@ -79,7 +81,7 @@ const BlogPostDetailPage: React.FC = () => {
                         <CalendarIcon className="h-4 w-4 mr-1.5" />
                         <span>{displayDate}</span>
                     </div>
-                    {post.penulis && ( // Tampilkan penulis hanya jika ada
+                    {post.penulis && (
                         <>
                             <span>/</span>
                             <span>Oleh: <strong>{post.penulis}</strong></span>
@@ -87,14 +89,24 @@ const BlogPostDetailPage: React.FC = () => {
                     )}
                 </div>
                 
-                {/* Tampilkan konten artikel */}
                 <div className="prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
-                    {/* Menggunakan dangerouslySetInnerHTML jika isi_artikel adalah HTML (Markdown, rich text) */}
-                    {/* Jika isi_artikel adalah teks biasa, gunakan <p>{post.isi_artikel}</p> */}
-                    {/* Untuk keamanan, pastikan konten HTML sudah di-sanitasi jika berasal dari input pengguna */}
                     <p>{post.isi_artikel}</p>
                 </div>
             </article>
+
+            {/* Komentar & Diskusi Section */}
+            <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold font-serif text-gray-900 dark:text-gray-100 mb-4">Komentar dan Diskusi</h2>
+                {role === 'verified_user' || role === 'admin' ? (
+                    <CommentForm targetId={post.id} type="blog" />
+                ) : role === 'pending' ? (
+                    <p className="text-yellow-600 dark:text-yellow-400">Akun Anda sedang menunggu verifikasi untuk dapat berkomentar.</p>
+                ) : (
+                    <p className="text-gray-600 dark:text-gray-400">Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> atau <Link to="/register" className="text-primary-600 hover:underline">daftar</Link> untuk berkomentar.</p>
+                )}
+                
+                <CommentList targetId={post.id} type="blog" userRole={role} />
+            </div>
         </div>
     );
 };

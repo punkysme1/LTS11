@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../src/contexts/AuthContext';
 import { getUserProfile, createUserProfile } from '../src/services/userService';
 import { getSearchHistory, deleteSearchHistoryEntry } from '../src/services/searchHistoryService';
-import { UserProfileData, SearchHistoryEntry, CompleteProfileFormData, UserProfileStatus } =>
+import { UserProfileData, SearchHistoryEntry, CompleteProfileFormData, UserProfileStatus } from '../types';
 
 // Membungkus FormField untuk melengkapi profil
 const MemoizedProfileFormField: React.FC<{
@@ -65,8 +65,8 @@ const MemoizedProfileFormField: React.FC<{
 
 
 const ProfileUserPage: React.FC = () => {
-    const { user, signOut } = useAuth();
-    const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
+    const { user, userProfile, role, signOut, loading: authLoading } = useAuth(); // Ambil role dari AuthContext
+    const [localUserProfile, setLocalUserProfile] = useState<UserProfileData | null>(userProfile); // Gunakan state lokal untuk form
     const [loadingProfile, setLoadingProfile] = useState(true);
     const [errorProfile, setErrorProfile] = useState<string | null>(null);
 
@@ -87,33 +87,35 @@ const ProfileUserPage: React.FC = () => {
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [errorHistory, setErrorHistory] = useState<string | null>(null);
 
-
-    const fetchUserProfile = useCallback(async () => {
-        if (user) {
-            setLoadingProfile(true);
-            setErrorProfile(null);
-            const profile = await getUserProfile(user.id);
-            if (profile) {
-                setUserProfile(profile);
+    // Initial load and whenever user/userProfile changes from AuthContext
+    useEffect(() => {
+        if (!authLoading) {
+            if (user && userProfile) {
+                setLocalUserProfile(userProfile);
                 setProfileFormData({
-                    full_name: profile.full_name,
-                    domicile_address: profile.domicile_address,
-                    institution_affiliation: profile.institution_affiliation,
-                    is_alumni: profile.is_alumni,
-                    alumni_unit: profile.alumni_unit || '',
-                    alumni_grad_year: profile.alumni_grad_year || '',
-                    occupation: profile.occupation,
-                    phone_number: profile.phone_number,
+                    full_name: userProfile.full_name,
+                    domicile_address: userProfile.domicile_address,
+                    institution_affiliation: userProfile.institution_affiliation,
+                    is_alumni: userProfile.is_alumni,
+                    alumni_unit: userProfile.alumni_unit || '',
+                    alumni_grad_year: userProfile.alumni_grad_year || '',
+                    occupation: userProfile.occupation,
+                    phone_number: userProfile.phone_number,
                 });
-            } else {
-                setUserProfile(null);
+                setLoadingProfile(false);
+            } else if (user && !userProfile) { // User is logged in but no profile exists yet
+                setLocalUserProfile(null);
+                setLoadingProfile(false);
+            } else { // No user logged in
+                setLocalUserProfile(null);
+                setLoadingProfile(false);
             }
-            setLoadingProfile(false);
         }
-    }, [user]);
+    }, [user, userProfile, authLoading]);
+
 
     const fetchHistory = useCallback(async () => {
-        if (user) {
+        if (user && localUserProfile?.status === UserProfileStatus.VERIFIED) { // Hanya fetch histori jika user verified
             setLoadingHistory(true);
             setErrorHistory(null);
             try {
@@ -125,13 +127,15 @@ const ProfileUserPage: React.FC = () => {
             } finally {
                 setLoadingHistory(false);
             }
+        } else {
+            setSearchHistory([]); // Clear history if not verified or no user
+            setLoadingHistory(false);
         }
-    }, [user]);
+    }, [user, localUserProfile]); // Tambahkan localUserProfile ke dependencies
 
     useEffect(() => {
-        fetchUserProfile();
         fetchHistory();
-    }, [user, fetchUserProfile, fetchHistory]);
+    }, [fetchHistory]);
 
     const handleProfileFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type, checked } = e.target;
@@ -153,9 +157,12 @@ const ProfileUserPage: React.FC = () => {
 
         const dataToSubmit: CompleteProfileFormData = {
             ...profileFormData,
+            // Konversi alumni_grad_year menjadi number atau undefined
             alumni_grad_year: profileFormData.is_alumni ? (profileFormData.alumni_grad_year === '' ? undefined : Number(profileFormData.alumni_grad_year)) : undefined,
+            // Pastikan alumni_unit kosong jika bukan alumni
             alumni_unit: profileFormData.is_alumni ? (profileFormData.alumni_unit?.trim() || undefined) : undefined,
         };
+        // Jika bukan alumni, pastikan field alumni_unit dan alumni_grad_year dihapus atau diatur ke undefined/null
         if (!dataToSubmit.is_alumni) {
             dataToSubmit.alumni_unit = undefined;
             dataToSubmit.alumni_grad_year = undefined;
@@ -163,18 +170,15 @@ const ProfileUserPage: React.FC = () => {
 
         const { profile, error: createError } = await createUserProfile(user.id, dataToSubmit);
 
-        // --- TAMBAHAN LOGGING UNTUK DEBUGGING ---
-        console.log("Response from createUserProfile:", { profile, createError });
-
         if (createError) {
             console.error("Create profile error object:", createError);
-            setProfileSubmitError(createError); // Pastikan ini menampilkan pesan error yang jelas
+            setProfileSubmitError(createError);
         } else if (profile) {
-            console.log("Profile created/updated successfully:", profile);
-            setUserProfile(profile); // Update userProfile state
-            setProfileSubmitError('Profil berhasil dilengkapi! Menunggu verifikasi admin.'); // Pesan sukses
+            setLocalUserProfile(profile); // Update local state
+            // Optionally, force re-fetch auth context if you want it to update immediately
+            // But usually, AuthContext has its own listener, or you can pass a callback
+            setProfileSubmitError('Profil berhasil dilengkapi! Menunggu verifikasi admin.');
         } else {
-            // Kasus di mana profile null dan createError null (sangat aneh, tapi mungkin)
             console.warn("createUserProfile returned no profile and no explicit error. Check RLS or data.");
             setProfileSubmitError('Terjadi kesalahan tidak dikenal saat melengkapi profil. Periksa konsol.');
         }
@@ -193,6 +197,10 @@ const ProfileUserPage: React.FC = () => {
         }
     };
 
+    if (authLoading || loadingProfile) {
+        return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat profil pengguna...</div>;
+    }
+
     if (!user) {
         return (
             <div className="text-center py-20 text-gray-700 dark:text-gray-300">
@@ -201,12 +209,7 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    if (loadingProfile) {
-        return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat profil pengguna...</div>;
-    }
-
-    // Tampilkan formulir lengkapi profil jika profil belum ada
-    if (!userProfile) {
+    if (!localUserProfile) { // User logged in but no profile data found
         return (
             <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
                 <h1 className="text-3xl font-bold font-serif text-center text-gray-900 dark:text-white mb-6">Lengkapi Profil Anda</h1>
@@ -242,8 +245,7 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    // Tampilkan pesan menunggu verifikasi jika statusnya pending
-    if (userProfile.status === UserProfileStatus.PENDING) {
+    if (localUserProfile.status === UserProfileStatus.PENDING) {
         return (
             <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
                 <h1 className="text-3xl font-bold font-serif text-gray-900 dark:text-white mb-6">Profil Pengguna Anda</h1>
@@ -261,7 +263,6 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    // Tampilkan profil lengkap jika sudah verified
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
             <h1 className="text-4xl font-bold font-serif text-center text-gray-900 dark:text-white mb-8">Profil Pengguna Anda</h1>
@@ -272,24 +273,26 @@ const ProfileUserPage: React.FC = () => {
                 <p className="text-gray-700 dark:text-gray-300"><strong>ID Pengguna:</strong> {user.id}</p>
                 <p className="text-gray-700 dark:text-gray-300">
                     <strong>Status Profil:</strong> 
-                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${userProfile.status === UserProfileStatus.VERIFIED ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
-                        {userProfile.status}
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${localUserProfile.status === UserProfileStatus.VERIFIED ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                        {localUserProfile.status}
                     </span>
                 </p>
+                {/* Tampilkan peran dari AuthContext */}
+                <p className="text-gray-700 dark:text-gray-300"><strong>Peran Anda:</strong> {role}</p>
             </div>
 
             <div className="mb-8 p-6 border border-gray-200 dark:border-gray-700 rounded-md">
                 <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Detail Profil</h2>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Nama Lengkap:</strong> {userProfile.full_name}</p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Alamat Domisili:</strong> {userProfile.domicile_address}</p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Lembaga/Afiliasi:</strong> {userProfile.institution_affiliation}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Nama Lengkap:</strong> {localUserProfile.full_name}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Alamat Domisili:</strong> {localUserProfile.domicile_address}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Lembaga/Afiliasi:</strong> {localUserProfile.institution_affiliation}</p>
                 <p className="text-gray-700 dark:text-gray-300">
-                    <strong>Alumni Qomaruddin:</strong> {userProfile.is_alumni ? 'Ya' : 'Tidak'}
-                    {userProfile.is_alumni && userProfile.alumni_unit && ` (${userProfile.alumni_unit}`}
-                    {userProfile.is_alumni && userProfile.alumni_grad_year && ` Lulus ${userProfile.alumni_grad_year})`}
+                    <strong>Alumni Qomaruddin:</strong> {localUserProfile.is_alumni ? 'Ya' : 'Tidak'}
+                    {localUserProfile.is_alumni && localUserProfile.alumni_unit && ` (${localUserProfile.alumni_unit}`}
+                    {localUserProfile.is_alumni && localUserProfile.alumni_grad_year && ` Lulus ${localUserProfile.alumni_grad_year})`}
                 </p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Pekerjaan:</strong> {userProfile.occupation}</p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>No. HP:</strong> {userProfile.phone_number}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Pekerjaan:</strong> {localUserProfile.occupation}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>No. HP:</strong> {localUserProfile.phone_number}</p>
                 <button
                     onClick={signOut}
                     className="mt-6 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -298,38 +301,41 @@ const ProfileUserPage: React.FC = () => {
                 </button>
             </div>
 
-            <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-md">
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Histori Pencarian Manuskrip</h2>
-                {loadingHistory ? (
-                    <p className="text-gray-600 dark:text-gray-400">Memuat histori pencarian...</p>
-                ) : errorHistory ? (
-                    <p className="text-red-600 dark:text-red-400">{errorHistory}</p>
-                ) : searchHistory.length === 0 ? (
-                    <p className="text-gray-600 dark:text-gray-400">Belum ada histori pencarian.</p>
-                ) : (
-                    <ul className="space-y-3">
-                        {searchHistory.map(entry => (
-                            <li 
-                                key={entry.id} 
-                                className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-3 rounded-md"
-                            >
-                                <span className="text-gray-800 dark:text-gray-200">
-                                    "{entry.query}" pada {new Date(entry.timestamp).toLocaleString('id-ID')}
-                                </span>
-                                <button
-                                    onClick={() => handleDeleteEntry(entry.id)}
-                                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
-                                    title="Hapus entri ini"
+            {/* Histori Pencarian hanya ditampilkan jika peran adalah 'verified_user' atau 'admin' */}
+            {(role === 'verified_user' || role === 'admin') && (
+                <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-md">
+                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Histori Pencarian Manuskrip</h2>
+                    {loadingHistory ? (
+                        <p className="text-gray-600 dark:text-gray-400">Memuat histori pencarian...</p>
+                    ) : errorHistory ? (
+                        <p className="text-red-600 dark:text-red-400">{errorHistory}</p>
+                    ) : searchHistory.length === 0 ? (
+                        <p className="text-gray-600 dark:text-gray-400">Belum ada histori pencarian.</p>
+                    ) : (
+                        <ul className="space-y-3">
+                            {searchHistory.map(entry => (
+                                <li 
+                                    key={entry.id} 
+                                    className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-3 rounded-md"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.166L15.97 2.398a1.5 1.5 0 00-1.022-.166M15.97 2.398l-3.344 9.356m-9.135 1.066L7.5 20.25H4.875c-.621 0-1.125-.504-1.125-1.125V11.25m11.166 2.625c.806-.096 1.574-.17 2.366-.254m-1.06-1.06l1.175-1.175m-7.158-6.19l-2.075 2.075M9.53 10.795l-5.06-5.06M3 7.5c.032.09.064.18.096.27m-.096-.27l-2.075-2.075M9.53 10.795l-5.06-5.06M3 7.5c.032.09.064.18.096.27m-.096-.27l-2.075-2.075M9.53 10.795l-5.06-5.06M3 7.5c.032.09.064.18.096.27m-.096-.27l-2.075-2.075M9.53 10.795l-5.06-5.06" />
-                                    </svg>
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
+                                    <span className="text-gray-800 dark:text-gray-200">
+                                        "{entry.query}" pada {new Date(entry.timestamp).toLocaleString('id-ID')}
+                                    </span>
+                                    <button
+                                        onClick={() => handleDeleteEntry(entry.id)}
+                                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
+                                        title="Hapus entri ini"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.166L15.97 2.398a1.5 1.5 0 00-1.022-.166M15.97 2.398l-3.344 9.356m-9.135 1.066L7.5 20.25H4.875c-.621 0-1.125-.504-1.125-1.125V11.25m11.166 2.625c.806-.096 1.574-.17 2.366-.254m-1.06-1.06l1.175-1.175m-7.158-6.19l-2.075 2.075M9.53 10.795l-5.06-5.06M3 7.5c.032.09.064.18.096.27m-.096-.27l-2.075-2.075M9.53 10.795l-5.06-5.06M3 7.5c.032.09.064.18.096.27m-.096-.27l-2.075-2.075M9.53 10.795l-5.06-5.06M3 7.5c.032.09.064.18.096.27m-.096-.27l-2.075-2.075M9.53 10.795l-5.06-5.06" />
+                                        </svg>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

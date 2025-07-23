@@ -1,19 +1,24 @@
+// pages/ManuscriptDetailPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom'; // Import Link
 import { supabase } from '../src/supabaseClient';
 import { Manuskrip } from '../types';
 import { askAboutManuscript } from '../services/geminiService';
 import { SparklesIcon } from '../components/icons';
+import { useAuth } from '../src/contexts/AuthContext'; // Import useAuth
 
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
-// HAPUS IMPORT LIBRARY SITASI INI
-// import { Cite, plugins } from '@citation-js/core';
-// import '@citation-js/plugin-csl';
+// Tambahkan import untuk komponen CommentForm dan CommentList
+import CommentForm from '../components/CommentForm'; // Anda perlu membuat komponen ini
+import CommentList from '../components/CommentList'; // Anda perlu membuat komponen ini
+
 
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    const { role } = useAuth(); // Dapatkan role pengguna
+
     const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -28,10 +33,6 @@ const ManuscriptDetailPage: React.FC = () => {
     const [aiQuestion, setAiQuestion] = useState('');
     const [aiResponse, setAiResponse] = useState('');
     const [isAiLoading, setIsAiLoading] = useState(false);
-
-    // HAPUS STATE UNTUK SITASI INI
-    // const [selectedCitationStyle, setSelectedCitationStyle] = useState('apa');
-    // const [generatedCitation, setGeneratedCitation] = useState('');
 
     useEffect(() => {
         const fetchManuscriptDetail = async () => {
@@ -64,6 +65,7 @@ const ManuscriptDetailPage: React.FC = () => {
                                         .map(url => url.trim())
                                         .filter(url => url !== '');
                     
+                    // Prioritaskan cover, lalu konten
                     const combinedImages = [coverUrl, ...contentUrls].filter(url => url !== '');
                     setAllImages(combinedImages);
                     
@@ -84,34 +86,6 @@ const ManuscriptDetailPage: React.FC = () => {
             fetchManuscriptDetail();
         }
     }, [id]);
-
-    // HAPUS useEffect UNTUK GENERASI SITASI INI
-    // useEffect(() => {
-    //     if (manuscript) {
-    //         const cslData = {
-    //             id: manuscript.kode_inventarisasi,
-    //             type: 'book',
-    //             title: manuscript.judul_dari_tim,
-    //             author: manuscript.pengarang ? [{ "family": manuscript.pengarang.split(' ').pop() || '', "given": manuscript.pengarang.split(' ').slice(0, -1).join(' ') }] : [],
-    //             issued: manuscript.konversi_masehi ? { 'date-parts': [[manuscript.konversi_masehi]] } : undefined,
-    //             'publisher-place': manuscript.lokasi_penyalina,
-    //             URL: manuscript.link_digital_afiliasi,
-    //         };
-    //         const cite = new Cite(cslData);
-    //         try {
-    //             const citationHtml = cite.format('bibliography', {
-    //                 format: 'html',
-    //                 template: selectedCitationStyle,
-    //                 lang: 'id-ID'
-    //             });
-    //             setGeneratedCitation(citationHtml);
-    //         } catch (e) {
-    //             console.error('Error generating citation:', e);
-    //             setGeneratedCitation(`Gagal membuat sitasi untuk gaya ${selectedCitationStyle}. Pastikan data manuskrip lengkap.`);
-    //         }
-    //     }
-    // }, [manuscript, selectedCitationStyle]);
-
 
     const openLightbox = useCallback((index: number) => {
         setCurrentImageIndex(index);
@@ -232,31 +206,6 @@ const ManuscriptDetailPage: React.FC = () => {
                                 </ul>
                             </div>
                         )}
-
-                        {/* HAPUS BAGIAN SITASI OTOMATIS INI */}
-                        {/* <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Sitasi Otomatis</h3>
-                            <div className="flex flex-wrap gap-3 mb-4">
-                                {['apa', 'mla', 'chicago', 'harvard', 'ieee', 'vancouver'].map(style => (
-                                    <button
-                                        key={style}
-                                        onClick={() => setSelectedCitationStyle(style)}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium ${selectedCitationStyle === style ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'} hover:bg-primary-500 dark:hover:bg-gray-600 transition-colors`}
-                                    >
-                                        {style.toUpperCase()}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border border-gray-200 dark:border-gray-600">
-                                <code className="block whitespace-pre-wrap text-gray-800 dark:text-gray-200" dangerouslySetInnerHTML={{ __html: generatedCitation }}></code>
-                                <button
-                                    onClick={() => navigator.clipboard.writeText(generatedCitation.replace(/<[^>]*>?/gm, ''))}
-                                    className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm"
-                                >
-                                    Salin Sitasi
-                                </button>
-                            </div>
-                        </div> */}
                     </div>
                 );
             default: return null;
@@ -283,18 +232,19 @@ const ManuscriptDetailPage: React.FC = () => {
                             <span className="text-gray-500 dark:text-gray-400">Tidak ada gambar</span>
                         )}
                     </div>
-                    {/* Thumbnails */}
-                    <div className="grid grid-cols-5 gap-2">
+                    {/* Thumbnails - Gunakan overflow-x-auto untuk scroll horizontal */}
+                    <div className="flex overflow-x-auto space-x-2 pb-2"> {/* Added overflow-x-auto and pb-2 */}
                          {allImages.map((imgUrl, index) => (
                             <img
                                 key={index}
                                 src={imgUrl}
                                 onClick={() => {
                                     setMainImage(imgUrl);
-                                    openLightbox(index);
+                                    setCurrentImageIndex(index); // Update current index for lightbox too
                                 }}
                                 alt={`thumbnail ${index + 1}`}
-                                className={`cursor-pointer rounded-md border-2 ${mainImage === imgUrl ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 object-cover w-full h-16`}
+                                className={`flex-none w-20 h-20 object-cover rounded-md border-2 ${mainImage === imgUrl ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 cursor-pointer transition-all duration-150`}
+                                loading="lazy" // Add lazy loading
                             />
                         ))}
                     </div>
@@ -345,6 +295,21 @@ const ManuscriptDetailPage: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Komentar & Diskusi Section */}
+            <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold font-serif text-gray-900 dark:text-gray-100 mb-4">Komentar dan Diskusi</h2>
+                {role === 'verified_user' || role === 'admin' ? (
+                    <CommentForm targetId={manuscript.kode_inventarisasi} type="manuscript" />
+                ) : role === 'pending' ? (
+                    <p className="text-yellow-600 dark:text-yellow-400">Akun Anda sedang menunggu verifikasi untuk dapat berkomentar.</p>
+                ) : (
+                    <p className="text-gray-600 dark:text-gray-400">Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> atau <Link to="/register" className="text-primary-600 hover:underline">daftar</Link> untuk berkomentar.</p>
+                )}
+                
+                <CommentList targetId={manuscript.kode_inventarisasi} type="manuscript" userRole={role} />
+            </div>
+
 
             {/* Lightbox Component */}
             {lightboxOpen && allImages.length > 0 && (

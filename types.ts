@@ -96,16 +96,14 @@ export interface SearchHistoryEntry {
     created_at: string;
 }
 
-// FIX: Pastikan ini diekspor dengan benar
 export enum UserProfileStatus {
   PENDING = 'pending',
   VERIFIED = 'verified',
   REJECTED = 'rejected',
 }
 
-// Interface untuk data profil pengguna
 export interface UserProfileData {
-    id: string; // ID pengguna dari auth.users
+    id: string;
     full_name: string;
     domicile_address: string;
     institution_affiliation: string;
@@ -114,9 +112,15 @@ export interface UserProfileData {
     alumni_grad_year?: number;
     occupation: string;
     phone_number: string;
-    status: UserProfileStatus; // Status profil (pending, verified, rejected)
+    status: UserProfileStatus;
     created_at: string;
     updated_at: string;
+    // BARU: Field email yang akan di-join dari auth.users
+    auth_users?: { // Nama properti akan menjadi auth_users jika Anda select alias
+        email?: string;
+    };
+    // Jika Anda ingin email langsung di level atas UserProfileData:
+    // email?: string; // Ini jika Anda ingin email ada di level root, tapi akan konflik dengan select join
 }
 
 // Interface untuk data yang dikirim dari form pendaftaran (hanya email & password)
@@ -135,4 +139,22 @@ export interface CompleteProfileFormData {
     alumni_grad_year?: number;
     occupation: string;
     phone_number: string;
+}
+
+// BARU: Role Pengguna
+export type UserRole = 'guest' | 'pending' | 'verified_user' | 'admin';
+
+// BARU: Tipe data untuk komentar
+export interface Comment {
+    id: number;
+    user_id: string; // UUID dari user yang berkomentar
+    manuscript_id?: string; // UUID dari manuskrip yang dikomentari (opsional)
+    blog_id?: number; // ID dari blog post yang dikomentari (opsional)
+    content: string;
+    status: 'pending' | 'approved' | 'rejected';
+    created_at: string;
+    // Untuk menampilkan nama user, bisa di-join dari `user_profiles`
+    user_profiles?: {
+        full_name: string;
+    };
 }
