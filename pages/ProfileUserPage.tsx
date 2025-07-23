@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../src/contexts/AuthContext';
 import { getUserProfile, createUserProfile } from '../src/services/userService';
 import { getSearchHistory, deleteSearchHistoryEntry } from '../src/services/searchHistoryService';
-import { UserProfileData, SearchHistoryEntry, CompleteProfileFormData, UserProfileStatus } from '../types';
+import { UserProfileData, SearchHistoryEntry, CompleteProfileFormData, UserProfileStatus } =>
 
 // Membungkus FormField untuk melengkapi profil
 const MemoizedProfileFormField: React.FC<{
@@ -95,7 +95,7 @@ const ProfileUserPage: React.FC = () => {
             const profile = await getUserProfile(user.id);
             if (profile) {
                 setUserProfile(profile);
-                setProfileFormData({ // Isi form jika profil sudah ada
+                setProfileFormData({
                     full_name: profile.full_name,
                     domicile_address: profile.domicile_address,
                     institution_affiliation: profile.institution_affiliation,
@@ -106,7 +106,6 @@ const ProfileUserPage: React.FC = () => {
                     phone_number: profile.phone_number,
                 });
             } else {
-                // Profil tidak ditemukan, biarkan form kosong untuk diisi
                 setUserProfile(null);
             }
             setLoadingProfile(false);
@@ -164,13 +163,20 @@ const ProfileUserPage: React.FC = () => {
 
         const { profile, error: createError } = await createUserProfile(user.id, dataToSubmit);
 
+        // --- TAMBAHAN LOGGING UNTUK DEBUGGING ---
+        console.log("Response from createUserProfile:", { profile, createError });
+
         if (createError) {
-            setProfileSubmitError(createError);
+            console.error("Create profile error object:", createError);
+            setProfileSubmitError(createError); // Pastikan ini menampilkan pesan error yang jelas
         } else if (profile) {
-            setUserProfile(profile);
-            setProfileSubmitError('Profil berhasil dilengkapi! Menunggu verifikasi admin.');
-            // Opsional: Langsung tampilkan profil lengkap dan sembunyikan form
-            // Anda bisa mengatur state lain di sini untuk menyembunyikan form dan menampilkan tampilan profil verified.
+            console.log("Profile created/updated successfully:", profile);
+            setUserProfile(profile); // Update userProfile state
+            setProfileSubmitError('Profil berhasil dilengkapi! Menunggu verifikasi admin.'); // Pesan sukses
+        } else {
+            // Kasus di mana profile null dan createError null (sangat aneh, tapi mungkin)
+            console.warn("createUserProfile returned no profile and no explicit error. Check RLS or data.");
+            setProfileSubmitError('Terjadi kesalahan tidak dikenal saat melengkapi profil. Periksa konsol.');
         }
         setLoadingProfileSubmit(false);
     };
