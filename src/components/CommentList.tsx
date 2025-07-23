@@ -1,7 +1,7 @@
 // src/components/CommentList.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../src/supabaseClient';
-import { Comment, UserRole } from '../types';
+import { supabase } from '../supabaseClient';
+import { Comment, UserRole } from '../../types';
 
 interface CommentListProps {
     targetId: string | number; // ID dari manuskrip (string) atau blog (number)

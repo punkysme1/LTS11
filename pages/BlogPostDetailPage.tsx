@@ -5,8 +5,8 @@ import { supabase } from '../src/supabaseClient';
 import { BlogPost } from '../types';
 import { CalendarIcon } from '../components/icons';
 import { useAuth } from '../src/contexts/AuthContext'; // Import useAuth
-import CommentForm from '../components/CommentForm'; // Import CommentForm
-import CommentList from '../components/CommentList'; // Import CommentList
+import CommentForm from '../src/components/CommentForm'; // Import CommentForm
+import CommentList from '../src/components/CommentList'; // Import CommentList
 
 const BlogPostDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();

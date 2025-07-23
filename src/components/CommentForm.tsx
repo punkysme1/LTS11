@@ -1,8 +1,8 @@
 // src/components/CommentForm.tsx
 import React, { useState } from 'react';
-import { supabase } from '../src/supabaseClient';
-import { useAuth } from '../src/contexts/AuthContext';
-import { Comment } from '../types'; // Import Comment type
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+import { Comment } from '../../types'; // Import Comment type
 
 interface CommentFormProps {
     targetId: string | number; // ID dari manuskrip (string) atau blog (number)

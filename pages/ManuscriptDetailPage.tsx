@@ -11,8 +11,8 @@ import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
 // Tambahkan import untuk komponen CommentForm dan CommentList
-import CommentForm from '../components/CommentForm'; // Anda perlu membuat komponen ini
-import CommentList from '../components/CommentList'; // Anda perlu membuat komponen ini
+import CommentForm from '../src/components/CommentForm'; // Anda perlu membuat komponen ini
+import CommentList from '../src/components/CommentList'; // Anda perlu membuat komponen ini
 
 
 const ManuscriptDetailPage: React.FC = () => {
