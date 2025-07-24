@@ -1,122 +1,184 @@
 // src/contexts/AuthContext.tsx
-import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '../supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
-import { UserProfileData, UserProfileStatus, UserRole } from '../../types'; // Import UserProfileData dan UserRole
-import { getUserProfile } from '../services/userService'; // Import getUserProfile
+// PERBAIKAN DI SINI: Import AuthContextType dari types.ts
+import { UserProfileData, UserProfileStatus, UserRole, AuthContextType } from '../../types';
+import { getUserProfile } from '../services/userService';
 
-interface AuthContextType {
-  session: Session | null;
-  user: User | null;
-  userProfile: UserProfileData | null; // Tambahkan userProfile
-  role: UserRole; // Tambahkan role
-  loading: boolean;
-  signOut: () => Promise<void>;
-  // Jika Anda ingin menyediakan signIn/signUp di context, Anda bisa menambahkannya di sini
-  // signIn: (email: string, password: string) => Promise<{ user: User | null; error: string | null }>;
-}
+// PERBAIKAN DI SINI: HAPUS DEFINISI AuthContextType yang DUPLIKAT di sini
+// export interface AuthContextType { ... } // HAPUS INI
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// AuthContext tetap didefinisikan di sini karena Provider-nya ada di sini
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfileData | null>(null); // State untuk profil pengguna
-  const [role, setRole] = useState<UserRole>('guest'); // State untuk peran pengguna
+  const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
+  const [role, setRole] = useState<UserRole>('guest');
   const [loading, setLoading] = useState(true);
+  const isMounted = useRef(true);
 
-  // Fungsi untuk mengambil profil pengguna dan menentukan peran
+  console.log('AUTH_CONTEXT_STATE: Render. Loading:', loading, 'User:', user?.id, 'Role:', role, 'UserProfile:', userProfile?.status);
+
   const fetchUserProfileAndSetRole = useCallback(async (userId: string) => {
-    const profile = await getUserProfile(userId); //
-    setUserProfile(profile); //
-
-    if (profile) {
-      // PERBAIKAN DI SINI: Menggunakan import.meta.env untuk variabel lingkungan Vite.
-      // Pastikan Anda punya file .env di root dengan VITE_REACT_APP_ADMIN_USER_ID=YOUR_ADMIN_USER_ID
-      if (userId === import.meta.env.VITE_REACT_APP_ADMIN_USER_ID) { //
-          setRole('admin'); //
-      } else if (profile.status === UserProfileStatus.VERIFIED) { //
-          setRole('verified_user'); //
-      } else if (profile.status === UserProfileStatus.PENDING) { //
-          setRole('pending'); //
-      } else {
-          setRole('guest'); // Fallback jika status tidak dikenal
-      }
-    } else {
-        // Jika tidak ada profil, cek apakah user sudah login (berarti baru sign-up tapi belum lengkapi profil)
-        // Atau jika user logout, role akan kembali ke guest
-        setRole(user ? 'pending' : 'guest'); //
+    if (!isMounted.current) {
+        console.log('AUTH_CONTEXT_LOG: fetchUserProfileAndSetRole skipped, not mounted.');
+        return;
     }
-  }, [user]); // Ditambahkan 'user' ke dependency array
+    console.log('AUTH_CONTEXT_LOG: Starting fetchUserProfileAndSetRole for userId:', userId);
+
+    try {
+      const profile = await getUserProfile(userId);
+      if (!isMounted.current) {
+          console.log('AUTH_CONTEXT_LOG: fetchUserProfileAndSetRole aborted, unmounted during fetch.');
+          return;
+      }
+
+      setUserProfile(profile);
+
+      if (profile) {
+        if (userId === import.meta.env.VITE_REACT_APP_ADMIN_USER_ID) {
+          setRole('admin');
+          console.log('AUTH_CONTEXT_LOG: Role set to ADMIN.');
+        } else if (profile.status === UserProfileStatus.VERIFIED) {
+          setRole('verified_user');
+          console.log('AUTH_CONTEXT_LOG: Role set to VERIFIED_USER.');
+        } else if (profile.status === UserProfileStatus.PENDING) {
+          setRole('pending');
+          console.log('AUTH_CONTEXT_LOG: Role set to PENDING.');
+        } else {
+          setRole('guest');
+          console.log('AUTH_CONTEXT_LOG: Role set to GUEST (unknown status).');
+        }
+      } else {
+        setRole('pending');
+        console.log('AUTH_CONTEXT_LOG: User logged in but no profile found, setting role to PENDING.');
+      }
+    } catch (err: any) {
+      console.error("AUTH_CONTEXT_ERROR: Error fetching user profile:", err.message || err);
+      if (isMounted.current) {
+        setRole('guest');
+        setUserProfile(null);
+        console.log('AUTH_CONTEXT_LOG: Error caught, role set to GUEST and profile null.');
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+        console.log('AUTH_CONTEXT_LOG: setLoading(false) executed. Final loading state:', false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    const getSessionAndProfile = async () => {
-      setLoading(true); //
-      const { data: { session }, error } = await supabase.auth.getSession(); //
-      if (error) {
-        console.error("Error getting session:", error); //
+    const getInitialSession = async () => {
+      if (!isMounted.current) return;
+      console.log('AUTH_CONTEXT_LOG: Initializing AuthContext from getInitialSession.');
+      setLoading(true);
+
+      const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (!isMounted.current) return;
+
+      if (sessionError) {
+        console.error("AUTH_CONTEXT_ERROR: Error getting initial session:", sessionError);
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setRole('guest');
+        setLoading(false);
+        return;
       }
-      setSession(session); //
-      const currentUser = session?.user ?? null; //
-      setUser(currentUser); //
+
+      setSession(initialSession);
+      const currentUser = initialSession?.user ?? null;
+      setUser(currentUser);
 
       if (currentUser) {
-        await fetchUserProfileAndSetRole(currentUser.id); //
+        console.log('AUTH_CONTEXT_LOG: Initial session found, fetching profile for:', currentUser.id);
+        await fetchUserProfileAndSetRole(currentUser.id);
       } else {
-        setUserProfile(null); //
-        setRole('guest'); //
+        console.log('AUTH_CONTEXT_LOG: No initial session found.');
+        setUserProfile(null);
+        setRole('guest');
+        setLoading(false);
       }
-      setLoading(false); //
     };
 
-    getSessionAndProfile(); //
+    getInitialSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setLoading(true); // Set loading true saat perubahan state auth
-      setSession(session); //
-      const currentUser = session?.user ?? null; //
-      setUser(currentUser); //
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      if (!isMounted.current) {
+          console.log('AUTH_CONTEXT_LOG: handleAuthStateChange skipped, not mounted (from listener).');
+          return;
+      }
+      
+      console.log('AUTH_CONTEXT_LOG: Auth state change detected from listener. Event:', _event, 'Session user ID:', currentSession?.user?.id);
+      
+      if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED' || _event === 'USER_UPDATED') {
+          if (user && user.id === currentSession?.user?.id && userProfile) {
+              console.log('AUTH_CONTEXT_LOG: User ID and profile unchanged from listener event, skipping refetch.');
+              setSession(currentSession);
+              setUser(currentSession.user);
+              setLoading(false);
+              return;
+          }
+      }
+
+      setLoading(true);
+      setSession(currentSession);
+      const currentUser = currentSession?.user ?? null;
+      setUser(currentUser);
 
       if (currentUser) {
-        fetchUserProfileAndSetRole(currentUser.id).finally(() => setLoading(false)); //
+        console.log('AUTH_CONTEXT_LOG: Listener detected new/changed user (or initial fetch), fetching profile.');
+        await fetchUserProfileAndSetRole(currentUser.id);
       } else {
-        setUserProfile(null); //
-        setRole('guest'); //
-        setLoading(false); //
+        console.log('AUTH_CONTEXT_LOG: Listener detected user logged out.');
+        setUserProfile(null);
+        setRole('guest');
+        setLoading(false);
       }
     });
 
     return () => {
-      authListener.subscription.unsubscribe(); //
+      isMounted.current = false;
+      authListener.subscription.unsubscribe();
+      console.log('AUTH_CONTEXT_LOG: AuthProvider unmounted, listener unsubscribed (cleanup).');
     };
-  }, [fetchUserProfileAndSetRole]); //
+  }, [fetchUserProfileAndSetRole, user, userProfile]);
 
   const signOut = async () => {
-    setLoading(true); // Set loading true saat proses logout
-    await supabase.auth.signOut(); //
-    setSession(null); //
-    setUser(null); //
-    setUserProfile(null); //
-    setRole('guest'); //
-    setLoading(false); // Set loading false setelah logout selesai
+    setLoading(true);
+    console.log('AUTH_CONTEXT_LOG: Signing out...');
+    try {
+      await supabase.auth.signOut();
+      if (isMounted.current) {
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setRole('guest');
+        console.log('AUTH_CONTEXT_LOG: Sign out successful, state reset.');
+      }
+    } catch (err) {
+      console.error("AUTH_CONTEXT_ERROR: Error during sign out:", err);
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+        console.log('AUTH_CONTEXT_LOG: Sign out process finished.');
+      }
+    }
   };
 
   const value = {
     session,
     user,
-    userProfile, // Sediakan userProfile di context
-    role, // Sediakan role di context
+    userProfile,
+    role,
     loading,
     signOut,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

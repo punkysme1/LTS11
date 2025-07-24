@@ -35,32 +35,37 @@ export const createUserProfile = async (userId: string, profileData: CompletePro
             alumni_grad_year: profileData.is_alumni ? profileData.alumni_grad_year : null,
             occupation: profileData.occupation,
             phone_number: profileData.phone_number,
-            status: UserProfileStatus.PENDING, // Default status saat pertama kali lengkapi profil
+            status: UserProfileStatus.PENDING,
         }, { onConflict: 'id' })
-        .select() // Tambahkan .select() agar mengembalikan data yang di-upsert
-        .single(); // Tambahkan .single() untuk memastikan hanya satu baris data yang dikembalikan
+        .select()
+        .single();
 
     if (profileError) {
         console.error('Error saat membuat/memperbarui profil pengguna:', profileError.message);
         return { profile: null, error: profileError.message };
     }
 
-    return { profile: profileResult, error: null }; // profileResult sudah single object dari .single()
+    return { profile: profileResult, error: null };
 };
 
 
 export const getUserProfile = async (userId: string): Promise<UserProfileData | null> => {
+    console.log("USER_SERVICE_LOG: Attempting to fetch profile for userId:", userId);
     const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('*') // Anda bisa tambahkan '*, auth_users(email)' jika ingin mengambil email juga
         .eq('id', userId)
-        .single(); // Tambahkan .single() untuk mendapatkan satu objek atau null
+        .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is ok
-        console.error('Error fetching user profile:', error.message);
+        console.error('USER_SERVICE_ERROR: Error fetching user profile from Supabase:', error.message, 'Code:', error.code);
         return null;
     }
-    // Jika data adalah objek (karena .single()), kembalikan langsung
+    if (data) {
+        console.log('USER_SERVICE_LOG: Profile fetched successfully:', data);
+    } else {
+        console.log('USER_SERVICE_LOG: No profile found for userId:', userId);
+    }
     return data as UserProfileData | null;
 };
 

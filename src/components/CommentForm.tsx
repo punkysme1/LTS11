@@ -1,7 +1,7 @@
 // src/components/CommentForm.tsx
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { Comment } from '../../types'; // Import Comment type
 
 interface CommentFormProps {

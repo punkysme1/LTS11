@@ -1,4 +1,6 @@
-// types.ts
+// src/types.ts
+import { Session, User } from '@supabase/supabase-js'; // Import Session dan User
+
 export interface Manuskrip {
   // ... (field-field yang sudah ada)
   kode_inventarisasi: string;
@@ -119,8 +121,6 @@ export interface UserProfileData {
     auth_users?: { // Nama properti akan menjadi auth_users jika Anda select alias
         email?: string;
     };
-    // Jika Anda ingin email langsung di level atas UserProfileData:
-    // email?: string; // Ini jika Anda ingin email ada di level root, tapi akan konflik dengan select join
 }
 
 // Interface untuk data yang dikirim dari form pendaftaran (hanya email & password)
@@ -143,6 +143,16 @@ export interface CompleteProfileFormData {
 
 // BARU: Role Pengguna
 export type UserRole = 'guest' | 'pending' | 'verified_user' | 'admin';
+
+// BARU DAN KRITIS: DEFINISI AuthContextType HARUS DI-EXPORT DARI types.ts
+export interface AuthContextType {
+    session: Session | null;
+    user: User | null;
+    userProfile: UserProfileData | null;
+    role: UserRole;
+    loading: boolean;
+    signOut: () => Promise<void>;
+}
 
 // BARU: Tipe data untuk komentar
 export interface Comment {

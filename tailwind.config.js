@@ -1,8 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./index.html",
-    "./**/*.{js,ts,jsx,tsx}", // Path sudah diperbaiki untuk memindai semua folder
+    "./index.html", // Untuk file index.html di root proyek
+    "./src/**/*.{js,ts,jsx,tsx}", // Untuk semua file JS/TS/JSX/TSX di dalam folder src/
+    // Jika Anda punya file React/Vue/Svelte/HTML lain di luar src/ (misal di root atau public/), tambahkan di sini
+    // Contoh: "./public/**/*.html" jika ada HTML di public/ selain index.html
   ],
   darkMode: 'class',
   theme: {
@@ -11,7 +13,6 @@ export default {
         sans: ['Inter', 'sans-serif'],
         serif: ['Playfair Display', 'serif'],
       },
-      // Anda bisa menambahkan warna kustom di sini jika perlu
       colors: {
         primary: {
           50: '#eff6ff',
@@ -27,7 +28,7 @@ export default {
           950: '#172554',
         },
         accent: {
-          400: '#facc15', 
+          400: '#facc15',
           500: '#eab308',
           600: '#ca8a04',
         }
