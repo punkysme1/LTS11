@@ -2,7 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './index.css'; // Path should be correct if index.css is in src/
+import './index.css'; // Path ini seharusnya benar jika index.css ada di src/
 import { AuthProvider } from './contexts/AuthContext';
 
 console.log('MAIN_APP_ENTRY_POINT: Application is starting...');
@@ -14,7 +14,7 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(
-  // CRITICAL: ENSURE <React.StrictMode> IS NOT HERE
+  // PASTIKAN BENAR-BENAR TIDAK ADA <React.StrictMode> DI SINI
   <AuthProvider>
     <App />
   </AuthProvider>
