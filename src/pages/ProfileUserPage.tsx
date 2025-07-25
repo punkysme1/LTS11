@@ -1,11 +1,11 @@
 // src/pages/ProfileUserPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../hooks/useAuth'; // Sesuaikan path jika perlu
-import { getUserProfile, createUserProfile } from '../services/userService'; // Sesuaikan path jika perlu
-import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService'; // Sesuaikan path jika perlu
+import { useAuth } from '../hooks/useAuth';
+import { getUserProfile, createUserProfile } from '../services/userService';
+import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService';
 import { UserProfileData, SearchHistoryEntry, CompleteProfileFormData, UserProfileStatus } from '../../types';
 
-// Membungkus FormField untuk melengkapi profil (kode ini sama seperti sebelumnya, tidak perlu diubah)
+// Membungkus FormField untuk melengkapi profil
 const MemoizedProfileFormField: React.FC<{
     name: keyof CompleteProfileFormData;
     label: string;
@@ -51,6 +51,7 @@ const MemoizedProfileFormField: React.FC<{
                     type={type}
                     id={name}
                     name={name}
+                    // Pastikan number inputs handle undefined/null by showing empty string
                     value={(type === 'number' && (value === undefined || value === null)) ? '' : value as string | number}
                     onChange={onChange}
                     required={required}
@@ -96,8 +97,9 @@ const ProfileUserPage: React.FC = () => {
                     domicile_address: userProfile.domicile_address,
                     institution_affiliation: userProfile.institution_affiliation,
                     is_alumni: userProfile.is_alumni,
+                    // Pastikan nilai default adalah string kosong jika null/undefined
                     alumni_unit: userProfile.alumni_unit || '',
-                    alumni_grad_year: userProfile.alumni_grad_year || '',
+                    alumni_grad_year: userProfile.alumni_grad_year === null || userProfile.alumni_grad_year === undefined ? '' : String(userProfile.alumni_grad_year),
                     occupation: userProfile.occupation,
                     phone_number: userProfile.phone_number,
                 });
@@ -159,7 +161,8 @@ const ProfileUserPage: React.FC = () => {
 
         const dataToSubmit: CompleteProfileFormData = {
             ...profileFormData,
-            alumni_grad_year: profileFormData.is_alumni ? (profileFormData.alumni_grad_year === '' ? undefined : Number(profileFormData.alumni_grad_year)) : undefined,
+            // Perbaikan kecil: Pastikan alumni_grad_year adalah number atau undefined
+            alumni_grad_year: profileFormData.is_alumni && profileFormData.alumni_grad_year !== '' ? Number(profileFormData.alumni_grad_year) : undefined,
             alumni_unit: profileFormData.is_alumni ? (profileFormData.alumni_unit?.trim() || undefined) : undefined,
         };
         if (!dataToSubmit.is_alumni) {
@@ -173,8 +176,15 @@ const ProfileUserPage: React.FC = () => {
             console.error("Create profile error object:", createError);
             setProfileSubmitError(createError);
         } else if (profile) {
-            setLocalUserProfile(profile);
+            // Setelah profil dilengkapi, kita ingin AuthContext mengambil ulang profil
+            // Untuk ini, Anda perlu memicu refresh userProfile di AuthContext
+            // Cara terbaik adalah dengan membiarkan AuthContext's onAuthStateChange mendeteksi perubahan
+            // atau memanggil fungsi refresh dari AuthContext jika ada.
+            // Untuk sementara, kita bisa berasumsi bahwa setelah sukses, userProfile akan diperbarui
+            // oleh AuthContext karena ada listener auth state change.
+            setLocalUserProfile(profile); // Update local state immediately
             setProfileSubmitError('Profil berhasil dilengkapi! Menunggu verifikasi admin.');
+            // Tidak perlu navigate, biarkan komponen render ulang berdasarkan state localUserProfile
         } else {
             console.warn("createUserProfile returned no profile and no explicit error. Check RLS or data.");
             setProfileSubmitError('Terjadi kesalahan tidak dikenal saat melengkapi profil. Periksa konsol.');
@@ -251,7 +261,7 @@ const ProfileUserPage: React.FC = () => {
                 <p className="text-yellow-600 dark:text-yellow-400 text-lg mb-4">
                     Profil Anda telah berhasil dilengkapi dan menunggu verifikasi oleh admin.
                 </p>
-                <p className="text-gray-700 dark:text-gray-300">Email: {user.email}</p>
+                <p className="text-gray-700 dark:text-gray-300">Email: {user?.email}</p> {/* Use optional chaining for user.email */}
                 <button
                     onClick={signOut}
                     className="mt-6 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -269,8 +279,8 @@ const ProfileUserPage: React.FC = () => {
 
             <div className="mb-8 p-6 border border-gray-200 dark:border-gray-700 rounded-md">
                 <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Informasi Akun</h2>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Email:</strong> {user.email}</p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>ID Pengguna:</strong> {user.id}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Email:</strong> {user?.email}</p> {/* Use optional chaining */}
+                <p className="text-gray-700 dark:text-gray-300"><strong>ID Pengguna:</strong> {user?.id}</p> {/* Use optional chaining */}
                 <p className="text-gray-700 dark:text-gray-300">
                     <strong>Status Profil:</strong>
                     <span className={`ml-2 px-2 py-1 text-xs rounded-full ${localUserProfile.status === UserProfileStatus.VERIFIED ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
