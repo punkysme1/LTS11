@@ -1,8 +1,8 @@
-// pages/ProfileUserPage.tsx
+// src/pages/ProfileUserPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { getUserProfile, createUserProfile } from '../services/userService';
-import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService';
+import { useAuth } from '../hooks/useAuth'; // Sesuaikan path jika perlu
+import { getUserProfile, createUserProfile } from '../services/userService'; // Sesuaikan path jika perlu
+import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService'; // Sesuaikan path jika perlu
 import { UserProfileData, SearchHistoryEntry, CompleteProfileFormData, UserProfileStatus } from '../../types';
 
 // Membungkus FormField untuk melengkapi profil (kode ini sama seperti sebelumnya, tidak perlu diubah)
@@ -65,7 +65,7 @@ const MemoizedProfileFormField: React.FC<{
 
 
 const ProfileUserPage: React.FC = () => {
-    const { user, userProfile, role, signOut, loading: authLoading } = useAuth(); // Ambil role dan authLoading
+    const { user, userProfile, role, signOut, loading: authLoading } = useAuth();
     const [localUserProfile, setLocalUserProfile] = useState<UserProfileData | null>(null);
     const [loadingProfile, setLoadingProfile] = useState(true);
     const [errorProfile, setErrorProfile] = useState<string | null>(null);
@@ -87,9 +87,8 @@ const ProfileUserPage: React.FC = () => {
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [errorHistory, setErrorHistory] = useState<string | null>(null);
 
-    // Initial load and whenever user/userProfile changes from AuthContext
     useEffect(() => {
-        if (!authLoading) { // Hanya jalankan jika AuthContext tidak lagi loading
+        if (!authLoading) {
             if (user && userProfile) {
                 setLocalUserProfile(userProfile);
                 setProfileFormData({
@@ -103,18 +102,19 @@ const ProfileUserPage: React.FC = () => {
                     phone_number: userProfile.phone_number,
                 });
                 setLoadingProfile(false);
-            } else if (user && !userProfile) { // User is logged in but no profile exists yet
-                setLocalUserProfile(null);
+            } else if (user && !userProfile) {
+                // User is logged in but no profile exists yet, set status to pending by default
+                setLocalUserProfile(null); // Clear local profile so form is shown
                 setLoadingProfile(false);
-            } else { // No user logged in
+            } else {
                 setLocalUserProfile(null);
                 setLoadingProfile(false);
             }
         }
-    }, [user, userProfile, authLoading]); // Tambahkan authLoading ke dependencies
+    }, [user, userProfile, authLoading]);
+
 
     const fetchHistory = useCallback(async () => {
-        // Hanya fetch histori jika user verified DAN user_id tersedia
         if (user && (role === 'verified_user' || role === 'admin')) {
             setLoadingHistory(true);
             setErrorHistory(null);
@@ -128,17 +128,16 @@ const ProfileUserPage: React.FC = () => {
                 setLoadingHistory(false);
             }
         } else {
-            setSearchHistory([]); // Clear history if not verified or no user
+            setSearchHistory([]);
             setLoadingHistory(false);
         }
-    }, [user, role]); // Tambahkan 'role' ke dependencies
+    }, [user, role]);
 
     useEffect(() => {
-        // Panggil fetchHistory hanya jika authLoading sudah false
         if (!authLoading) {
             fetchHistory();
         }
-    }, [authLoading, fetchHistory]); // Tambahkan authLoading ke dependencies
+    }, [authLoading, fetchHistory]);
 
     const handleProfileFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type, checked } = e.target;
@@ -174,7 +173,7 @@ const ProfileUserPage: React.FC = () => {
             console.error("Create profile error object:", createError);
             setProfileSubmitError(createError);
         } else if (profile) {
-            setLocalUserProfile(profile); // Update local state
+            setLocalUserProfile(profile);
             setProfileSubmitError('Profil berhasil dilengkapi! Menunggu verifikasi admin.');
         } else {
             console.warn("createUserProfile returned no profile and no explicit error. Check RLS or data.");
@@ -195,7 +194,6 @@ const ProfileUserPage: React.FC = () => {
         }
     };
 
-    // Tampilkan loading jika AuthContext sedang loading atau profil sedang loading
     if (authLoading || loadingProfile) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat profil pengguna...</div>;
     }
@@ -208,7 +206,8 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    if (!localUserProfile) { // User logged in but no profile data found
+    // Jika user login tapi userProfile masih null (belum melengkapi profil)
+    if (!localUserProfile) {
         return (
             <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
                 <h1 className="text-3xl font-bold font-serif text-center text-gray-900 dark:text-white mb-6">Lengkapi Profil Anda</h1>
@@ -244,6 +243,7 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
+    // Jika userProfile ada dan statusnya PENDING
     if (localUserProfile.status === UserProfileStatus.PENDING) {
         return (
             <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
@@ -262,6 +262,7 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
+    // Tampilkan profil lengkap jika status VERIFIED atau user adalah Admin
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
             <h1 className="text-4xl font-bold font-serif text-center text-gray-900 dark:text-white mb-8">Profil Pengguna Anda</h1>
@@ -271,7 +272,7 @@ const ProfileUserPage: React.FC = () => {
                 <p className="text-gray-700 dark:text-gray-300"><strong>Email:</strong> {user.email}</p>
                 <p className="text-gray-700 dark:text-gray-300"><strong>ID Pengguna:</strong> {user.id}</p>
                 <p className="text-gray-700 dark:text-gray-300">
-                    <strong>Status Profil:</strong> 
+                    <strong>Status Profil:</strong>
                     <span className={`ml-2 px-2 py-1 text-xs rounded-full ${localUserProfile.status === UserProfileStatus.VERIFIED ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
                         {localUserProfile.status}
                     </span>
@@ -311,8 +312,8 @@ const ProfileUserPage: React.FC = () => {
                     ) : (
                         <ul className="space-y-3">
                             {searchHistory.map(entry => (
-                                <li 
-                                    key={entry.id} 
+                                <li
+                                    key={entry.id}
                                     className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-3 rounded-md"
                                 >
                                     <span className="text-gray-800 dark:text-gray-200">

@@ -148,17 +148,14 @@ const App: React.FC = () => {
   }, [theme]);
 
   return (
-    // AuthProvider membungkus seluruh aplikasi untuk menyediakan konteks autentikasi
-    <AuthProvider>
-      {/* ThemeContext.Provider membungkus aplikasi untuk menyediakan konteks tema */}
-      <ThemeContext.Provider value={{ theme, toggleTheme }}>
-        {/* BrowserRouter menyediakan fungsionalitas routing */}
-        <BrowserRouter>
-          {/* AppContent adalah komponen utama yang berisi routing dan UI aplikasi */}
-          <AppContent />
-        </BrowserRouter>
-      </ThemeContext.Provider>
-    </AuthProvider>
+    // Wrap the content within a return statement
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {/* BrowserRouter menyediakan fungsionalitas routing */}
+      <BrowserRouter>
+        {/* AppContent adalah komponen utama yang berisi routing dan UI aplikasi */}
+        <AppContent />
+      </BrowserRouter>
+    </ThemeContext.Provider>
   );
 };
 

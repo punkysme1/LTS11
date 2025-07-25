@@ -1,6 +1,7 @@
+// src/pages/LoginPage.tsx
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { useNavigate, Link } from 'react-router-dom'; // Import useNavigate dan Link
+import { useNavigate, Link } from 'react-router-dom';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
@@ -14,18 +15,21 @@ const LoginPage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
         if (signInError) {
             setError(signInError.message);
-        } else if (data.user) {
-            // Jika login berhasil, redirect ke halaman utama atau halaman profil
-            // AuthContext akan otomatis menangani pembaruan state user dan profile
-            navigate('/'); // Atau '/user' jika ingin langsung ke profil
+        } else {
+            // PERBAIKAN DI SINI: TIDAK PERLU REDIRECT MANUAL.
+            // AuthContext akan mendeteksi sesi dan App.tsx akan mengarahkan
+            // ke halaman yang sesuai (misalnya /user untuk melengkapi profil).
+            // Jika ingin redirect ke halaman utama, bisa tambahkan navigate('/')
+            // tapi biasanya alur ini lebih baik ditangani oleh App.tsx via AuthContext
+            // dan ProtectedRoutes.
         }
         setLoading(false);
     };
-    
+
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
             <div className="w-full max-w-md p-8 space-y-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
@@ -60,10 +64,10 @@ const LoginPage: React.FC = () => {
                     </div>
                     {error && <p className="text-sm text-red-500 text-center">{error}</p>}
                     <div>
-                        <button 
-                            type="submit" 
-                            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                        <button
+                            type="submit"
                             disabled={loading}
+                            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
                         >
                             {loading ? 'Memproses...' : 'Login'}
                         </button>

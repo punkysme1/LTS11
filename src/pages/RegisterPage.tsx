@@ -1,12 +1,12 @@
-// pages/RegisterPage.tsx
+// src/pages/RegisterPage.tsx
 import React, { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signUpUser } from '../services/userService'; // Import fungsi signUpUser yang baru
+import { signUpUser } from '../services/userService';
 import { SignUpFormData } from '../../types';
 
 // Membungkus FormField (tetap sama)
 const MemoizedFormField: React.FC<{
-    name: keyof SignUpFormData; // Hanya akan ada email dan password di sini
+    name: keyof SignUpFormData;
     label: string;
     type?: string;
     required?: boolean;
@@ -71,19 +71,23 @@ const RegisterPage: React.FC = () => {
             return;
         }
 
-        const { user, error: signUpError } = await signUpUser(formData); // Hanya panggil signUpUser
+        const { user, error: signUpError } = await signUpUser(formData);
 
         if (signUpError) {
             setError(signUpError);
         } else if (user) {
-            setSuccessMessage('Pendaftaran berhasil! Silakan cek email Anda untuk verifikasi. Setelah verifikasi, login untuk melengkapi profil Anda.');
-            setFormData({ email: '', password: '' }); // Reset form
+            // PERBAIKAN DI SINI: Redirect langsung ke halaman profil pengguna setelah daftar
+            // Supabase tidak lagi mengirim email verifikasi otomatis
+            navigate('/user');
+            // Jika Anda ingin menampilkan pesan sukses, bisa diimplementasikan sebagai modal atau notifikasi
+            // setSuccessMessage('Pendaftaran berhasil! Silakan lengkapi profil Anda.');
+            // setFormData({ email: '', password: '' }); // Reset form
         }
         setLoading(false);
     };
 
     return (
-        <div className="max-w-md mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg"> {/* Lebar form disesuaikan */}
+        <div className="max-w-md mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
             <h1 className="text-3xl font-bold font-serif text-center text-gray-900 dark:text-white mb-6">Daftar Akun Pengguna</h1>
             <p className="text-center text-gray-600 dark:text-gray-300 mb-8">Masukkan email dan password Anda untuk mendaftar.</p>
 
