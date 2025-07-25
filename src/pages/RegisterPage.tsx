@@ -1,8 +1,8 @@
 // src/pages/RegisterPage.tsx
 import React, { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signUpUser, createUserProfile } from '../services/userService'; // Import createUserProfile
-import { SignUpFormData, UserProfileStatus, CompleteProfileFormData } from '../../types'; // Import UserProfileStatus dan CompleteProfileFormData
+import { signUpUser } from '../services/userService'; // createUserProfile tidak lagi dipanggil dari sini
+import { SignUpFormData } from '../../types'; // Hapus import UserProfileStatus dan CompleteProfileFormData
 
 // MemoizedFormField tetap sama
 const MemoizedFormField: React.FC<{
@@ -41,7 +41,7 @@ const RegisterPage: React.FC = () => {
     const [formData, setFormData] = useState<SignUpFormData & { full_name: string }>({
         email: '',
         password: '',
-        full_name: '', // Tambahkan full_name untuk formulir pendaftaran awal
+        full_name: '',
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,7 @@ const RegisterPage: React.FC = () => {
         setError(null);
         setSuccessMessage(null);
 
-        if (!formData.email || !formData.password || !formData.full_name.trim()) { // Pastikan full_name tidak kosong
+        if (!formData.email || !formData.password || !formData.full_name.trim()) {
             setError('Email, Password, dan Nama Lengkap wajib diisi.');
             setLoading(false);
             return;
@@ -73,6 +73,7 @@ const RegisterPage: React.FC = () => {
         }
 
         // 1. Lakukan pendaftaran pengguna ke Supabase Auth
+        // Hanya membuat akun di auth.users. Pembuatan profil user_profiles akan menjadi tugas admin.
         const { user, error: signUpError } = await signUpUser({
             email: formData.email,
             password: formData.password
@@ -80,42 +81,12 @@ const RegisterPage: React.FC = () => {
 
         if (signUpError) {
             setError(signUpError);
-            setLoading(false);
-            return;
-        }
-
-        if (user) {
-            // 2. Jika pendaftaran Auth berhasil, langsung buat entri di user_profiles
-            const profileData: CompleteProfileFormData = {
-                full_name: formData.full_name.trim(),
-                domicile_address: '', // Default kosong
-                institution_affiliation: '', // Default kosong
-                is_alumni: false, // Default false
-                alumni_unit: undefined,
-                alumni_grad_year: undefined,
-                occupation: '', // Default kosong
-                phone_number: '', // Default kosong
-                status: UserProfileStatus.PENDING, // Atur status awal ke PENDING
-            };
-
-            const { profile, error: createProfileError } = await createUserProfile(user.id, profileData);
-
-            if (createProfileError) {
-                // Sangat penting: Jika pembuatan profil gagal, berikan pesan error yang jelas.
-                // Logika di AuthContext sudah cukup kuat untuk menangani user tanpa profile.
-                console.error("Error creating user profile after signup:", createProfileError);
-                setError('Pendaftaran berhasil, tetapi gagal membuat profil (Kode: ' + createProfileError + '). Hubungi admin.');
-                setLoading(false);
-                return;
-            }
-
-            // Jika pendaftaran Auth dan pembuatan profil berhasil
-            setSuccessMessage('Pendaftaran berhasil! Akun Anda telah dibuat dan sedang menunggu verifikasi admin.');
+        } else if (user) {
+            // PENTING: Pembuatan entri di user_profiles TIDAK LAGI DILAKUKAN DARI SINI OLEH PENGGUNA BARU.
+            // Ini sekarang menjadi tugas admin.
+            setSuccessMessage(`Pendaftaran akun berhasil! Silakan login. Admin akan membuatkan profil Anda dan mengaktifkannya.`);
             setFormData({ email: '', password: '', full_name: '' }); // Reset form
-            navigate('/user'); // Arahkan ke halaman profil pengguna (yang akan menampilkan status pending)
-
-        } else {
-            setError('Pendaftaran gagal: Pengguna tidak ditemukan setelah proses pendaftaran.');
+            navigate('/login'); // Arahkan ke halaman login
         }
         setLoading(false);
     };
@@ -123,7 +94,9 @@ const RegisterPage: React.FC = () => {
     return (
         <div className="max-w-md mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
             <h1 className="text-3xl font-bold font-serif text-center text-gray-900 dark:text-white mb-6">Daftar Akun Pengguna</h1>
-            <p className="text-center text-gray-600 dark:text-gray-300 mb-8">Masukkan email, nama lengkap, dan password Anda untuk mendaftar.</p>
+            <p className="text-center text-gray-600 dark:text-gray-300 mb-8">
+                Daftar akun Anda. Profil Anda akan dibuat dan diverifikasi oleh admin setelah pendaftaran berhasil.
+            </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <MemoizedFormField name="full_name" label="Nama Lengkap" placeholder="Nama Lengkap Anda" value={formData.full_name} onChange={handleInputChange} />

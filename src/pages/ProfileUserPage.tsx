@@ -1,88 +1,19 @@
 // src/pages/ProfileUserPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getUserProfile, createUserProfile } from '../services/userService';
+import { getUserProfile } from '../services/userService'; // createUserProfile tidak lagi dipanggil dari sini
 import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService';
-import { UserProfileData, SearchHistoryEntry, CompleteProfileFormData, UserProfileStatus } from '../../types';
+import { UserProfileData, SearchHistoryEntry, UserProfileStatus } from '../../types';
 
-// Membungkus FormField untuk melengkapi profil
-const MemoizedProfileFormField: React.FC<{
-    name: keyof CompleteProfileFormData;
-    label: string;
-    type?: string;
-    options?: { value: string; label: string }[];
-    required?: boolean;
-    placeholder?: string;
-    min?: number;
-    value: string | number | boolean | undefined;
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
-}> = React.memo(({ name, label, type = 'text', options, required = true, placeholder, min, value, onChange }) => {
-    const isCheckbox = type === 'checkbox';
-
-    return (
-        <div>
-            <label htmlFor={name} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {label} {required && !isCheckbox && <span className="text-red-500">*</span>}
-            </label>
-            {type === 'select' && options ? (
-                <select
-                    id={name}
-                    name={name}
-                    value={value as string}
-                    onChange={onChange}
-                    required={required}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
-                >
-                    {options.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                </select>
-            ) : isCheckbox ? (
-                <input
-                    type="checkbox"
-                    id={name}
-                    name={name}
-                    checked={value as boolean}
-                    onChange={onChange}
-                    className="mt-1 h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700"
-                />
-            ) : (
-                <input
-                    type={type}
-                    id={name}
-                    name={name}
-                    // Pastikan number inputs handle undefined/null by showing empty string
-                    value={(type === 'number' && (value === undefined || value === null)) ? '' : value as string | number}
-                    onChange={onChange}
-                    required={required}
-                    placeholder={placeholder || `Masukkan ${label.toLowerCase()}`}
-                    min={min}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
-                />
-            )}
-        </div>
-    );
-});
-
+// MemoizedProfileFormField tidak lagi diperlukan karena formulir lengkap dipindahkan
+// ke Admin, tapi jika Anda masih ingin menggunakannya untuk menampilkan data, Anda bisa biarkan.
+// Untuk konsistensi, saya akan hapus MemoizedProfileFormField dari sini.
 
 const ProfileUserPage: React.FC = () => {
     const { user, userProfile, role, signOut, loading: authLoading } = useAuth();
-    const [localUserProfile, setLocalUserProfile] = useState<UserProfileData | null>(null);
+    // localUserProfile tidak lagi relevan karena kita tidak mengedit di sini
     const [loadingProfile, setLoadingProfile] = useState(true);
     const [errorProfile, setErrorProfile] = useState<string | null>(null);
-
-    const [profileFormData, setProfileFormData] = useState<CompleteProfileFormData>({
-        full_name: '',
-        domicile_address: '',
-        institution_affiliation: '',
-        is_alumni: false,
-        alumni_unit: '',
-        alumni_grad_year: '',
-        occupation: '',
-        phone_number: '',
-    });
-    const [loadingProfileSubmit, setLoadingProfileSubmit] = useState(false);
-    const [profileSubmitError, setProfileSubmitError] = useState<string | null>(null);
 
     const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
@@ -90,33 +21,14 @@ const ProfileUserPage: React.FC = () => {
 
     useEffect(() => {
         if (!authLoading) {
-            if (user && userProfile) {
-                setLocalUserProfile(userProfile);
-                setProfileFormData({
-                    full_name: userProfile.full_name,
-                    domicile_address: userProfile.domicile_address,
-                    institution_affiliation: userProfile.institution_affiliation,
-                    is_alumni: userProfile.is_alumni,
-                    // Pastikan nilai default adalah string kosong jika null/undefined
-                    alumni_unit: userProfile.alumni_unit || '',
-                    alumni_grad_year: userProfile.alumni_grad_year === null || userProfile.alumni_grad_year === undefined ? '' : String(userProfile.alumni_grad_year),
-                    occupation: userProfile.occupation,
-                    phone_number: userProfile.phone_number,
-                });
-                setLoadingProfile(false);
-            } else if (user && !userProfile) {
-                // User is logged in but no profile exists yet, set status to pending by default
-                setLocalUserProfile(null); // Clear local profile so form is shown
-                setLoadingProfile(false);
-            } else {
-                setLocalUserProfile(null);
-                setLoadingProfile(false);
-            }
+            setLoadingProfile(false); // Selesai loading profil setelah AuthContext selesai
+            // userProfile akan otomatis terisi dari AuthContext jika ada dan user bisa melihat
         }
     }, [user, userProfile, authLoading]);
 
 
     const fetchHistory = useCallback(async () => {
+        // Histori pencarian tetap bisa diakses jika pengguna verified_user atau admin
         if (user && (role === 'verified_user' || role === 'admin')) {
             setLoadingHistory(true);
             setErrorHistory(null);
@@ -140,70 +52,7 @@ const ProfileUserPage: React.FC = () => {
             fetchHistory();
         }
     }, [authLoading, fetchHistory]);
-
-    const handleProfileFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value, type, checked } = e.target;
-        setProfileFormData(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : (type === 'number' && value === '') ? '' : value,
-        }));
-    }, []);
-
-    const handleProfileSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user) {
-            setProfileSubmitError('Anda harus login untuk melengkapi profil.');
-            return;
-        }
-
-        setLoadingProfileSubmit(true);
-        setProfileSubmitError(null);
-
-        const dataToSubmit: CompleteProfileFormData = {
-            ...profileFormData,
-            // Perbaikan kecil: Pastikan alumni_grad_year adalah number atau undefined
-            alumni_grad_year: profileFormData.is_alumni && profileFormData.alumni_grad_year !== '' ? Number(profileFormData.alumni_grad_year) : undefined,
-            alumni_unit: profileFormData.is_alumni ? (profileFormData.alumni_unit?.trim() || undefined) : undefined,
-        };
-        if (!dataToSubmit.is_alumni) {
-            dataToSubmit.alumni_unit = undefined;
-            dataToSubmit.alumni_grad_year = undefined;
-        }
-
-        const { profile, error: createError } = await createUserProfile(user.id, dataToSubmit);
-
-        if (createError) {
-            console.error("Create profile error object:", createError);
-            setProfileSubmitError(createError);
-        } else if (profile) {
-            // Setelah profil dilengkapi, kita ingin AuthContext mengambil ulang profil
-            // Untuk ini, Anda perlu memicu refresh userProfile di AuthContext
-            // Cara terbaik adalah dengan membiarkan AuthContext's onAuthStateChange mendeteksi perubahan
-            // atau memanggil fungsi refresh dari AuthContext jika ada.
-            // Untuk sementara, kita bisa berasumsi bahwa setelah sukses, userProfile akan diperbarui
-            // oleh AuthContext karena ada listener auth state change.
-            setLocalUserProfile(profile); // Update local state immediately
-            setProfileSubmitError('Profil berhasil dilengkapi! Menunggu verifikasi admin.');
-            // Tidak perlu navigate, biarkan komponen render ulang berdasarkan state localUserProfile
-        } else {
-            console.warn("createUserProfile returned no profile and no explicit error. Check RLS or data.");
-            setProfileSubmitError('Terjadi kesalahan tidak dikenal saat melengkapi profil. Periksa konsol.');
-        }
-        setLoadingProfileSubmit(false);
-    };
-
-
-    const handleDeleteEntry = async (id: number) => {
-        if (window.confirm('Yakin ingin menghapus entri ini dari histori pencarian?')) {
-            const success = await deleteSearchHistoryEntry(id);
-            if (success) {
-                setSearchHistory(prev => prev.filter(entry => entry.id !== id));
-            } else {
-                alert('Gagal menghapus entri histori.');
-            }
-        }
-    };
-
+    
     if (authLoading || loadingProfile) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat profil pengguna...</div>;
     }
@@ -216,52 +65,20 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    // Jika user login tapi userProfile masih null (belum melengkapi profil)
-    if (!localUserProfile) {
-        return (
-            <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
-                <h1 className="text-3xl font-bold font-serif text-center text-gray-900 dark:text-white mb-6">Lengkapi Profil Anda</h1>
-                <p className="text-center text-gray-600 dark:text-gray-300 mb-8">Profil Anda belum lengkap. Mohon isi detail di bawah ini.</p>
-
-                <form onSubmit={handleProfileSubmit} className="space-y-6">
-                    <MemoizedProfileFormField name="full_name" label="Nama Lengkap" placeholder="Nama Lengkap Anda" value={profileFormData.full_name} onChange={handleProfileFormChange} />
-                    <MemoizedProfileFormField name="domicile_address" label="Alamat Domisili" placeholder="Contoh: Jakarta" value={profileFormData.domicile_address} onChange={handleProfileFormChange} />
-                    <MemoizedProfileFormField name="institution_affiliation" label="Lembaga/Afiliasi" placeholder="Nama Lembaga atau Afiliasi Anda" value={profileFormData.institution_affiliation} onChange={handleProfileFormChange} />
-
-                    <MemoizedProfileFormField name="is_alumni" label="Alumni Qomaruddin" type="checkbox" required={false} value={profileFormData.is_alumni} onChange={handleProfileFormChange} />
-                    {profileFormData.is_alumni && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <MemoizedProfileFormField name="alumni_unit" label="Unit Alumni" placeholder="Contoh: Madrasah Aliyah" value={profileFormData.alumni_unit} onChange={handleProfileFormChange} />
-                            <MemoizedProfileFormField name="alumni_grad_year" label="Tahun Lulus" type="number" placeholder="Contoh: 2010" min={1900} value={profileFormData.alumni_grad_year} onChange={handleProfileFormChange} />
-                        </div>
-                    )}
-
-                    <MemoizedProfileFormField name="occupation" label="Pekerjaan" placeholder="Pekerjaan Anda" value={profileFormData.occupation} onChange={handleProfileFormChange} />
-                    <MemoizedProfileFormField name="phone_number" label="No. HP" type="tel" placeholder="Contoh: +6281234567890" value={profileFormData.phone_number} onChange={handleProfileFormChange} />
-                    
-                    {profileSubmitError && <p className="text-red-500 text-sm text-center">{profileSubmitError}</p>}
-                    
-                    <button
-                        type="submit"
-                        disabled={loadingProfileSubmit}
-                        className="w-full py-3 px-4 bg-primary-600 text-white font-semibold rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loadingProfileSubmit ? 'Menyimpan Profil...' : 'Lengkapi Profil'}
-                    </button>
-                </form>
-            </div>
-        );
-    }
-
-    // Jika userProfile ada dan statusnya PENDING
-    if (localUserProfile.status === UserProfileStatus.PENDING) {
+    // Perubahan paling penting di sini:
+    // Jika user login (ada user.id) TAPI userProfile TIDAK ADA
+    // ini berarti admin belum membuatkan profilnya atau belum mengaktifkannya.
+    if (!userProfile) {
         return (
             <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
                 <h1 className="text-3xl font-bold font-serif text-gray-900 dark:text-white mb-6">Profil Pengguna Anda</h1>
                 <p className="text-yellow-600 dark:text-yellow-400 text-lg mb-4">
-                    Profil Anda telah berhasil dilengkapi dan menunggu verifikasi oleh admin.
+                    Akun Anda telah terdaftar (Email: {user.email}).
                 </p>
-                <p className="text-gray-700 dark:text-gray-300">Email: {user?.email}</p> {/* Use optional chaining for user.email */}
+                <p className="text-gray-700 dark:text-gray-300 mb-4">
+                    Profil Anda sedang dalam proses pembuatan atau aktivasi oleh admin. Harap tunggu atau hubungi admin.
+                </p>
+                <p className="text-gray-700 dark:text-gray-300">ID Pengguna Anda: {user.id}</p>
                 <button
                     onClick={signOut}
                     className="mt-6 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -272,19 +89,19 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    // Tampilkan profil lengkap jika status VERIFIED atau user adalah Admin
+    // Tampilkan profil lengkap jika userProfile ada
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
             <h1 className="text-4xl font-bold font-serif text-center text-gray-900 dark:text-white mb-8">Profil Pengguna Anda</h1>
 
             <div className="mb-8 p-6 border border-gray-200 dark:border-gray-700 rounded-md">
                 <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Informasi Akun</h2>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Email:</strong> {user?.email}</p> {/* Use optional chaining */}
-                <p className="text-gray-700 dark:text-gray-300"><strong>ID Pengguna:</strong> {user?.id}</p> {/* Use optional chaining */}
+                <p className="text-gray-700 dark:text-gray-300"><strong>Email:</strong> {user.email}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>ID Pengguna:</strong> {user.id}</p>
                 <p className="text-gray-700 dark:text-gray-300">
                     <strong>Status Profil:</strong>
-                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${localUserProfile.status === UserProfileStatus.VERIFIED ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
-                        {localUserProfile.status}
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${userProfile.status === UserProfileStatus.VERIFIED ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                        {userProfile.status}
                     </span>
                 </p>
                 <p className="text-gray-700 dark:text-gray-300"><strong>Peran Anda:</strong> {role}</p>
@@ -292,16 +109,16 @@ const ProfileUserPage: React.FC = () => {
 
             <div className="mb-8 p-6 border border-gray-200 dark:border-gray-700 rounded-md">
                 <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Detail Profil</h2>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Nama Lengkap:</strong> {localUserProfile.full_name}</p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Alamat Domisili:</strong> {localUserProfile.domicile_address}</p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Lembaga/Afiliasi:</strong> {localUserProfile.institution_affiliation}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Nama Lengkap:</strong> {userProfile.full_name}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Alamat Domisili:</strong> {userProfile.domicile_address || '-'}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Lembaga/Afiliasi:</strong> {userProfile.institution_affiliation || '-'}</p>
                 <p className="text-gray-700 dark:text-gray-300">
-                    <strong>Alumni Qomaruddin:</strong> {localUserProfile.is_alumni ? 'Ya' : 'Tidak'}
-                    {localUserProfile.is_alumni && localUserProfile.alumni_unit && ` (${localUserProfile.alumni_unit}`}
-                    {localUserProfile.is_alumni && localUserProfile.alumni_grad_year && ` Lulus ${localUserProfile.alumni_grad_year})`}
+                    <strong>Alumni Qomaruddin:</strong> {userProfile.is_alumni ? 'Ya' : 'Tidak'}
+                    {userProfile.is_alumni && userProfile.alumni_unit && ` (${userProfile.alumni_unit}`}
+                    {userProfile.is_alumni && userProfile.alumni_grad_year && ` Lulus ${userProfile.alumni_grad_year})`}
                 </p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>Pekerjaan:</strong> {localUserProfile.occupation}</p>
-                <p className="text-gray-700 dark:text-gray-300"><strong>No. HP:</strong> {localUserProfile.phone_number}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>Pekerjaan:</strong> {userProfile.occupation || '-'}</p>
+                <p className="text-gray-700 dark:text-gray-300"><strong>No. HP:</strong> {userProfile.phone_number || '-'}</p>
                 <button
                     onClick={signOut}
                     className="mt-6 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"

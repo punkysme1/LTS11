@@ -98,10 +98,12 @@ export interface SearchHistoryEntry {
     created_at: string;
 }
 
+// PERBAIKAN DI SINI: Tambahkan NO_PROFILE
 export enum UserProfileStatus {
-  PENDING = 'pending',
-  VERIFIED = 'verified',
-  REJECTED = 'rejected',
+  PENDING = 'PENDING',
+  VERIFIED = 'VERIFIED',
+  REJECTED = 'REJECTED',
+  NO_PROFILE = 'NO_PROFILE', // Ditambahkan untuk representasi di ManageUsers
 }
 
 export interface UserProfileData {
@@ -110,14 +112,14 @@ export interface UserProfileData {
     domicile_address: string;
     institution_affiliation: string;
     is_alumni: boolean;
-    alumni_unit?: string;
-    alumni_grad_year?: number;
+    alumni_unit?: string | null; // Bisa null
+    alumni_grad_year?: number | null; // Bisa null
     occupation: string;
     phone_number: string;
-    status: UserProfileStatus;
+    status: UserProfileStatus; // Menggunakan enum UserProfileStatus
     created_at: string;
     updated_at: string;
-    // BARU: Field email yang akan di-join dari auth.users
+    // BARU: Field email yang akan di-join dari auth.users (untuk Admin)
     auth_users?: { // Nama properti akan menjadi auth_users jika Anda select alias
         email?: string;
     };
@@ -130,21 +132,23 @@ export interface SignUpFormData {
 }
 
 // Interface untuk data yang dikirim saat melengkapi profil (setelah sign-up)
+// Digunakan oleh admin saat membuat profil baru untuk user
 export interface CompleteProfileFormData {
     full_name: string;
-    domicile_address: string;
-    institution_affiliation: string;
-    is_alumni: boolean;
-    alumni_unit?: string;
-    alumni_grad_year?: number;
-    occupation: string;
-    phone_number: string;
+    domicile_address?: string; // Dijadikan opsional karena mungkin admin tidak mengisi semua
+    institution_affiliation?: string; // Dijadikan opsional
+    is_alumni?: boolean; // Dijadikan opsional
+    alumni_unit?: string | null; // Dijadikan opsional, bisa null
+    alumni_grad_year?: number | null; // Dijadikan opsional, bisa null
+    occupation?: string; // Dijadikan opsional
+    phone_number?: string; // Dijadikan opsional
+    status?: UserProfileStatus; // Admin bisa mengatur status awal
 }
 
 // BARU: Role Pengguna
 export type UserRole = 'guest' | 'pending' | 'verified_user' | 'admin';
 
-// BARU DAN KRITIS: DEFINISI AuthContextType HARUS DI-EXPORT DARI types.ts
+// DEFINISI AuthContextType HARUS DI-EXPORT DARI types.ts
 export interface AuthContextType {
     session: Session | null;
     user: User | null;
@@ -161,10 +165,10 @@ export interface Comment {
     manuscript_id?: string; // UUID dari manuskrip yang dikomentari (opsional)
     blog_id?: number; // ID dari blog post yang dikomentari (opsional)
     content: string;
-    status: 'pending' | 'approved' | 'rejected';
+    status: 'pending' | 'approved' | 'rejected'; // Status komentar
     created_at: string;
     // Untuk menampilkan nama user, bisa di-join dari `user_profiles`
     user_profiles?: {
         full_name: string;
-    };
+    } | null; // Bisa null jika relasi gagal atau user_profile dihapus
 }

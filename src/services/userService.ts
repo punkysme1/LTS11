@@ -26,21 +26,23 @@ export const signUpUser = async (formData: SignUpFormData) => {
 
 export const createUserProfile = async (userId: string, profileData: CompleteProfileFormData) => {
     console.log("USER_SERVICE_LOG: Attempting to create/update profile for userId:", userId);
-    console.log("USER_SERVICE_LOG: Profile Data to be inserted:", profileData); // LOG INI PENTING
+    console.log("USER_SERVICE_LOG: Profile Data to be inserted:", profileData);
 
+    // Pastikan admin sedang login saat memanggil fungsi ini jika menggunakan RLS ketat
+    // Jika ini dipanggil dari sisi admin, maka auth.uid() di policy RLS akan cocok dengan admin.
     const { data: profileResult, error: profileError } = await supabase
         .from('user_profiles')
         .upsert({
-            id: userId, // Pastikan ID ini cocok dengan auth.uid()
+            id: userId, // ID pengguna yang profilnya dibuat/diperbarui
             full_name: profileData.full_name,
-            domicile_address: profileData.domicile_address || '', // Pastikan default string kosong
-            institution_affiliation: profileData.institution_affiliation || '', // Pastikan default string kosong
-            is_alumni: profileData.is_alumni || false, // Pastikan default boolean
-            alumni_unit: profileData.alumni_unit || null, // default null
-            alumni_grad_year: profileData.alumni_grad_year || null, // default null
-            occupation: profileData.occupation || '', // Pastikan default string kosong
-            phone_number: profileData.phone_number || '', // Pastikan default string kosong
-            status: UserProfileStatus.PENDING, // Status ini harus selalu PENDING saat pembuatan
+            domicile_address: profileData.domicile_address || '',
+            institution_affiliation: profileData.institution_affiliation || '',
+            is_alumni: profileData.is_alumni || false,
+            alumni_unit: profileData.alumni_unit || null,
+            alumni_grad_year: profileData.alumni_grad_year || null,
+            occupation: profileData.occupation || '',
+            phone_number: profileData.phone_number || '',
+            status: profileData.status || UserProfileStatus.PENDING, // Status bisa diatur oleh admin
         }, { onConflict: 'id' }) // Gunakan onConflict 'id' untuk upsert
         .select()
         .single();
@@ -59,13 +61,15 @@ export const createUserProfile = async (userId: string, profileData: CompletePro
 
 export const getUserProfile = async (userId: string): Promise<UserProfileData | null> => {
     console.log("USER_SERVICE_LOG: Attempting to fetch profile for userId:", userId);
+    // Ini sekarang hanya akan berhasil jika admin yang melihat (karena policy SELECT admin)
+    // Atau jika pengguna mencoba melihat profilnya sendiri (tapi itu tidak akan ada jika admin belum membuatkan)
     const { data, error } = await supabase
         .from('user_profiles')
-        .select('*') // Anda bisa tambahkan '*, auth_users(email)' jika ingin mengambil email juga
+        .select('*')
         .eq('id', userId)
         .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is ok
+    if (error && error.code !== 'PGRST116') {
         console.error('USER_SERVICE_ERROR: Error fetching user profile from Supabase:', error.message, 'Code:', error.code);
         return null;
     }
@@ -79,11 +83,12 @@ export const getUserProfile = async (userId: string): Promise<UserProfileData | 
 
 export const updateUserProfileStatus = async (userId: string, status: UserProfileStatus) => {
     console.log(`USER_SERVICE_LOG: Attempting to update status for userId: ${userId} to ${status}`);
+    // Ini hanya akan berhasil jika admin yang melakukannya (karena policy UPDATE admin)
     const { data, error } = await supabase
         .from('user_profiles')
         .update({ status: status })
         .eq('id', userId)
-        .select() // Pastikan select() dipanggil untuk mendapatkan data yang diperbarui
+        .select()
         .single();
 
     if (error) {
