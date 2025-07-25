@@ -1,15 +1,13 @@
 // supabase/functions/list-all-users/index.ts
 // Pastikan Anda telah menginstal @supabase/supabase-js di proyek Edge Function Anda
-// npm install @supabase/supabase-js (di folder fungsi Edge)
-// denoland.com/manual/references/contributing/module_guidelines
+// (Biasanya sudah otomatis oleh `supabase functions new`, tapi bisa dikonfirmasi di `supabase/functions/list-all-users/deno.json`)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
 serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
 
-  // Verifikasi token pengguna (opsional tapi disarankan)
-  // Ini memastikan hanya user yang terautentikasi yang bisa memanggil fungsi ini
+  // Verifikasi token pengguna (opsional tapi disarankan untuk keamanan)
   if (!authHeader) {
     return new Response('Unauthorized: Missing Authorization header', { status: 401 })
   }
@@ -33,7 +31,6 @@ serve(async (req) => {
     console.error('Edge Function Forbidden access attempt by user:', user?.id, 'Error:', userError);
     return new Response('Forbidden: Only admin can perform this action', { status: 403 })
   }
-
 
   // Lakukan operasi admin: listing users dari auth.users
   const { data: authUsers, error: listUsersError } = await supabaseClient.auth.admin.listUsers()
