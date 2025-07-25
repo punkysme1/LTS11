@@ -1,8 +1,10 @@
+// src/pages/admin/ManageUsers.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../supabaseClient';
+import { supabase } from '../../supabaseClient'; // Hanya perlu supabase utama
 import { UserProfileData, UserProfileStatus, CompleteProfileFormData } from '../../../types';
-import { getUserProfile, createUserProfile, updateUserProfileStatus } from '../../services/userService'; // Import createUserProfile
-import { CheckCircleIcon, XCircleIcon, PlusCircleIcon } from '../../components/icons'; // Import PlusCircleIcon
+import { createUserProfile, updateUserProfileStatus } from '../../services/userService';
+import { CheckCircleIcon, XCircleIcon, PlusCircleIcon } from '../../components/icons';
+import { useAuth } from '../../hooks/useAuth'; // Perlu useAuth untuk mendapatkan token user
 
 // Ini adalah antarmuka gabungan untuk melihat pengguna di admin
 interface AdminUserView extends UserProfileData {
@@ -10,11 +12,75 @@ interface AdminUserView extends UserProfileData {
     has_profile: boolean; // Apakah user_profiles ada untuk ID ini
 }
 
+// Komponen MemoizedProfileFormField (Asumsi sudah ada atau copy dari ProfileUserPage.tsx)
+const MemoizedProfileFormField: React.FC<{
+    name: keyof CompleteProfileFormData | 'userId' | 'status';
+    label: string;
+    type?: string;
+    options?: { value: string; label: string }[];
+    required?: boolean;
+    placeholder?: string;
+    min?: number;
+    value: string | number | boolean | undefined;
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+    disabled?: boolean;
+}> = React.memo(({ name, label, type = 'text', options, required = true, placeholder, min, value, onChange, disabled = false }) => {
+    const isCheckbox = type === 'checkbox';
+
+    return (
+        <div>
+            <label htmlFor={name as string} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {label} {required && !isCheckbox && <span className="text-red-500">*</span>}
+            </label>
+            {type === 'select' && options ? (
+                <select
+                    id={name as string}
+                    name={name as string}
+                    value={value as string}
+                    onChange={onChange}
+                    required={required}
+                    disabled={disabled}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 disabled:bg-gray-200 dark:disabled:bg-gray-700"
+                >
+                    {options.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                </select>
+            ) : isCheckbox ? (
+                <input
+                    type="checkbox"
+                    id={name as string}
+                    name={name as string}
+                    checked={value as boolean}
+                    onChange={onChange}
+                    disabled={disabled}
+                    className="mt-1 h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 disabled:opacity-50"
+                />
+            ) : (
+                <input
+                    type={type}
+                    id={name as string}
+                    name={name as string}
+                    value={(type === 'number' && (value === undefined || value === null)) ? '' : value as string | number}
+                    onChange={onChange}
+                    required={required}
+                    placeholder={placeholder || `Masukkan ${label.toLowerCase()}`}
+                    min={min}
+                    disabled={disabled}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 disabled:bg-gray-200 dark:disabled:bg-gray-700"
+                />
+            )}
+        </div>
+    );
+});
+
+
 const ManageUsers: React.FC = () => {
+    const { session } = useAuth(); // Dapatkan sesi untuk token
     const [users, setUsers] = useState<AdminUserView[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedStatusFilter, setSelectedStatusFilter] = useState<UserProfileStatus | 'all'>('all');
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState<UserProfileStatus | 'all' | 'NO_PROFILE'>('all');
 
     const [showAddProfileModal, setShowAddProfileModal] = useState(false);
     const [newProfileData, setNewProfileData] = useState<CompleteProfileFormData & { userId: string }>({
@@ -35,58 +101,67 @@ const ManageUsers: React.FC = () => {
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         setError(null);
+        if (!session) { // Pastikan ada sesi admin sebelum memanggil fungsi Edge
+            setError("Anda tidak terautentikasi sebagai admin.");
+            setLoading(false);
+            return;
+        }
+
         try {
-            // PERUBAHAN KRUSIAL DI SINI:
-            // Ambil semua user dari auth.users (hanya admin yang bisa membaca ini karena RLS auth.users default)
-            const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-            if (authError) throw authError;
+            // PANGGIL EDGE FUNCTION UNTUK MENDAPATKAN SEMUA PENGGUNA DAN PROFIL MEREKA
+            const { data, error: edgeError } = await supabase.functions.invoke('list-all-users', {
+                headers: { 'Authorization': `Bearer ${session.access_token}` }, // Kirim token sesi admin
+            });
 
-            // Ambil semua profil dari user_profiles (hanya admin yang bisa membaca ini)
-            const { data: userProfiles, error: profilesError } = await supabase.from('user_profiles').select('*');
-            if (profilesError) throw profilesError;
+            if (edgeError) {
+                console.error("Edge Function invocation error:", edgeError);
+                throw new Error(`Edge Function Error: ${edgeError.message}`);
+            }
+            if (!data || !data.authUsers || !data.userProfiles) {
+                throw new Error("Invalid response from Edge Function.");
+            }
+            console.log("Response from Edge Function:", data);
 
-            // Buat map dari userProfiles untuk lookup cepat
+
+            const authUsers = data.authUsers;
+            const userProfiles = data.userProfiles;
+
             const profilesMap = new Map<string, UserProfileData>();
-            userProfiles.forEach(p => profilesMap.set(p.id, p));
+            userProfiles.forEach((p: UserProfileData) => profilesMap.set(p.id, p));
 
-            // Gabungkan data auth.users dengan user_profiles
-            const combinedUsers: AdminUserView[] = authUsers.users.map(authUser => {
+            const combinedUsers: AdminUserView[] = authUsers.map((authUser: any) => { // Tipe any sementara untuk authUser
                 const profile = profilesMap.get(authUser.id);
                 return {
                     id: authUser.id,
                     email: authUser.email || 'N/A',
                     has_profile: !!profile,
                     full_name: profile?.full_name || 'Tidak Ada Profil',
-                    domicile_address: profile?.domicile_address || 'Tidak Ada Profil',
-                    institution_affiliation: profile?.institution_affiliation || 'Tidak Ada Profil',
+                    domicile_address: profile?.domicile_address || '',
+                    institution_affiliation: profile?.institution_affiliation || '',
                     is_alumni: profile?.is_alumni || false,
                     alumni_unit: profile?.alumni_unit || null,
                     alumni_grad_year: profile?.alumni_grad_year || null,
-                    occupation: profile?.occupation || 'Tidak Ada Profil',
-                    phone_number: profile?.phone_number || 'Tidak Ada Profil',
-                    status: profile?.status || UserProfileStatus.NO_PROFILE, // Set status khusus jika tidak ada profil
-                    created_at: profile?.created_at || authUser.created_at, // Gunakan created_at dari auth jika tidak ada profil
-                    updated_at: profile?.updated_at || authUser.updated_at, // Gunakan updated_at dari auth jika tidak ada profil
+                    occupation: profile?.occupation || '',
+                    phone_number: profile?.phone_number || '',
+                    status: profile?.status || UserProfileStatus.NO_PROFILE,
+                    created_at: profile?.created_at || authUser.created_at,
+                    updated_at: profile?.updated_at || authUser.updated_at,
                 };
             });
 
-            // Terapkan filter status
             const filtered = combinedUsers.filter(user => {
                 if (selectedStatusFilter === 'all') return true;
-                if (selectedStatusFilter === UserProfileStatus.NO_PROFILE) { // Filter khusus untuk "Tidak Ada Profil"
-                    return !user.has_profile;
-                }
                 return user.status === selectedStatusFilter;
             });
 
             setUsers(filtered);
         } catch (err: any) {
-            console.error('Error fetching users:', err.message);
-            setError('Gagal memuat daftar pengguna: ' + err.message);
+            console.error('Error fetching users:', err.message, err);
+            setError('Gagal memuat daftar pengguna: ' + (err.message || 'Kesalahan tidak diketahui.'));
         } finally {
             setLoading(false);
         }
-    }, [selectedStatusFilter]);
+    }, [selectedStatusFilter, session]); // Tambahkan 'session' sebagai dependensi
 
     useEffect(() => {
         fetchUsers();
@@ -94,11 +169,16 @@ const ManageUsers: React.FC = () => {
 
     const handleVerifyUser = async (userId: string) => {
         if (window.confirm('Yakin ingin memverifikasi pengguna ini?')) {
+            // Pemanggilan ini akan menggunakan service `userService.ts`
+            // yang akan menggunakan `supabase` client (Anon Key)
+            // Namun, RLS Policy UPDATE admin_only_update_all_user_profiles yang Anda buat
+            // akan memastikan hanya admin yang bisa melakukan update ini.
             const { success, error: updateError } = await updateUserProfileStatus(userId, UserProfileStatus.VERIFIED);
             if (success) {
                 try {
-                    // Optional: panggil Edge Function untuk kirim email
+                    // Jika Anda memiliki Edge Function untuk mengirim email verifikasi, panggil di sini
                     const { data, error: edgeFunctionError } = await supabase.functions.invoke('send-verification-email', {
+                        headers: { 'Authorization': `Bearer ${session?.access_token}` }, // Kirim token admin
                         body: { user_id: userId },
                     });
 
@@ -111,7 +191,7 @@ const ManageUsers: React.FC = () => {
                     console.error('Error memanggil Edge Function:', edgeError);
                     alert('Pengguna berhasil diverifikasi, tetapi gagal mengirim email notifikasi: ' + (edgeError.message || 'Kesalahan tidak diketahui.'));
                 } finally {
-                    fetchUsers(); // Refresh daftar setelah update
+                    fetchUsers();
                 }
             } else {
                 alert('Gagal memverifikasi pengguna: ' + (updateError || 'Kesalahan tidak diketahui.'));
@@ -124,7 +204,7 @@ const ManageUsers: React.FC = () => {
             const { success, error: updateError } = await updateUserProfileStatus(userId, UserProfileStatus.REJECTED);
             if (success) {
                 alert('Pengguna berhasil ditolak!');
-                fetchUsers(); // Refresh daftar setelah update
+                fetchUsers();
             } else {
                 alert('Gagal menolak pengguna: ' + (updateError || 'Kesalahan tidak diketahui.'));
             }
@@ -154,12 +234,16 @@ const ManageUsers: React.FC = () => {
             ...newProfileData,
             alumni_grad_year: newProfileData.is_alumni && newProfileData.alumni_grad_year !== '' ? Number(newProfileData.alumni_grad_year) : undefined,
             alumni_unit: newProfileData.is_alumni ? (newProfileData.alumni_unit?.trim() || undefined) : undefined,
+            status: newProfileData.status,
         };
         if (!dataToSubmit.is_alumni) {
             dataToSubmit.alumni_unit = undefined;
             dataToSubmit.alumni_grad_year = undefined;
         }
 
+        // Pemanggilan ini juga akan menggunakan service `userService.ts`
+        // RLS Policy INSERT admin_only_insert_user_profiles yang Anda buat
+        // akan memastikan hanya admin yang bisa melakukan insert ini.
         const { profile, error: createError } = await createUserProfile(newProfileData.userId, dataToSubmit);
 
         if (createError) {
@@ -188,24 +272,30 @@ const ManageUsers: React.FC = () => {
                     <span className="text-gray-700 dark:text-gray-300 text-sm">Filter Status:</span>
                     <select
                         value={selectedStatusFilter}
-                        onChange={(e) => setSelectedStatusFilter(e.target.value as UserProfileStatus | 'all')}
+                        onChange={(e) => setSelectedStatusFilter(e.target.value as UserProfileStatus | 'all' | 'NO_PROFILE')}
                         className="px-3 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 text-sm"
                     >
                         <option value="all">Semua</option>
-                        <option value={UserProfileStatus.NO_PROFILE}>Tidak Ada Profil</option> {/* Opsi baru */}
+                        <option value={UserProfileStatus.NO_PROFILE}>Belum Ada Profil</option>
                         <option value={UserProfileStatus.PENDING}>Menunggu Verifikasi</option>
                         <option value={UserProfileStatus.VERIFIED}>Terverifikasi</option>
                         <option value={UserProfileStatus.REJECTED}>Ditolak</option>
                     </select>
                 </div>
 
-                {/* Tombol Tambah Profil Baru */}
+                {/* Tombol Tambah Profil Baru (Admin dapat membuat profil manual) */}
                 <button
-                    onClick={() => setShowAddProfileModal(true)}
+                    onClick={() => {
+                        setNewProfileData({
+                            userId: '', full_name: '', domicile_address: '', institution_affiliation: '', is_alumni: false,
+                            alumni_unit: '', alumni_grad_year: '', occupation: '', phone_number: '', status: UserProfileStatus.PENDING
+                        });
+                        setShowAddProfileModal(true);
+                    }}
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm bg-primary-600 hover:bg-primary-700 text-white"
                 >
                     <PlusCircleIcon className="w-5 h-5 mr-2" />
-                    Tambah Profil Baru
+                    Tambah Profil Manual
                 </button>
             </div>
 
@@ -220,9 +310,9 @@ const ManageUsers: React.FC = () => {
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">ID Pengguna (Auth)</th> {/* Kolom baru */}
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">ID Pengguna</th>
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Nama Lengkap</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Email (Auth)</th> {/* Kolom baru */}
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Email</th>
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Lembaga/Afiliasi</th>
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Status Profil</th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-400">Aksi</th>
@@ -240,13 +330,13 @@ const ManageUsers: React.FC = () => {
                                             ${user.status === UserProfileStatus.PENDING ? 'bg-yellow-100 text-yellow-800' : 
                                             user.status === UserProfileStatus.VERIFIED ? 'bg-green-100 text-green-800' : 
                                             user.status === UserProfileStatus.REJECTED ? 'bg-red-100 text-red-800' : 
-                                            'bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200' // Untuk NO_PROFILE
+                                            'bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200' 
                                             }`}>
                                             {user.status}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        {!user.has_profile ? ( // Jika belum ada profil, admin bisa membuat
+                                        {user.status === UserProfileStatus.NO_PROFILE ? (
                                             <button onClick={() => {
                                                 setNewProfileData(prev => ({ ...prev, userId: user.id, full_name: user.full_name === 'Tidak Ada Profil' ? '' : user.full_name }));
                                                 setShowAddProfileModal(true);
@@ -350,9 +440,13 @@ const ManageUsers: React.FC = () => {
                                     required
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                                 >
-                                    <option value={UserProfileStatus.PENDING}>PENDING</option>
-                                    <option value={UserProfileStatus.VERIFIED}>VERIFIED</option>
-                                    <option value={UserProfileStatus.REJECTED}>REJECTED</option>
+                                    {Object.values(UserProfileStatus).map(statusValue => (
+                                        statusValue !== UserProfileStatus.NO_PROFILE && (
+                                            <option key={statusValue} value={statusValue}>
+                                                {statusValue}
+                                            </option>
+                                        )
+                                    ))}
                                 </select>
                             </div>
 
