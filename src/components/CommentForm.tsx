@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../hooks/useAuth';
-import { Comment, UserProfileStatus } from '../../types'; // Import UserProfileStatus
+import { Comment, UserProfileStatus } from '../../types'; // Import Comment type dan UserProfileStatus
+import { Link } from 'react-router-dom'; // Import Link
 
 interface CommentFormProps {
     targetId: string | number; // ID dari manuskrip (string) atau blog (number)
@@ -25,7 +26,7 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, onCommentPost
             setError('Anda harus login untuk berkomentar.');
             return;
         }
-        if (!userProfile) {
+        if (!userProfile) { // Jika user login tapi belum ada profil di tabel user_profiles
             setError('Profil Anda belum lengkap. Silakan lengkapi profil Anda.');
             return;
         }
@@ -44,12 +45,12 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, onCommentPost
         setSuccess(null);
 
         let insertData: any = {
-            user_id: user.id,
+            user_id: user.id, // Pastikan user.id digunakan untuk foreign key
             content: commentContent,
             status: 'pending', // Komentar defaultnya pending untuk moderasi
         };
 
-        if (type === 'manuskrip') { // Perbaikan: Gunakan 'manuskrip' sesuai type prop
+        if (type === 'manuskrip') {
             insertData.manuscript_id = targetId;
         } else if (type === 'blog') {
             insertData.blog_id = targetId;

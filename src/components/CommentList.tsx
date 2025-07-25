@@ -1,7 +1,7 @@
 // src/components/CommentList.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { Comment, UserRole } from '../../types';
+import { Comment, UserRole, UserProfileStatus } from '../../types'; // Import UserProfileStatus untuk badge status
 
 interface CommentListProps {
     targetId: string | number; // ID dari manuskrip (string) atau blog (number)
@@ -20,7 +20,7 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
 
         let query = supabase.from('comments').select(`
             *,
-            user_profiles(full_name)
+            user_profiles(full_name) -- Ini akan berfungsi setelah FK diperbaiki
         `);
 
         if (type === 'manuskrip') {
@@ -30,7 +30,6 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
         }
 
         // Hanya tampilkan komentar yang disetujui untuk non-admin
-        // Admin bisa melihat semua status (pending, approved, rejected)
         if (userRole !== 'admin') {
             query = query.eq('status', 'approved');
         }
@@ -60,15 +59,17 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
                 table: 'comments',
                 filter: type === 'manuskrip' ? `manuscript_id=eq.${targetId}` : `blog_id=eq.${targetId}`
             }, (payload) => {
-                // Perbarui daftar komentar secara real-time
-                console.log('Realtime change detected:', payload); // Log untuk debugging
-                fetchComments(); // Panggil fetchComments untuk menyegarkan data
+                console.log('Realtime change detected:', payload);
+                // Hanya refresh jika ada data, untuk menghindari fetch kosong
+                if (payload.new || payload.old) {
+                    fetchComments();
+                }
             })
             .subscribe();
 
         return () => {
             supabase.removeChannel(subscription);
-            console.log(`Unsubscribed from comments_channel_${type}_${targetId}`); // Log untuk debugging
+            console.log(`Unsubscribed from comments_channel_${type}_${targetId}`);
         };
     }, [fetchComments, targetId, type]);
 
