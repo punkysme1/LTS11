@@ -1,8 +1,9 @@
+// src/components/Header.tsx
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { BookOpenIcon, MenuIcon, XIcon, SearchIcon } from './icons';
 import ThemeToggle from './ThemeToggle';
-import { useAuth } from '../hooks/useAuth'; // Gunakan useAuth yang baru
+import { useAuth } from '../hooks/useAuth';
 import { saveSearchHistory } from '../services/searchHistoryService';
 
 interface HeaderProps {
@@ -13,20 +14,16 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, userProfile, role, signOut } = useAuth(); // Dapatkan user, userProfile, role, dan fungsi signOut
+    const { user, userProfile, role, signOut } = useAuth();
 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    // const [isSearchOpen, setIsSearchOpen] = useState(false); // Tidak lagi diperlukan karena search selalu terlihat di mobile
 
     useEffect(() => {
         setIsMobileMenuOpen(false);
-        // setIsSearchOpen(false); // Tidak lagi diperlukan
     }, [location.pathname]);
 
     useEffect(() => {
         const handler = setTimeout(() => {
-            // Simpan histori pencarian hanya jika pengguna login, ada searchTerm, dan berada di halaman katalog
-            // dan user adalah verified_user (pustakawan/peneliti)
             if (user && role === 'verified_user' && searchTerm.trim() !== '' && location.pathname === '/katalog') {
                 saveSearchHistory(user.id, searchTerm);
             }
@@ -35,7 +32,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
         return () => {
             clearTimeout(handler);
         };
-    }, [searchTerm, user, role, location.pathname]); // Tambahkan role sebagai dependency
+    }, [searchTerm, user, role, location.pathname]);
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
@@ -51,7 +48,7 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
         { name: 'Buku Tamu', path: '/buku-tamu' },
         { name: 'Donasi', path: '/donasi' },
         { name: 'Kontak', path: '/kontak' },
-        { name: 'Profil Lembaga', path: '/profil' }, // Ini untuk Profil Lembaga
+        { name: 'Profil Lembaga', path: '/profil' },
     ];
 
     const activeLinkClass = "text-primary-500 dark:text-accent-400 font-semibold";
@@ -82,23 +79,40 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                             </NavLink>
                         ))}
 
-                        {/* Tampilkan link berdasarkan role */}
-                        {role === 'guest' && (
+                        {/* Tampilkan link/tombol berdasarkan role */}
+                        {user ? (
                             <>
-                                <NavLink to="/register" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Daftar</NavLink>
-                                <NavLink to="/login" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Login</NavLink>
+                                {role === 'pending' && (
+                                    <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya (Menunggu Verifikasi)</NavLink>
+                                )}
+                                {(role === 'verified_user' || role === 'admin') && (
+                                    <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya</NavLink>
+                                )}
+                                {role === 'admin' && (
+                                    <NavLink to="/admin" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Admin Dashboard</NavLink>
+                                )}
+                                <button
+                                    onClick={signOut}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                                >
+                                    Logout
+                                </button>
                             </>
-                        )}
-                        {role === 'pending' && (
-                            <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya (Menunggu Verifikasi)</NavLink>
-                        )}
-                        {role === 'verified_user' && (
-                            <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya</NavLink>
-                        )}
-                        {role === 'admin' && (
+                        ) : (
                             <>
-                                <NavLink to="/admin" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Admin Dashboard</NavLink>
-                                <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya</NavLink>
+                                {/* Daftar Pengguna dan Login Pengguna sebagai NavLink */}
+                                <NavLink
+                                    to="/daftar"
+                                    className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}
+                                >
+                                    Daftar Pengguna
+                                </NavLink>
+                                <NavLink
+                                    to="/login"
+                                    className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}
+                                >
+                                    Login Pengguna
+                                </NavLink>
                             </>
                         )}
                     </nav>
@@ -154,37 +168,47 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                                     key={link.name}
                                     to={link.path}
                                     className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`}
-                                    onClick={() => setIsMobileMenuOpen(false)} // Tutup menu setelah klik
+                                    onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     {link.name}
                                 </NavLink>
                             ))}
-                             {role === 'guest' && (
+                            {user ? (
                                 <>
-                                    <NavLink to="/register" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Daftar</NavLink>
-                                    <NavLink to="/login" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Login</NavLink>
+                                    {role === 'pending' && (
+                                        <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya (Menunggu Verifikasi)</NavLink>
+                                    )}
+                                    {(role === 'verified_user' || role === 'admin') && (
+                                        <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya</NavLink>
+                                    )}
+                                    {role === 'admin' && (
+                                        <NavLink to="/admin" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Admin Dashboard</NavLink>
+                                    )}
+                                    <button
+                                        onClick={() => { signOut(); setIsMobileMenuOpen(false); }}
+                                        className="w-full text-left text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900"
+                                    >
+                                        Logout
+                                    </button>
                                 </>
-                            )}
-                            {role === 'pending' && (
-                                <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya (Menunggu Verifikasi)</NavLink>
-                            )}
-                            {role === 'verified_user' && (
-                                <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya</NavLink>
-                            )}
-                            {role === 'admin' && (
+                            ) : (
                                 <>
-                                    <NavLink to="/admin" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Admin Dashboard</NavLink>
-                                    <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya</NavLink>
+                                    {/* Daftar Pengguna dan Login Pengguna sebagai NavLink (Mobile) */}
+                                    <NavLink
+                                        to="/daftar"
+                                        className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        Daftar Pengguna
+                                    </NavLink>
+                                    <NavLink
+                                        to="/login"
+                                        className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        Login Pengguna
+                                    </NavLink>
                                 </>
-                            )}
-                            {/* Tambahkan tombol Logout di menu mobile jika ada user */}
-                            {user && (
-                                <button
-                                    onClick={signOut}
-                                    className="w-full text-left text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900"
-                                >
-                                    Logout
-                                </button>
                             )}
                         </nav>
                     </div>

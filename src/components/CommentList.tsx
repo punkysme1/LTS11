@@ -5,7 +5,7 @@ import { Comment, UserRole } from '../../types';
 
 interface CommentListProps {
     targetId: string | number; // ID dari manuskrip (string) atau blog (number)
-    type: 'manuscript' | 'blog'; // Untuk membedakan target
+    type: 'manuskrip' | 'blog'; // Untuk membedakan target
     userRole: UserRole; // Peran pengguna yang sedang login
 }
 
@@ -23,13 +23,14 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
             user_profiles(full_name)
         `);
 
-        if (type === 'manuscript') {
+        if (type === 'manuskrip') {
             query = query.eq('manuscript_id', targetId);
         } else if (type === 'blog') {
             query = query.eq('blog_id', targetId);
         }
 
         // Hanya tampilkan komentar yang disetujui untuk non-admin
+        // Admin bisa melihat semua status (pending, approved, rejected)
         if (userRole !== 'admin') {
             query = query.eq('status', 'approved');
         }
@@ -52,20 +53,22 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
 
         // Realtime listener untuk komentar (opsional tapi disarankan)
         const subscription = supabase
-            .channel('public:comments')
+            .channel(`comments_channel_${type}_${targetId}`) // Beri nama channel unik
             .on('postgres_changes', { 
                 event: '*', 
                 schema: 'public', 
                 table: 'comments',
-                filter: type === 'manuscript' ? `manuscript_id=eq.${targetId}` : `blog_id=eq.${targetId}`
+                filter: type === 'manuskrip' ? `manuscript_id=eq.${targetId}` : `blog_id=eq.${targetId}`
             }, (payload) => {
                 // Perbarui daftar komentar secara real-time
-                fetchComments();
+                console.log('Realtime change detected:', payload); // Log untuk debugging
+                fetchComments(); // Panggil fetchComments untuk menyegarkan data
             })
             .subscribe();
 
         return () => {
             supabase.removeChannel(subscription);
+            console.log(`Unsubscribed from comments_channel_${type}_${targetId}`); // Log untuk debugging
         };
     }, [fetchComments, targetId, type]);
 
@@ -87,10 +90,16 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
                 <div key={comment.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm">
                     <div className="flex justify-between items-center mb-2">
                         <p className="font-semibold text-gray-900 dark:text-gray-100">
-                            {comment.user_profiles?.full_name || 'Pengguna Tidak Dikenal'}
+                            {/* Tampilkan full_name dari user_profiles, jika tidak ada, gunakan 'Pengguna Tidak Dikenal' */}
+                            {(comment.user_profiles && typeof comment.user_profiles === 'object' && comment.user_profiles.full_name) ? comment.user_profiles.full_name : 'Pengguna Tidak Dikenal'}
                             {userRole === 'admin' && comment.status === 'pending' && (
                                 <span className="ml-2 px-2 py-0.5 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-full dark:bg-yellow-800 dark:text-yellow-100">
                                     Pending
+                                </span>
+                            )}
+                            {userRole === 'admin' && comment.status === 'rejected' && (
+                                <span className="ml-2 px-2 py-0.5 text-xs font-medium text-red-800 bg-red-200 rounded-full dark:bg-red-800 dark:text-red-100">
+                                    Ditolak
                                 </span>
                             )}
                         </p>
@@ -116,7 +125,7 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
                                     Setujui
                                 </button>
                             )}
-                            {comment.status !== 'rejected' && (
+                            {comment.status !== 'rejected' && ( // Admin bisa menolak komentar yang pending atau sudah approved
                                 <button
                                     onClick={async () => {
                                         const { error: updateError } = await supabase.from('comments').update({ status: 'rejected' }).eq('id', comment.id);

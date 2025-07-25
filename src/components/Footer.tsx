@@ -25,8 +25,8 @@ const Footer: React.FC = () => {
                         <li><Link to="/katalog" className="hover:text-white transition-colors duration-200">Katalog</Link></li>
                         <li><Link to="/blog" className="hover:text-white transition-colors duration-200">Blog</Link></li>
                         <li><Link to="/buku-tamu" className="hover:text-white transition-colors duration-200">Buku Tamu</Link></li>
-                        <li><Link to="/profil" className="hover:text-white transition-colors duration-200">Profil</Link></li>
-                        <li><Link to="/admin" className="hover:text-white transition-colors duration-200">Admin</Link></li> {/* Tambahkan ini */}
+                        <li><Link to="/profil" className="hover:text-white transition-colors duration-200">Profil Lembaga</Link></li>
+                        <li><Link to="/admin" className="hover:text-white transition-colors duration-200">Login Admin</Link></li> {/* Label diubah menjadi Login Admin */}
                     </ul>
                 </div>
 

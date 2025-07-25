@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../hooks/useAuth';
-import { Comment } from '../../types'; // Import Comment type
+import { Comment, UserProfileStatus } from '../../types'; // Import UserProfileStatus
 
 interface CommentFormProps {
     targetId: string | number; // ID dari manuskrip (string) atau blog (number)
-    type: 'manuscript' | 'blog'; // Untuk membedakan target
+    type: 'manuskrip' | 'blog'; // Untuk membedakan target
     onCommentPosted?: (newComment: Comment) => void; // Callback opsional untuk refresh daftar komentar
 }
 
@@ -20,10 +20,20 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, onCommentPost
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!user || userProfile?.status !== 'verified') { // Hanya izinkan verified user
-            setError('Anda harus memiliki profil terverifikasi untuk berkomentar.');
+        // Pengecekan status profil pengguna untuk izin berkomentar
+        if (!user) {
+            setError('Anda harus login untuk berkomentar.');
             return;
         }
+        if (!userProfile) {
+            setError('Profil Anda belum lengkap. Silakan lengkapi profil Anda.');
+            return;
+        }
+        if (userProfile.status !== UserProfileStatus.VERIFIED) { // Hanya izinkan verified user
+            setError('Akun Anda belum terverifikasi oleh admin. Silakan tunggu atau hubungi admin.');
+            return;
+        }
+        
         if (commentContent.trim() === '') {
             setError('Komentar tidak boleh kosong.');
             return;
@@ -39,7 +49,7 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, onCommentPost
             status: 'pending', // Komentar defaultnya pending untuk moderasi
         };
 
-        if (type === 'manuskrip') {
+        if (type === 'manuskrip') { // Perbaikan: Gunakan 'manuskrip' sesuai type prop
             insertData.manuscript_id = targetId;
         } else if (type === 'blog') {
             insertData.blog_id = targetId;
@@ -58,7 +68,8 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, onCommentPost
             setSuccess('Komentar Anda berhasil dikirim dan menunggu moderasi.');
             setCommentContent('');
             if (onCommentPosted && data) {
-                onCommentPosted(data as Comment); // Panggil callback jika ada
+                // Pastikan data yang dikirim ke callback sesuai dengan Comment type
+                onCommentPosted(data as Comment);
             }
         }
         setLoading(false);
@@ -74,17 +85,22 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, onCommentPost
                     placeholder="Sampaikan komentar, pertanyaan, atau masukan Anda..."
                     value={commentContent}
                     onChange={(e) => setCommentContent(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || !user || userProfile?.status !== UserProfileStatus.VERIFIED} // Disable jika tidak login/tidak terverifikasi
                 ></textarea>
                 {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
                 {success && <p className="text-green-500 text-sm mt-2">{success}</p>}
                 <button
                     type="submit"
                     className="mt-3 px-6 py-2 bg-primary-600 text-white font-semibold rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                    disabled={loading}
+                    disabled={loading || !user || userProfile?.status !== UserProfileStatus.VERIFIED} // Disable juga pada tombol
                 >
                     {loading ? 'Mengirim...' : 'Kirim Komentar'}
                 </button>
+                {!user ? (
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-2">Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> untuk berkomentar.</p>
+                ) : userProfile?.status !== UserProfileStatus.VERIFIED ? (
+                    <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">Akun Anda sedang <Link to="/user" className="text-primary-600 hover:underline">menunggu verifikasi</Link> oleh admin agar bisa berkomentar.</p>
+                ) : null}
             </form>
         </div>
     );
