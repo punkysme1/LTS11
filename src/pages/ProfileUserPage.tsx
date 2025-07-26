@@ -1,17 +1,13 @@
 // src/pages/ProfileUserPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getUserProfile } from '../services/userService'; // createUserProfile tidak lagi dipanggil dari sini
-import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService';
+import { getUserProfile } from '../services/userService';
+import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService'; // Pastikan ini diimpor
 import { UserProfileData, SearchHistoryEntry, UserProfileStatus } from '../../types';
-
-// MemoizedProfileFormField tidak lagi diperlukan karena formulir lengkap dipindahkan
-// ke Admin, tapi jika Anda masih ingin menggunakannya untuk menampilkan data, Anda bisa biarkan.
-// Untuk konsistensi, saya akan hapus MemoizedProfileFormField dari sini.
+import { Link } from 'react-router-dom'; // Pastikan Link diimpor
 
 const ProfileUserPage: React.FC = () => {
     const { user, userProfile, role, signOut, loading: authLoading } = useAuth();
-    // localUserProfile tidak lagi relevan karena kita tidak mengedit di sini
     const [loadingProfile, setLoadingProfile] = useState(true);
     const [errorProfile, setErrorProfile] = useState<string | null>(null);
 
@@ -21,14 +17,11 @@ const ProfileUserPage: React.FC = () => {
 
     useEffect(() => {
         if (!authLoading) {
-            setLoadingProfile(false); // Selesai loading profil setelah AuthContext selesai
-            // userProfile akan otomatis terisi dari AuthContext jika ada dan user bisa melihat
+            setLoadingProfile(false);
         }
     }, [user, userProfile, authLoading]);
 
-
     const fetchHistory = useCallback(async () => {
-        // Histori pencarian tetap bisa diakses jika pengguna verified_user atau admin
         if (user && (role === 'verified_user' || role === 'admin')) {
             setLoadingHistory(true);
             setErrorHistory(null);
@@ -52,7 +45,19 @@ const ProfileUserPage: React.FC = () => {
             fetchHistory();
         }
     }, [authLoading, fetchHistory]);
-    
+
+    // FUNGSI INI HARUS ADA DAN BERADA DI SCOPE KOMPONEN
+    const handleDeleteEntry = useCallback(async (id: number) => {
+        if (window.confirm('Yakin ingin menghapus entri ini dari histori pencarian?')) {
+            const success = await deleteSearchHistoryEntry(id);
+            if (success) {
+                setSearchHistory(prev => prev.filter(entry => entry.id !== id));
+            } else {
+                alert('Gagal menghapus entri histori.');
+            }
+        }
+    }, []); // Dependensi kosong karena tidak menggunakan state yang berubah dari luar
+
     if (authLoading || loadingProfile) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat profil pengguna...</div>;
     }
@@ -65,9 +70,6 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    // Perubahan paling penting di sini:
-    // Jika user login (ada user.id) TAPI userProfile TIDAK ADA
-    // ini berarti admin belum membuatkan profilnya atau belum mengaktifkannya.
     if (!userProfile) {
         return (
             <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
@@ -89,7 +91,6 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
-    // Tampilkan profil lengkap jika userProfile ada
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
             <h1 className="text-4xl font-bold font-serif text-center text-gray-900 dark:text-white mb-8">Profil Pengguna Anda</h1>
@@ -147,7 +148,7 @@ const ProfileUserPage: React.FC = () => {
                                         "{entry.query}" pada {new Date(entry.timestamp).toLocaleString('id-ID')}
                                     </span>
                                     <button
-                                        onClick={() => handleDeleteEntry(entry.id)}
+                                        onClick={() => handleDeleteEntry(entry.id)} // Memanggil fungsi yang sudah di-scope
                                         className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
                                         title="Hapus entri ini"
                                     >

@@ -1,12 +1,13 @@
 // src/App.tsx
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+// Hapus import { AuthProvider } dari sini
 import { useAuth } from './hooks/useAuth';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
-import { UserRole } from '../types';
+// Hapus import { UserRole } dan ManageUsers dari sini (ManageUsers lazy import)
+import { UserProfileStatus } from '../types'; // Hanya UserProfileStatus yang diperlukan jika digunakan
 
 // --- Lazy Loading Components ---
 const Home = lazy(() => import('./pages/HomePage'));
@@ -22,7 +23,7 @@ const Contact = lazy(() => import('./pages/ContactPage'));
 const Donation = lazy(() => import('./pages/DonationPage'));
 const AdminPage = lazy(() => import('../src/pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const ManageUsers = lazy(() => import('./pages/admin/ManageUsers')); // Perlu ini karena ManageUsers bisa diakses dari AdminPage
+// Hapus const ManageUsers = lazy(() => import('./pages/admin/ManageUsers')); dari sini
 
 // Definisikan ThemeContext di sini
 export const ThemeContext = createContext({
@@ -37,7 +38,7 @@ const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children
     const [showLoadingScreen, setShowLoadingScreen] = useState(false);
     useEffect(() => {
         if (loading) {
-            const timer = setTimeout(() => setShowLoadingScreen(true), 300);
+            const timer = setTimeout(() => setShowLoadingScreen(true), 500);
             return () => clearTimeout(timer);
         } else {
             setShowLoadingScreen(false);
@@ -66,7 +67,7 @@ const UserProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children 
     const [showLoadingScreen, setShowLoadingScreen] = useState(false);
     useEffect(() => {
         if (loading) {
-            const timer = setTimeout(() => setShowLoadingScreen(true), 300);
+            const timer = setTimeout(() => setShowLoadingScreen(true), 500);
             return () => clearTimeout(timer);
         } else {
             setShowLoadingScreen(false);
@@ -81,6 +82,8 @@ const UserProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children 
         );
     }
 
+    // Perhatikan: UserProfileStatus.VERIFIED dan UserProfileStatus.PENDING digunakan sebagai value,
+    // maka UserProfileStatus perlu diimpor (sudah ada di atas)
     if (user && (role === 'verified_user' || role === 'admin')) {
         return <>{children}</>;
     } else if (user && role === 'pending') {
@@ -100,7 +103,7 @@ const AppContent: React.FC = () => {
     const [showGlobalLoadingScreen, setShowGlobalLoadingScreen] = useState(false);
     useEffect(() => {
         if (authLoading) {
-            const timer = setTimeout(() => setShowGlobalLoadingScreen(true), 300);
+            const timer = setTimeout(() => setShowGlobalLoadingScreen(true), 500);
             return () => clearTimeout(timer);
         } else {
             setShowGlobalLoadingScreen(false);
@@ -138,7 +141,7 @@ const AppContent: React.FC = () => {
                         <Route path="/user" element={<UserProtectedRoute><UserPage /></UserProtectedRoute>} />
                         
                         <Route path="/admin/*" element={<AdminProtectedRoute><AdminPage /></AdminProtectedRoute>} />
-                        {/* Perlu diingat, ManageUsers diakses dari dalam AdminPage */}
+                        {/* Route "/admin/users" dihapus karena ManageUsers diakses melalui DashboardLayout dari AdminPage */}
                         {/* <Route path="/admin/users" element={<AdminProtectedRoute><ManageUsers /></AdminProtectedRoute>} /> */}
                         
                         <Route path="*" element={<NotFound />} />
