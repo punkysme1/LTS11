@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { supabase } from '../supabaseClient'; //
+import { supabase } from '../supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { UserProfileData, UserProfileStatus, UserRole } from '../../types';
 import { getUserProfile } from '../services/userService';
@@ -15,7 +15,7 @@ export interface AuthContextType {
 }
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const MIN_LOADING_TIME = 500; // Minimal waktu loading screen ditampilkan
+const MIN_LOADING_TIME = 500; 
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
@@ -25,8 +25,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true); // Default to true, as we need to check auth state
   const isMounted = useRef(true);
   const loadingStartTime = useRef<number | null>(null);
-  // Tambahkan ref untuk melacak apakah listener Supabase sudah menginisialisasi state pertama kali
-  const hasSupabaseListenerInitialized = useRef(false);
   const lastProcessedUserId = useRef<string | null>(null); 
 
   console.log('AUTH_CONTEXT_STATE: Render. Loading:', loading, 'User:', user?.id, 'Role:', role, 'UserProfile:', userProfile?.status);
@@ -95,7 +93,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log('AUTH_CONTEXT_LOG: Role set to GUEST (unknown status).');
         }
       } else {
-        // Jika user login tapi profil tidak ditemukan, anggap pending/belum lengkap
         setRole('pending'); 
         console.log('AUTH_CONTEXT_LOG: User logged in but no profile found, setting role to PENDING.');
       }
@@ -109,16 +106,59 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
+  // Ini adalah useEffect utama untuk menginisialisasi dan mendengarkan perubahan otentikasi
   useEffect(() => {
     console.log('AUTH_CONTEXT_DEBUG: useEffect runs, isMounted.current (on mount):', isMounted.current);
     console.trace('AUTH_CONTEXT_TRACE: Called useEffect (initial)');
 
     let unsubscribe: (() => void) | undefined;
 
-    // Tidak perlu initializeAuth secara terpisah, listener akan menangani INITIAL_SESSION
-    // const initializeAuth = async () => { ... }
-    // initializeAuth(); // Dihapus
+    // Fungsi async untuk inisialisasi awal AuthProvider
+    const initializeAuthSynchronously = async () => {
+        if (!isMounted.current) return;
+        console.log('AUTH_CONTEXT_LOG: Running initial synchronous session check.');
+        startLoading(); // Mulai loading segera
 
+        try {
+            const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (!isMounted.current) {
+                console.log('AUTH_CONTEXT_LOG: initializeAuthSynchronously aborted, unmounted.');
+                return;
+            }
+
+            setSession(initialSession);
+            const currentUser = initialSession?.user ?? null;
+            setUser(currentUser);
+            lastProcessedUserId.current = currentUser?.id || null; // Simpan ID pengguna yang diproses
+
+            if (currentUser) {
+                console.log('AUTH_CONTEXT_LOG: Initial session found synchronously, fetching profile.');
+                await fetchUserProfileAndSetRole(currentUser.id);
+            } else {
+                console.log('AUTH_CONTEXT_LOG: No initial session found synchronously.');
+                setUserProfile(null);
+                setRole('guest');
+            }
+            // Langsung finish loading setelah pemeriksaan sesi awal selesai
+            finishLoading(); 
+
+        } catch (error) {
+            console.error("AUTH_CONTEXT_ERROR: Error in initial synchronous session check:", error);
+            if (isMounted.current) {
+                setSession(null);
+                setUser(null);
+                setUserProfile(null);
+                setRole('guest');
+                finishLoading();
+            }
+        }
+    };
+
+    // Panggil fungsi inisialisasi awal saat komponen di-mount
+    initializeAuthSynchronously();
+
+    // Setup listener untuk perubahan state otentikasi Supabase
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
       if (!isMounted.current) {
           console.log('AUTH_CONTEXT_LOG: Auth state change skipped, not mounted (from listener).');
@@ -130,51 +170,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const currentUser = currentSession?.user ?? null;
 
-      // Logika khusus untuk INITIAL_SESSION
-      if (_event === 'INITIAL_SESSION') {
-          console.log('AUTH_CONTEXT_LOG: Handling INITIAL_SESSION event.');
-          if (!hasSupabaseListenerInitialized.current) {
-              startLoading(); // Hanya start loading jika ini inisialisasi listener pertama kali
-              hasSupabaseListenerInitialized.current = true;
-          }
-
+      // Handle event INITIAL_SESSION secara eksplisit jika belum terproses
+      // Atau jika event SIGNED_IN ini adalah yang pertama setelah mounting
+      // (ini akan tumpang tindih dengan initializeAuthSynchronously, tapi listener ini akan menjadi "kebenaran akhir")
+      if (_event === 'INITIAL_SESSION' && currentUser && lastProcessedUserId.current === null) {
+          // Kasus khusus: INITIAL_SESSION datang dan kita belum punya user ID yang diproses
+          // Ini berarti initializeAuthSynchronously belum sempat mengatur lastProcessedUserId,
+          // atau listener menangkapnya lebih dulu.
+          console.log('AUTH_CONTEXT_LOG: Processing INITIAL_SESSION via listener for first time user.');
+          startLoading();
           setSession(currentSession);
           setUser(currentUser);
-          lastProcessedUserId.current = currentUser?.id || null; // Simpan ID pengguna yang diproses
-
-          if (currentUser) {
-              console.log('AUTH_CONTEXT_LOG: Initial session found via listener, fetching profile.');
-              await fetchUserProfileAndSetRole(currentUser.id);
-          } else {
-              console.log('AUTH_CONTEXT_LOG: No initial session found via listener.');
-              setUserProfile(null);
-              setRole('guest');
-          }
-          finishLoading(); // Selalu selesaikan loading setelah INITIAL_SESSION diproses
-          return; // Hentikan pemrosesan lebih lanjut untuk INITIAL_SESSION
+          lastProcessedUserId.current = currentUser?.id || null;
+          await fetchUserProfileAndSetRole(currentUser.id);
+          finishLoading();
+          return;
       }
 
-      // Untuk event selain INITIAL_SESSION (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_DELETED)
-      // Periksa apakah user ID sama dan event bukan logout
-      const isSameUser = currentUser?.id === lastProcessedUserId.current;
-      const isNotLogoutEvent = _event !== 'SIGNED_OUT' && _event !== 'USER_DELETED';
 
-      if (isSameUser && isNotLogoutEvent && user && role !== 'guest') {
+      // Periksa apakah user ID sama dan event bukan logout
+      const isLogoutEvent = _event === 'SIGNED_OUT' || _event === 'USER_DELETED';
+      const isSameUser = currentUser?.id === lastProcessedUserId.current;
+      
+      if (isSameUser && !isLogoutEvent && user && role !== 'guest') {
         // Jika user ID sama dan sudah login, kemungkinan hanya refresh token minor atau duplicate SIGNED_IN.
         console.log('AUTH_CONTEXT_LOG: User is already logged in and ID matched. Skipping full re-auth process and setting loading to false.');
-        setSession(currentSession); // Tetap update sesi terbaru
-        setUser(currentUser); // Tetap update objek user terbaru
-        setLoading(false); // Langsung set loading ke false
-        loadingStartTime.current = null; // Reset start time
+        setSession(currentSession); 
+        setUser(currentUser); 
+        // Jika sesi sudah stabil dan loading masih true karena alasan lain (e.g. MIN_LOADING_TIME), segera selesaikan
+        if (loading) { 
+          setLoading(false); 
+          loadingStartTime.current = null; 
+        }
         return; // Hentikan proses lebih lanjut
       }
       
       // Jika ada perubahan user (login/logout) atau event penting lainnya
+      // Atau jika isSameUser false (berarti ada pergantian user, atau user baru)
       startLoading(); 
 
       setSession(currentSession);
       setUser(currentUser);
-      lastProcessedUserId.current = currentUser?.id || null; // Update ID pengguna yang diproses
+      lastProcessedUserId.current = currentUser?.id || null; 
 
       if (currentUser) {
         console.log('AUTH_CONTEXT_LOG: Listener detected new/changed user, fetching profile.');
@@ -186,7 +223,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSession(null); 
         setUser(null);     
       }
-      finishLoading(); // Selalu selesaikan loading setelah event diproses
+      finishLoading(); 
     });
 
     unsubscribe = authListener.subscription.unsubscribe;
@@ -214,7 +251,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(null);
         setUserProfile(null);
         setRole('guest');
-        lastProcessedUserId.current = null; // Reset last processed user ID on sign out
+        lastProcessedUserId.current = null; 
       }
     } catch (err: any) {
       console.error("AUTH_CONTEXT_ERROR: Error during sign out catch block:", err.message || err);
