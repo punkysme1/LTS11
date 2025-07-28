@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient'; //
 import { Session, User } from '@supabase/supabase-js';
 import { UserProfileData, UserProfileStatus, UserRole } from '../../types';
 import { getUserProfile } from '../services/userService';
@@ -15,8 +15,6 @@ export interface AuthContextType {
 }
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Konstanta untuk penundaan loading (dalam milidetik)
-// Ini membantu mencegah flicker jika proses autentikasi sangat cepat
 const MIN_LOADING_TIME = 500; // Minimal waktu loading screen ditampilkan
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -24,13 +22,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [role, setRole] = useState<UserRole>('guest');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Default to true, as we need to check auth state
   const isMounted = useRef(true);
-  const loadingStartTime = useRef<number | null>(null); // Untuk melacak kapan loading dimulai
+  const loadingStartTime = useRef<number | null>(null);
+  // Tambahkan ref untuk melacak apakah listener Supabase sudah menginisialisasi state pertama kali
+  const hasSupabaseListenerInitialized = useRef(false);
+  const lastProcessedUserId = useRef<string | null>(null); 
 
   console.log('AUTH_CONTEXT_STATE: Render. Loading:', loading, 'User:', user?.id, 'Role:', role, 'UserProfile:', userProfile?.status);
 
-  // Fungsi untuk mengakhiri loading dengan penundaan minimal
   const finishLoading = useCallback(() => {
     if (!isMounted.current) return;
 
@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
       console.log('AUTH_CONTEXT_LOG: Loading set to false immediately.');
     }
-    loadingStartTime.current = null; // Reset start time
+    loadingStartTime.current = null;
   }, []);
 
   const startLoading = useCallback(() => {
@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchUserProfileAndSetRole = useCallback(async (userId: string) => {
     console.log('AUTH_CONTEXT_LOG: Starting fetchUserProfileAndSetRole for userId:', userId);
-    console.trace('AUTH_CONTEXT_TRACE: Called fetchUserProfileAndSetRole'); // Trace panggilan
+    console.trace('AUTH_CONTEXT_TRACE: Called fetchUserProfileAndSetRole');
 
     try {
       const profile = await getUserProfile(userId);
@@ -73,7 +73,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
       }
 
-      // Selalu set userProfile berdasarkan hasil fetch.
       setUserProfile(profile);
       console.log('AUTH_CONTEXT_DEBUG: setUserProfile called with:', profile?.status || 'null');
 
@@ -91,12 +90,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else if (profile.status === UserProfileStatus.PENDING) {
           setRole('pending');
           console.log('AUTH_CONTEXT_LOG: Role set to PENDING.');
-        } else { // Fallback for unknown status
+        } else {
           setRole('guest');
           console.log('AUTH_CONTEXT_LOG: Role set to GUEST (unknown status).');
         }
       } else {
-        setRole('pending'); // Asumsi pending jika user login tapi profil tidak ditemukan
+        // Jika user login tapi profil tidak ditemukan, anggap pending/belum lengkap
+        setRole('pending'); 
         console.log('AUTH_CONTEXT_LOG: User logged in but no profile found, setting role to PENDING.');
       }
     } catch (err: any) {
@@ -106,60 +106,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUserProfile(null);
         console.log('AUTH_CONTEXT_LOG: Error caught, role set to GUEST and profile null.');
       }
-    } finally {
-        // Panggil finishLoading di akhir proses ini
-        finishLoading();
     }
-  }, [finishLoading]); // Tambahkan finishLoading sebagai dependensi
+  }, []);
 
   useEffect(() => {
     console.log('AUTH_CONTEXT_DEBUG: useEffect runs, isMounted.current (on mount):', isMounted.current);
-    console.trace('AUTH_CONTEXT_TRACE: Called useEffect (initial)'); // Trace panggilan useEffect
+    console.trace('AUTH_CONTEXT_TRACE: Called useEffect (initial)');
 
     let unsubscribe: (() => void) | undefined;
 
-    const initializeAuth = async () => {
-      if (!isMounted.current) {
-          console.log('AUTH_CONTEXT_LOG: initializeAuth skipped, not mounted.');
-          return;
-      }
-      console.log('AUTH_CONTEXT_LOG: Initializing AuthContext...');
-      startLoading(); // Mulai loading saat inisialisasi
-
-      try {
-        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (!isMounted.current) {
-            console.log('AUTH_CONTEXT_LOG: initializeAuth aborted, unmounted during session fetch.');
-            return;
-        }
-
-        setSession(initialSession);
-        const currentUser = initialSession?.user ?? null;
-        setUser(currentUser);
-
-        if (currentUser) {
-          console.log('AUTH_CONTEXT_LOG: Initial session found, fetching profile for:', currentUser.id);
-          await fetchUserProfileAndSetRole(currentUser.id);
-        } else {
-          console.log('AUTH_CONTEXT_LOG: No initial session found.');
-          setUserProfile(null);
-          setRole('guest');
-          finishLoading(); // Selesaikan loading jika tidak ada user
-        }
-      } catch (error) {
-        console.error("AUTH_CONTEXT_ERROR: Error in initializeAuth outer catch:", error);
-        if (isMounted.current) {
-          setSession(null);
-          setUser(null);
-          setUserProfile(null);
-          setRole('guest');
-          finishLoading(); // Selesaikan loading jika ada error
-        }
-      }
-    };
-
-    initializeAuth();
+    // Tidak perlu initializeAuth secara terpisah, listener akan menangani INITIAL_SESSION
+    // const initializeAuth = async () => { ... }
+    // initializeAuth(); // Dihapus
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
       if (!isMounted.current) {
@@ -168,14 +126,55 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       console.log('AUTH_CONTEXT_LOG: Auth state change detected from listener. Event:', _event, 'Session user ID:', currentSession?.user?.id);
-      console.trace('AUTH_CONTEXT_TRACE: Called onAuthStateChange listener'); // Trace panggilan listener
+      console.trace('AUTH_CONTEXT_TRACE: Called onAuthStateChange listener');
 
-      // Ketika ada perubahan state otentikasi, selalu mulai loading
+      const currentUser = currentSession?.user ?? null;
+
+      // Logika khusus untuk INITIAL_SESSION
+      if (_event === 'INITIAL_SESSION') {
+          console.log('AUTH_CONTEXT_LOG: Handling INITIAL_SESSION event.');
+          if (!hasSupabaseListenerInitialized.current) {
+              startLoading(); // Hanya start loading jika ini inisialisasi listener pertama kali
+              hasSupabaseListenerInitialized.current = true;
+          }
+
+          setSession(currentSession);
+          setUser(currentUser);
+          lastProcessedUserId.current = currentUser?.id || null; // Simpan ID pengguna yang diproses
+
+          if (currentUser) {
+              console.log('AUTH_CONTEXT_LOG: Initial session found via listener, fetching profile.');
+              await fetchUserProfileAndSetRole(currentUser.id);
+          } else {
+              console.log('AUTH_CONTEXT_LOG: No initial session found via listener.');
+              setUserProfile(null);
+              setRole('guest');
+          }
+          finishLoading(); // Selalu selesaikan loading setelah INITIAL_SESSION diproses
+          return; // Hentikan pemrosesan lebih lanjut untuk INITIAL_SESSION
+      }
+
+      // Untuk event selain INITIAL_SESSION (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_DELETED)
+      // Periksa apakah user ID sama dan event bukan logout
+      const isSameUser = currentUser?.id === lastProcessedUserId.current;
+      const isNotLogoutEvent = _event !== 'SIGNED_OUT' && _event !== 'USER_DELETED';
+
+      if (isSameUser && isNotLogoutEvent && user && role !== 'guest') {
+        // Jika user ID sama dan sudah login, kemungkinan hanya refresh token minor atau duplicate SIGNED_IN.
+        console.log('AUTH_CONTEXT_LOG: User is already logged in and ID matched. Skipping full re-auth process and setting loading to false.');
+        setSession(currentSession); // Tetap update sesi terbaru
+        setUser(currentUser); // Tetap update objek user terbaru
+        setLoading(false); // Langsung set loading ke false
+        loadingStartTime.current = null; // Reset start time
+        return; // Hentikan proses lebih lanjut
+      }
+      
+      // Jika ada perubahan user (login/logout) atau event penting lainnya
       startLoading(); 
 
       setSession(currentSession);
-      const currentUser = currentSession?.user ?? null;
       setUser(currentUser);
+      lastProcessedUserId.current = currentUser?.id || null; // Update ID pengguna yang diproses
 
       if (currentUser) {
         console.log('AUTH_CONTEXT_LOG: Listener detected new/changed user, fetching profile.');
@@ -184,8 +183,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('AUTH_CONTEXT_LOG: Listener detected user logged out, resetting profile and role.');
         setUserProfile(null);
         setRole('guest');
-        finishLoading(); // Selesaikan loading jika user logout
+        setSession(null); 
+        setUser(null);     
       }
+      finishLoading(); // Selalu selesaikan loading setelah event diproses
     });
 
     unsubscribe = authListener.subscription.unsubscribe;
@@ -198,17 +199,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       console.log('AUTH_CONTEXT_LOG: AuthProvider unmounted, listener unsubscribed (cleanup).');
     };
-  }, [fetchUserProfileAndSetRole, startLoading, finishLoading]); // Tambahkan startLoading, finishLoading sebagai dependensi
+  }, [fetchUserProfileAndSetRole, startLoading, finishLoading, user, role]);
 
   const signOut = async () => {
     startLoading();
     console.log('AUTH_CONTEXT_LOG: Signing out...');
     try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("AUTH_CONTEXT_ERROR: Error during sign out:", err);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("AUTH_CONTEXT_ERROR: Error during sign out:", error.message);
+      } else {
+        console.log('AUTH_CONTEXT_LOG: Supabase signOut successful, resetting local state.');
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setRole('guest');
+        lastProcessedUserId.current = null; // Reset last processed user ID on sign out
+      }
+    } catch (err: any) {
+      console.error("AUTH_CONTEXT_ERROR: Error during sign out catch block:", err.message || err);
     } finally {
-      finishLoading(); // Selesaikan loading setelah sign out
+      finishLoading();
+      console.log('AUTH_CONTEXT_LOG: Sign out process finished.');
     }
   };
 
