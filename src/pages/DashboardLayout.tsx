@@ -1,15 +1,13 @@
 // DashboardLayout.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Import useEffect
 import { useAuth } from '../hooks/useAuth';
-import { Link } from 'react-router-dom';
-// Pastikan semua ikon ini diimpor dan ada di src/components/icons.tsx
+import { Link, useNavigate } from 'react-router-dom'; // Import useNavigate
 import { BookOpenIcon, CalendarIcon, NewspaperIcon, PencilIcon, HomeIcon, CheckCircleIcon } from '../components/icons'; 
 
-// --- FIX: Gunakan default import (tanpa {}) agar sesuai dengan file komponennya ---
 import ManageManuscripts from './admin/ManageManuscripts';
 import ManageBlog from './admin/ManageBlog';
 import ManageGuestbook from './admin/ManageGuestbook';
-import ManageUsers from './admin/ManageUsers'; // BARU: Import ManageUsers
+import ManageUsers from './admin/ManageUsers'; 
 
 // Komponen DashboardHome
 const DashboardHome = () => (
@@ -20,9 +18,32 @@ const DashboardHome = () => (
 );
 
 const DashboardLayout: React.FC = () => {
-    const { user, signOut } = useAuth();
+    const { user, signOut, loading, role } = useAuth(); // Ambil loading dan role
+    const navigate = useNavigate();
     const [activePage, setActivePage] = useState('dashboard'); 
     const [isSidebarOpen, setSidebarOpen] = useState(true);
+
+    // Efek untuk mengarahkan jika pengguna tidak valid untuk dashboard ini
+    useEffect(() => {
+        if (!loading && (!user || role !== 'admin')) {
+            console.log("DASHBOARD_LAYOUT_LOG: User not authorized for admin dashboard. Redirecting.");
+            navigate('/login', { replace: true }); // Arahkan kembali ke login jika tidak ada user atau bukan admin
+        }
+    }, [user, loading, role, navigate]);
+
+    // Tampilkan loading screen jika AuthContext masih memuat
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-xl text-gray-700 dark:text-gray-300">Memuat dashboard...</div>
+            </div>
+        );
+    }
+
+    // Jika user tidak ada atau role bukan admin, komponen akan mengarahkan via useEffect, jadi render null sementara
+    if (!user || role !== 'admin') {
+        return null;
+    }
 
     const renderPage = () => {
         switch (activePage) {
@@ -34,7 +55,7 @@ const DashboardLayout: React.FC = () => {
                 return <ManageBlog />;
             case 'bukutamu':
                 return <ManageGuestbook />;
-            case 'users': // BARU: Kasus untuk Manajemen Pengguna
+            case 'users':
                 return <ManageUsers />;
             default:
                 return <DashboardHome />;
@@ -46,7 +67,7 @@ const DashboardLayout: React.FC = () => {
         { id: 'manuskrip', name: 'Manuskrip', icon: <PencilIcon className="w-5 h-5" /> },
         { id: 'blog', name: 'Blog', icon: <NewspaperIcon className="w-5 h-5" /> },
         { id: 'bukutamu', name: 'Buku Tamu', icon: <CalendarIcon className="w-5 h-5" /> },
-        { id: 'users', name: 'Manajemen Pengguna', icon: <CheckCircleIcon className="w-5 h-5" /> }, // BARU: Item menu Manajemen Pengguna
+        { id: 'users', name: 'Manajemen Pengguna', icon: <CheckCircleIcon className="w-5 h-5" /> }, 
     ];
 
     return (

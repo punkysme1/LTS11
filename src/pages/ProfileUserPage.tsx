@@ -1,76 +1,108 @@
 // src/pages/ProfileUserPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getUserProfile } from '../services/userService';
-import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService'; // Pastikan ini diimpor
+// import { getUserProfile } from '../services/userService'; // getUserProfile sudah dipanggil di AuthContext
+import { getSearchHistory, deleteSearchHistoryEntry } from '../services/searchHistoryService';
 import { UserProfileData, SearchHistoryEntry, UserProfileStatus } from '../../types';
-import { Link } from 'react-router-dom'; // Pastikan Link diimpor
+import { Link, useNavigate } from 'react-router-dom'; // Pastikan useNavigate diimpor
 
 const ProfileUserPage: React.FC = () => {
     const { user, userProfile, role, signOut, loading: authLoading } = useAuth();
-    const [loadingProfile, setLoadingProfile] = useState(true);
-    const [errorProfile, setErrorProfile] = useState<string | null>(null);
+    // loadingProfile tidak lagi diperlukan karena authLoading dari AuthContext sudah cukup
+    // const [loadingProfile, setLoadingProfile] = useState(true); 
+    // const [errorProfile, setErrorProfile] = useState<string | null>(null);
 
     const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [errorHistory, setErrorHistory] = useState<string | null>(null);
+    
+    const navigate = useNavigate();
 
+    // --- Logika Pengalihan Utama untuk Halaman Pengguna ---
     useEffect(() => {
+        // Hanya jalankan logika pengalihan setelah AuthContext selesai memuat
         if (!authLoading) {
-            setLoadingProfile(false);
+            if (!user) {
+                // Jika tidak ada pengguna, arahkan ke halaman login
+                console.log("PROFILE_USER_PAGE_LOG: Tidak ada pengguna yang login, mengarahkan ke /login.");
+                navigate('/login', { replace: true });
+            } else if (role === 'admin') {
+                // Jika pengguna adalah admin, arahkan ke dashboard admin
+                console.log("PROFILE_USER_PAGE_LOG: Pengguna adalah admin, mengarahkan ke /admin.");
+                navigate('/admin', { replace: true });
+            }
+            // Jika user ada dan role bukan admin (yaitu 'verified_user' atau 'pending'),
+            // biarkan komponen ini menampilkan kontennya.
         }
-    }, [user, userProfile, authLoading]);
+    }, [user, role, authLoading, navigate]); // Dependensi: user, role, authLoading, navigate
 
+    // --- Fetch histori pencarian (hanya jika pengguna sudah diautentikasi dan terverifikasi/admin) ---
     const fetchHistory = useCallback(async () => {
-        if (user && (role === 'verified_user' || role === 'admin')) {
+        // Memastikan AuthContext selesai memuat dan ada user dengan role yang sesuai
+        if (!authLoading && user && (role === 'verified_user' || role === 'admin')) {
             setLoadingHistory(true);
             setErrorHistory(null);
             try {
                 const history = await getSearchHistory(user.id);
                 setSearchHistory(history);
             } catch (err: any) {
-                console.error("Error fetching search history:", err);
+                console.error("PROFILE_USER_PAGE_ERROR: Gagal memuat histori pencarian:", err);
                 setErrorHistory("Gagal memuat histori pencarian.");
             } finally {
                 setLoadingHistory(false);
             }
-        } else {
+        } else if (!authLoading && (!user || (role !== 'verified_user' && role !== 'admin'))) {
+            // Jika tidak ada user atau role tidak sesuai, kosongkan histori dan hentikan loading
             setSearchHistory([]);
             setLoadingHistory(false);
         }
-    }, [user, role]);
+    }, [user, role, authLoading]); // Dependensi: user, role, authLoading
 
+    // Panggil fetchHistory saat komponen di-mount atau saat authLoading/user/role berubah
     useEffect(() => {
-        if (!authLoading) {
-            fetchHistory();
-        }
-    }, [authLoading, fetchHistory]);
+        fetchHistory();
+    }, [fetchHistory]);
 
-    // FUNGSI INI HARUS ADA DAN BERADA DI SCOPE KOMPONEN
+    // FUNGSI UNTUK MENGHAPUS ENTRI HISTORI PENCARIAN
     const handleDeleteEntry = useCallback(async (id: number) => {
         if (window.confirm('Yakin ingin menghapus entri ini dari histori pencarian?')) {
-            const success = await deleteSearchHistoryEntry(id);
-            if (success) {
-                setSearchHistory(prev => prev.filter(entry => entry.id !== id));
-            } else {
-                alert('Gagal menghapus entri histori.');
+            try {
+                const success = await deleteSearchHistoryEntry(id);
+                if (success) {
+                    setSearchHistory(prev => prev.filter(entry => entry.id !== id));
+                    alert('Entri histori berhasil dihapus.');
+                } else {
+                    alert('Gagal menghapus entri histori.');
+                }
+            } catch (err) {
+                console.error("PROFILE_USER_PAGE_ERROR: Error menghapus entri histori:", err);
+                alert('Terjadi kesalahan saat menghapus entri histori.');
             }
         }
-    }, []); // Dependensi kosong karena tidak menggunakan state yang berubah dari luar
+    }, []);
 
-    if (authLoading || loadingProfile) {
-        return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat profil pengguna...</div>;
-    }
-
-    if (!user) {
+    // --- Render Loading State ---
+    if (authLoading) {
         return (
             <div className="text-center py-20 text-gray-700 dark:text-gray-300">
-                Anda perlu login untuk melihat halaman profil pengguna.
+                Memuat profil pengguna... (Autentikasi sedang berlangsung)
             </div>
         );
     }
 
-    if (!userProfile) {
+    // --- Render Halaman Login jika tidak ada user setelah loading selesai ---
+    // Efek di atas akan mengarahkan, jadi ini adalah fallback atau keadaan transisi singkat
+    if (!user) {
+        return (
+            <div className="text-center py-20 text-gray-700 dark:text-gray-300">
+                Anda perlu login untuk melihat halaman profil pengguna. Sedang mengarahkan...
+            </div>
+        );
+    }
+
+    // --- Render Halaman Notifikasi Profil Belum Lengkap/Terverifikasi ---
+    // Jika user ada, tapi userProfile belum ada, atau role adalah 'pending'
+    if (!userProfile || role === UserProfileStatus.PENDING) { // Gunakan UserProfileStatus.PENDING untuk konsistensi
         return (
             <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
                 <h1 className="text-3xl font-bold font-serif text-gray-900 dark:text-white mb-6">Profil Pengguna Anda</h1>
@@ -81,6 +113,7 @@ const ProfileUserPage: React.FC = () => {
                     Profil Anda sedang dalam proses pembuatan atau aktivasi oleh admin. Harap tunggu atau hubungi admin.
                 </p>
                 <p className="text-gray-700 dark:text-gray-300">ID Pengguna Anda: {user.id}</p>
+                {/* Anda bisa menambahkan link untuk "Lengkapi Profil" di sini jika ada fitur tersebut */}
                 <button
                     onClick={signOut}
                     className="mt-6 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -91,6 +124,7 @@ const ProfileUserPage: React.FC = () => {
         );
     }
 
+    // --- Render Halaman Profil Lengkap untuk verified_user atau admin ---
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
             <h1 className="text-4xl font-bold font-serif text-center text-gray-900 dark:text-white mb-8">Profil Pengguna Anda</h1>
@@ -128,7 +162,7 @@ const ProfileUserPage: React.FC = () => {
                 </button>
             </div>
 
-            {(role === 'verified_user' || role === 'admin') && (
+            {(role === 'verified_user' || role === 'admin') && ( // Hanya tampilkan histori jika verified_user atau admin
                 <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-md">
                     <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Histori Pencarian Manuskrip</h2>
                     {loadingHistory ? (
@@ -148,7 +182,7 @@ const ProfileUserPage: React.FC = () => {
                                         "{entry.query}" pada {new Date(entry.timestamp).toLocaleString('id-ID')}
                                     </span>
                                     <button
-                                        onClick={() => handleDeleteEntry(entry.id)} // Memanggil fungsi yang sudah di-scope
+                                        onClick={() => handleDeleteEntry(entry.id)}
                                         className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
                                         title="Hapus entri ini"
                                     >

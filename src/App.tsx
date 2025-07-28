@@ -1,13 +1,11 @@
 // src/App.tsx
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-// Hapus import { AuthProvider } dari sini
-import { useAuth } from './hooks/useAuth';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth'; // Masih butuh useAuth
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
-// Hapus import { UserRole } dan ManageUsers dari sini (ManageUsers lazy import)
-import { UserProfileStatus } from '../types'; // Hanya UserProfileStatus yang diperlukan jika digunakan
+// import { UserProfileStatus } dari '../types' tidak lagi dibutuhkan di sini
 
 // --- Lazy Loading Components ---
 const Home = lazy(() => import('./pages/HomePage'));
@@ -23,7 +21,6 @@ const Contact = lazy(() => import('./pages/ContactPage'));
 const Donation = lazy(() => import('./pages/DonationPage'));
 const AdminPage = lazy(() => import('../src/pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-// Hapus const ManageUsers = lazy(() => import('./pages/admin/ManageUsers')); dari sini
 
 // Definisikan ThemeContext di sini
 export const ThemeContext = createContext({
@@ -31,95 +28,14 @@ export const ThemeContext = createContext({
   toggleTheme: () => {},
 });
 
-// Komponen untuk melindungi rute Admin
-const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { role, loading } = useAuth();
-
-    const [showLoadingScreen, setShowLoadingScreen] = useState(false);
-    useEffect(() => {
-        if (loading) {
-            const timer = setTimeout(() => setShowLoadingScreen(true), 500);
-            return () => clearTimeout(timer);
-        } else {
-            setShowLoadingScreen(false);
-        }
-    }, [loading]);
-
-    if (loading && showLoadingScreen) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-xl text-gray-700 dark:text-gray-300">Memuat otentikasi admin...</div>
-            </div>
-        );
-    }
-
-    if (role === 'admin') {
-        return <>{children}</>;
-    } else {
-        return <Navigate to="/login" replace />;
-    }
-};
-
-// Komponen untuk melindungi rute yang hanya bisa diakses Pengguna Terdaftar/Pustakawan
-const UserProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, loading, role } = useAuth();
-
-    const [showLoadingScreen, setShowLoadingScreen] = useState(false);
-    useEffect(() => {
-        if (loading) {
-            const timer = setTimeout(() => setShowLoadingScreen(true), 500);
-            return () => clearTimeout(timer);
-        } else {
-            setShowLoadingScreen(false);
-        }
-    }, [loading]);
-
-    if (loading && showLoadingScreen) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-xl text-gray-700 dark:text-gray-300">Memuat pengguna...</div>
-            </div>
-        );
-    }
-
-    // Perhatikan: UserProfileStatus.VERIFIED dan UserProfileStatus.PENDING digunakan sebagai value,
-    // maka UserProfileStatus perlu diimpor (sudah ada di atas)
-    if (user && (role === 'verified_user' || role === 'admin')) {
-        return <>{children}</>;
-    } else if (user && role === 'pending') {
-        return <Navigate to="/user" replace />;
-    } else {
-        return <Navigate to="/login" replace />;
-    }
-};
-
+// Hapus Komponen AdminProtectedRoute
+// Hapus Komponen UserProtectedRoute
 
 const AppContent: React.FC = () => {
     const location = useLocation();
     const isAdminRoute = location.pathname.startsWith('/admin');
     const [searchTerm, setSearchTerm] = useState('');
-    // Hapus penggunaan authLoading dan showGlobalLoadingScreen di sini
-    // const { loading: authLoading } = useAuth();
-
-    // Hapus useEffect untuk showGlobalLoadingScreen
-    // const [showGlobalLoadingScreen, setShowGlobalLoadingScreen] = useState(false);
-    // useEffect(() => {
-    //     if (authLoading) {
-    //         const timer = setTimeout(() => setShowLoadingScreen(true), 500);
-    //         return () => clearTimeout(timer);
-    //     } else {
-    //         setShowLoadingScreen(false);
-    //     }
-    // }, [authLoading]);
-
-    // Hapus kondisi rendering loading screen global
-    // if (authLoading && showGlobalLoadingScreen) {
-    //     return (
-    //         <div className="flex justify-center items-center h-screen">
-    //             <div className="text-xl text-gray-700 dark:text-gray-300">Memuat aplikasi...</div>
-    //         </div>
-    //     );
-    // }
+    // const { loading: authLoading } = useAuth(); // Ini tidak lagi menyebabkan global loading screen
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
@@ -139,13 +55,11 @@ const AppContent: React.FC = () => {
                         <Route path="/donasi" element={<Donation />} />
                         
                         <Route path="/daftar" element={<Register />} />
-                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/login" element={<LoginPage />} /> {/* Halaman login universal */}
                         
-                        <Route path="/user" element={<UserProtectedRoute><UserPage /></UserProtectedRoute>} />
-                        
-                        <Route path="/admin/*" element={<AdminProtectedRoute><AdminPage /></AdminProtectedRoute>} />
-                        {/* Route "/admin/users" dihapus karena ManageUsers diakses melalui DashboardLayout dari AdminPage */}
-                        {/* <Route path="/admin/users" element={<AdminProtectedRoute><ManageUsers /></AdminProtectedRoute>} /> */}
+                        {/* Rute ini sekarang tidak dilindungi di App.tsx, tetapi akan ditangani di komponen masing-masing */}
+                        <Route path="/user" element={<UserPage />} /> 
+                        <Route path="/admin/*" element={<AdminPage />} /> 
                         
                         <Route path="*" element={<NotFound />} />
                     </Routes>
