@@ -98,25 +98,28 @@ const AppContent: React.FC = () => {
     const location = useLocation();
     const isAdminRoute = location.pathname.startsWith('/admin');
     const [searchTerm, setSearchTerm] = useState('');
-    const { loading: authLoading } = useAuth();
+    // Hapus penggunaan authLoading dan showGlobalLoadingScreen di sini
+    // const { loading: authLoading } = useAuth();
 
-    const [showGlobalLoadingScreen, setShowGlobalLoadingScreen] = useState(false);
-    useEffect(() => {
-        if (authLoading) {
-            const timer = setTimeout(() => setShowGlobalLoadingScreen(true), 500);
-            return () => clearTimeout(timer);
-        } else {
-            setShowGlobalLoadingScreen(false);
-        }
-    }, [authLoading]);
+    // Hapus useEffect untuk showGlobalLoadingScreen
+    // const [showGlobalLoadingScreen, setShowGlobalLoadingScreen] = useState(false);
+    // useEffect(() => {
+    //     if (authLoading) {
+    //         const timer = setTimeout(() => setShowLoadingScreen(true), 500);
+    //         return () => clearTimeout(timer);
+    //     } else {
+    //         setShowLoadingScreen(false);
+    //     }
+    // }, [authLoading]);
 
-    if (authLoading && showGlobalLoadingScreen) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-xl text-gray-700 dark:text-gray-300">Memuat aplikasi...</div>
-            </div>
-        );
-    }
+    // Hapus kondisi rendering loading screen global
+    // if (authLoading && showGlobalLoadingScreen) {
+    //     return (
+    //         <div className="flex justify-center items-center h-screen">
+    //             <div className="text-xl text-gray-700 dark:text-gray-300">Memuat aplikasi...</div>
+    //         </div>
+    //     );
+    // }
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
