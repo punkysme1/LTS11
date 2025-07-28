@@ -1,23 +1,22 @@
 // pages/ManuscriptDetailPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom'; // Import Link
+import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { Manuskrip } from '../../types';
 import { askAboutManuscript } from '../services/geminiService';
 import { SparklesIcon } from '../components/icons';
-import { useAuth } from '../hooks/useAuth'; // Import useAuth
+import { useAuth } from '../hooks/useAuth';
 
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
-// Tambahkan import untuk komponen CommentForm dan CommentList
-import CommentForm from '../components/CommentForm'; // Anda perlu membuat komponen ini
-import CommentList from '../components/CommentList'; // Anda perlu membuat komponen ini
+import CommentForm from '../components/CommentForm';
+import CommentList from '../components/CommentList';
 
 
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { role } = useAuth(); // Dapatkan role pengguna
+    const { role, loading: authLoading } = useAuth();
 
     const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
     const [loading, setLoading] = useState(true);
@@ -36,6 +35,13 @@ const ManuscriptDetailPage: React.FC = () => {
 
     useEffect(() => {
         const fetchManuscriptDetail = async () => {
+            // Hanya fetch data jika authStore sudah selesai memuat sesi
+            if (authLoading) {
+                console.log('MANUSCRIPT_DETAIL_PAGE_LOG: Waiting for AuthContext to finish loading...');
+                return;
+            }
+            console.log('MANUSCRIPT_DETAIL_PAGE_LOG: AuthContext finished, starting data fetch.');
+
             if (!id) {
                 setError('ID manuskrip tidak ada di URL.');
                 setLoading(false);
@@ -46,14 +52,14 @@ const ManuscriptDetailPage: React.FC = () => {
             setError(null);
 
             try {
-                const { data, error } = await supabase
+                const { data, error: dbError } = await supabase
                     .from('manuskrip')
                     .select('*')
                     .eq('kode_inventarisasi', id)
                     .single();
 
-                if (error) {
-                    throw error;
+                if (dbError) {
+                    throw dbError;
                 }
                 
                 if (data) {
@@ -65,7 +71,6 @@ const ManuscriptDetailPage: React.FC = () => {
                                         .map(url => url.trim())
                                         .filter(url => url !== '');
                     
-                    // Prioritaskan cover, lalu konten
                     const combinedImages = [coverUrl, ...contentUrls].filter(url => url !== '');
                     setAllImages(combinedImages);
                     
@@ -75,17 +80,18 @@ const ManuscriptDetailPage: React.FC = () => {
                     setError('Manuskrip tidak ditemukan.');
                 }
             } catch (err: any) {
-                console.error('Error fetching manuscript detail:', err.message);
+                console.error('MANUSCRIPT_DETAIL_PAGE_ERROR: Error fetching manuscript detail:', err.message);
                 setError('Gagal memuat detail manuskrip: ' + err.message);
             } finally {
                 setLoading(false);
+                console.log('MANUSCRIPT_DETAIL_PAGE_LOG: Data fetch finished.');
             }
         };
 
         if (id) {
             fetchManuscriptDetail();
         }
-    }, [id]);
+    }, [id, authLoading]);
 
     const openLightbox = useCallback((index: number) => {
         setCurrentImageIndex(index);
@@ -105,14 +111,14 @@ const ManuscriptDetailPage: React.FC = () => {
                 setAiResponse(prev => prev + chunk.text);
             }
         } catch (error) {
-            console.error("Error asking AI:", error);
+            console.error("MANUSCRIPT_DETAIL_PAGE_ERROR: Error asking AI:", error);
             setAiResponse("Maaf, terjadi kesalahan saat menghubungi AI. Silakan coba lagi nanti.");
         } finally {
             setIsAiLoading(false);
         }
     };
 
-    if (loading) {
+    if (authLoading || loading) {
         return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat detail manuskrip...</div>;
     }
 
@@ -180,7 +186,7 @@ const ManuscriptDetailPage: React.FC = () => {
                         <DetailItem label="Catatan Marginal" value={manuscript.catatan_marginal} />
                     </dl>
                 );
-            case 'referensi': // Tab referensi tetap ada untuk field yang baru
+            case 'referensi':
                 return (
                     <div className="space-y-6">
                         <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Detail Referensi</h3>
@@ -233,18 +239,18 @@ const ManuscriptDetailPage: React.FC = () => {
                         )}
                     </div>
                     {/* Thumbnails - Gunakan overflow-x-auto untuk scroll horizontal */}
-                    <div className="flex overflow-x-auto space-x-2 pb-2"> {/* Added overflow-x-auto and pb-2 */}
+                    <div className="flex overflow-x-auto space-x-2 pb-2">
                          {allImages.map((imgUrl, index) => (
                             <img
                                 key={index}
                                 src={imgUrl}
                                 onClick={() => {
                                     setMainImage(imgUrl);
-                                    setCurrentImageIndex(index); // Update current index for lightbox too
+                                    setCurrentImageIndex(index);
                                 }}
                                 alt={`thumbnail ${index + 1}`}
                                 className={`flex-none w-20 h-20 object-cover rounded-md border-2 ${mainImage === imgUrl ? 'border-primary-500' : 'border-transparent'} hover:border-primary-500 cursor-pointer transition-all duration-150`}
-                                loading="lazy" // Add lazy loading
+                                loading="lazy"
                             />
                         ))}
                     </div>
@@ -300,14 +306,14 @@ const ManuscriptDetailPage: React.FC = () => {
             <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold font-serif text-gray-900 dark:text-gray-100 mb-4">Komentar dan Diskusi</h2>
                 {role === 'verified_user' || role === 'admin' ? (
-                    <CommentForm targetId={manuscript.kode_inventarisasi} type="manuscript" />
+                    <CommentForm targetId={manuscript.kode_inventarisasi} type="manuskrip" />
                 ) : role === 'pending' ? (
                     <p className="text-yellow-600 dark:text-yellow-400">Akun Anda sedang menunggu verifikasi untuk dapat berkomentar.</p>
                 ) : (
-                    <p className="text-gray-600 dark:text-gray-400">Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> atau <Link to="/register" className="text-primary-600 hover:underline">daftar</Link> untuk berkomentar.</p>
+                    <p className="text-gray-600 dark:text-gray-400">Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> atau <Link to="/daftar" className="text-primary-600 hover:underline">daftar</Link> untuk berkomentar.</p>
                 )}
                 
-                <CommentList targetId={manuscript.kode_inventarisasi} type="manuscript" userRole={role} />
+                <CommentList targetId={manuscript.kode_inventarisasi} type="manuskrip" userRole={role} />
             </div>
 
 

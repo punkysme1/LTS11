@@ -2,21 +2,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { BlogPost } from '../../types';
+import { BlogPost, BlogStatus } from '../../types';
 import { CalendarIcon } from '../components/icons';
-import { useAuth } from '../hooks/useAuth'; // Import useAuth
-import CommentForm from '../components/CommentForm'; // Import CommentForm
-import CommentList from '../components/CommentList'; // Import CommentList
+import { useAuth } from '../hooks/useAuth';
+import CommentForm from '../components/CommentForm';
+import CommentList from '../components/CommentList';
 
 const BlogPostDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { role } = useAuth(); // Dapatkan role pengguna
+    const { role, loading: authLoading } = useAuth(); // Dapatkan role dan authLoading
     const [post, setPost] = useState<BlogPost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPost = async () => {
+            // Hanya fetch data jika authStore sudah selesai memuat sesi
+            if (authLoading) {
+                console.log('BLOG_POST_DETAIL_PAGE_LOG: Waiting for AuthContext to finish loading...');
+                return;
+            }
+            console.log('BLOG_POST_DETAIL_PAGE_LOG: AuthContext finished, starting data fetch.');
+
             if (!id || isNaN(Number(id))) {
                 setError('ID artikel tidak valid.');
                 setLoading(false);
@@ -26,25 +33,30 @@ const BlogPostDetailPage: React.FC = () => {
             setLoading(true);
             setError(null);
 
-            const { data, error } = await supabase
-                .from('blog')
-                .select('*')
-                .eq('id', Number(id))
-                .single();
+            let query = supabase.from('blog').select('*').eq('id', Number(id));
 
-            if (error) {
-                console.error('Error fetching blog post:', error);
+            // Jika bukan admin, pastikan statusnya PUBLISHED dan published=TRUE
+            if (role !== 'admin') {
+                query = query.eq('status', BlogStatus.PUBLISHED).eq('published', true);
+            }
+
+            const { data, error: dbError } = await query.single();
+
+            if (dbError) {
+                console.error('BLOG_POST_DETAIL_PAGE_ERROR: Error fetching blog post:', dbError);
                 setError('Gagal memuat artikel. Mungkin artikel ini tidak ada atau terjadi kesalahan.');
             } else {
                 setPost(data);
             }
             setLoading(false);
+            console.log('BLOG_POST_DETAIL_PAGE_LOG: Data fetch finished.');
         };
 
         fetchPost();
-    }, [id]);
+    }, [id, authLoading, role]);
 
-    if (loading) {
+    // Gabungkan loading state
+    if (authLoading || loading) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat artikel...</div>;
     }
 

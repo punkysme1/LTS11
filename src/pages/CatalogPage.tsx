@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Manuskrip } from '../../types';
 import ManuscriptCard from '../components/ManuscriptCard';
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons';
+import { useAuth } from '../hooks/useAuth';
 
 interface CatalogPageProps {
   searchTerm: string;
@@ -11,7 +12,9 @@ interface CatalogPageProps {
 const ITEMS_PER_PAGE = 20;
 
 const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
-  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]); // Deklarasi yang benar: manuscripts
+  // Ambil user juga, selain loading dari AuthContext
+  const { user, loading: authLoading } = useAuth(); 
+  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
@@ -22,19 +25,28 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
 
   useEffect(() => {
     const fetchManuscripts = async () => {
+      // PERBAIKAN UTAMA: Hanya fetch data jika authStore sudah selesai memuat sesi
+      if (authLoading || (user === undefined)) { // user === undefined menunjukkan AuthStore belum selesai proses initial session
+        console.log('CATALOG_PAGE_LOG: Waiting for AuthContext to finish loading or user state to stabilize...');
+        setLoading(true); // Pastikan loading true selama menunggu
+        return;
+      }
+      
+      console.log('CATALOG_PAGE_LOG: AuthContext finished, starting data fetch.');
       setLoading(true);
       const { data, error } = await supabase
         .from('manuskrip')
         .select('*');
       if (error) {
-        console.error('Error fetching manuscripts:', error);
+        console.error('CATALOG_PAGE_ERROR: Error fetching manuscripts:', error);
       } else {
         setManuscripts(data as Manuskrip[]);
       }
       setLoading(false);
+      console.log('CATALOG_PAGE_LOG: Data fetch finished.');
     };
     fetchManuscripts();
-  }, []);
+  }, [authLoading, user]); // Tambahkan 'user' sebagai dependensi
 
   const categoryCounts = useMemo(() => {
     return manuscripts.reduce((acc, ms) => {
@@ -46,7 +58,6 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     }, {} as Record<string, number>);
   }, [manuscripts]);
 
-  // PERBAIKAN DI SINI: ganti 'manuskripts' menjadi 'manuscripts'
   const uniqueKategori = useMemo(() => [...new Set(manuscripts.map(m => m.kategori_ilmu_pesantren).filter(Boolean))], [manuscripts]);
   const uniqueBahasa = useMemo(() => [...new Set(manuscripts.flatMap(m => m.bahasa ? m.bahasa.split(',').map(b => b.trim()) : []).filter(Boolean))], [manuscripts]);
   const uniqueAksara = useMemo(() => [...new Set(manuscripts.flatMap(m => m.aksara ? m.aksara.split(',').map(a => a.trim()) : []).filter(Boolean))], [manuscripts]);
@@ -82,7 +93,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading || (user === undefined)) { // Tambahkan kondisi (user === undefined)
     return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat katalog...</div>;
   }
 

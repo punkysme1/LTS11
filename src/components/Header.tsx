@@ -14,9 +14,10 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, userProfile, role, signOut, loading: authLoading } = useAuth(); // Ambil juga authLoading
+    const { user, userProfile, role, signOut, loading: authLoading } = useAuth();
 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
     useEffect(() => {
         setIsMobileMenuOpen(false);
@@ -80,18 +81,17 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                         ))}
 
                         {/* Tampilkan link/tombol berdasarkan role */}
-                        {authLoading ? ( // Tampilkan loading state jika AuthContext sedang memuat
+                        {authLoading ? ( 
                             <div className="text-gray-500 dark:text-gray-400 text-sm">Memuat...</div>
                         ) : (
                             user ? (
                                 <>
-                                    {role === 'pending' && (
-                                        <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya (Menunggu Verifikasi)</NavLink>
+                                    {/* Link Profil Saya untuk Pengguna Biasa */}
+                                    {user.id !== ADMIN_USER_ID && (
+                                        <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya {role === 'pending' && '(Menunggu Verifikasi)'}</NavLink>
                                     )}
-                                    {(role === 'verified_user' || role === 'admin') && (
-                                        <NavLink to="/user" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Profil Saya</NavLink>
-                                    )}
-                                    {role === 'admin' && (
+                                    {/* Link Admin Dashboard untuk Admin */}
+                                    {user.id === ADMIN_USER_ID && (
                                         <NavLink to="/admin" className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}>Admin Dashboard</NavLink>
                                     )}
                                     <button
@@ -103,12 +103,19 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                                 </>
                             ) : (
                                 <>
-                                    {/* Link ke halaman login universal */}
+                                    {/* Link ke halaman login pengguna umum */}
                                     <NavLink
                                         to="/login"
                                         className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}
                                     >
-                                        Login
+                                        Login Pengguna
+                                    </NavLink>
+                                    {/* Link ke halaman login admin khusus */}
+                                    <NavLink
+                                        to="/admin-login"
+                                        className={({ isActive }) => `${isActive ? activeLinkClass : inactiveLinkClass} transition-colors duration-200 text-sm`}
+                                    >
+                                        Login Admin
                                     </NavLink>
                                 </>
                             )
@@ -176,13 +183,10 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                             ) : (
                                 user ? (
                                     <>
-                                        {role === 'pending' && (
-                                            <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya (Menunggu Verifikasi)</NavLink>
+                                        {user.id !== ADMIN_USER_ID && (
+                                            <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya {role === 'pending' && '(Menunggu Verifikasi)'}</NavLink>
                                         )}
-                                        {(role === 'verified_user' || role === 'admin') && (
-                                            <NavLink to="/user" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Profil Saya</NavLink>
-                                        )}
-                                        {role === 'admin' && (
+                                        {user.id === ADMIN_USER_ID && (
                                             <NavLink to="/admin" className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`} onClick={() => setIsMobileMenuOpen(false)}>Admin Dashboard</NavLink>
                                         )}
                                         <button
@@ -194,13 +198,19 @@ const Header: React.FC<HeaderProps> = ({ searchTerm, setSearchTerm }) => {
                                     </>
                                 ) : (
                                     <>
-                                        {/* Daftar Pengguna dan Login Pengguna sebagai NavLink (Mobile) */}
                                         <NavLink
                                             to="/login"
                                             className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`}
                                             onClick={() => setIsMobileMenuOpen(false)}
                                         >
-                                            Login
+                                            Login Pengguna
+                                        </NavLink>
+                                        <NavLink
+                                            to="/admin-login"
+                                            className={({ isActive }) => `w-full text-base font-medium py-2 px-3 rounded-md transition-colors duration-300 ease-in-out ${isActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-accent-400'}`}
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                        >
+                                            Login Admin
                                         </NavLink>
                                     </>
                                 )

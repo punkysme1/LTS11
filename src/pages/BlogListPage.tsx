@@ -2,33 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { BlogPost, BlogStatus } from '../../types';
-import { CalendarIcon } from '../components/icons'; // Pastikan icon ini diimport
+import { CalendarIcon } from '../components/icons';
+import { useAuth } from '../hooks/useAuth'; // Import useAuth
 
 const BlogListPage: React.FC = () => {
+    const { loading: authLoading } = useAuth(); // Dapatkan status loading dari AuthContext
     const [posts, setPosts] = useState<BlogPost[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchPublishedPosts = async () => {
+            // Hanya fetch data jika authStore sudah selesai memuat sesi
+            if (authLoading) {
+                console.log('BLOG_LIST_PAGE_LOG: Waiting for AuthContext to finish loading...');
+                return;
+            }
+
+            console.log('BLOG_LIST_PAGE_LOG: AuthContext finished, starting data fetch.');
             setLoading(true); // Set loading true saat memulai fetch
             const { data, error } = await supabase
                 .from('blog')
-                .select('id, judul_artikel, isi_artikel, penulis, tanggal_publikasi, url_thumbnail, status') // Ambil semua kolom yang diperlukan
-                .eq('status', BlogStatus.PUBLISHED) // Hanya ambil yang Published
+                .select('id, judul_artikel, isi_artikel, penulis, tanggal_publikasi, url_thumbnail, status')
+                .eq('status', BlogStatus.PUBLISHED)
+                .eq('published', true) // Pastikan juga kolom 'published' adalah TRUE
                 .order('tanggal_publikasi', { ascending: false });
 
-            if (error) console.error('Error fetching blog posts:', error);
+            if (error) console.error('BLOG_LIST_PAGE_ERROR: Error fetching blog posts:', error);
             else setPosts(data || []);
             setLoading(false); // Set loading false setelah fetch selesai
+            console.log('BLOG_LIST_PAGE_LOG: Data fetch finished.');
         };
 
         fetchPublishedPosts();
-    }, []);
+    }, [authLoading]); // Panggil ulang fetchData hanya saat authLoading berubah
 
-    if (loading) return <div className="text-center p-8 text-gray-700 dark:text-gray-300">Memuat artikel...</div>;
+    // Gabungkan loading state
+    if (authLoading || loading) return <div className="text-center p-8 text-gray-700 dark:text-gray-300">Memuat artikel...</div>;
 
     return (
-        <div className="max-w-4xl mx-auto p-6 lg:p-8"> {/* Menambahkan padding umum */}
+        <div className="max-w-4xl mx-auto p-6 lg:p-8">
             <h1 className="text-4xl font-bold font-serif text-center mb-10 text-gray-900 dark:text-white">Blog & Artikel</h1>
             <div className="space-y-10">
                 {posts.length === 0 ? (
@@ -37,8 +49,8 @@ const BlogListPage: React.FC = () => {
                     posts.map(post => (
                         <div key={post.id} className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg flex flex-col md:flex-row gap-6">
                             {post.url_thumbnail && (
-                                <div className="md:w-1/3 flex-shrink-0"> {/* Thumbnail di samping */}
-                                    <Link to={`/blog/${post.id}`}> {/* Link pada gambar juga */}
+                                <div className="md:w-1/3 flex-shrink-0">
+                                    <Link to={`/blog/${post.id}`}>
                                         <img
                                             src={post.url_thumbnail}
                                             alt={`Thumbnail ${post.judul_artikel}`}

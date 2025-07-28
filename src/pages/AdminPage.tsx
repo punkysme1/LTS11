@@ -1,25 +1,25 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import LoginPage from './LoginPage'; // Import LoginPage
 import DashboardLayout from './DashboardLayout';
 import { useNavigate } from 'react-router-dom';
 
 const AdminPage: React.FC = () => {
-    const { user, loading, role } = useAuth();
+    const { user, loading } = useAuth(); // role tidak perlu karena kita cek user.id langsung
     const navigate = useNavigate();
+    const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
     useEffect(() => {
-        // Logika pengalihan jika AuthContext sudah selesai loading
+        // Logika pengalihan hanya setelah AuthContext selesai loading
         if (!loading) {
             if (!user) {
-                console.log("ADMIN_PAGE_LOG: No user logged in, redirecting to /login.");
-                navigate('/login', { replace: true });
-            } else if (role !== 'admin') {
-                console.log(`ADMIN_PAGE_LOG: User (${user.id}) is logged in but role is ${role}, redirecting to /user.`);
+                console.log("ADMIN_PAGE_LOG: No user logged in, redirecting to /admin-login.");
+                navigate('/admin-login', { replace: true });
+            } else if (user.id !== ADMIN_USER_ID) { // Cek ID pengguna langsung
+                console.log(`ADMIN_PAGE_LOG: User (${user.id}) is logged in but not admin, redirecting to /user.`);
                 navigate('/user', { replace: true }); // Arahkan ke /user jika bukan admin
             }
         }
-    }, [user, loading, role, navigate]);
+    }, [user, loading, navigate, ADMIN_USER_ID]);
 
     if (loading) {
         return (
@@ -29,15 +29,12 @@ const AdminPage: React.FC = () => {
         );
     }
 
-    // Tampilkan DashboardLayout hanya jika user ada DAN role adalah admin
-    // Jika tidak, biarkan useEffect di atas yang akan mengarahkan.
-    // Jika tidak ada user atau role bukan admin, komponen ini akan render null,
-    // dan pengalihan akan terjadi.
-    if (user && role === 'admin') {
+    // Tampilkan DashboardLayout hanya jika user ada DAN ID-nya cocok dengan Admin ID
+    if (user && user.id === ADMIN_USER_ID) {
         return <DashboardLayout />;
     }
 
-    // Ini akan terjangkau jika user tidak ada atau role bukan admin, dan useEffect akan mengarahkan
+    // Ini akan terjangkau jika user tidak ada atau ID bukan admin, dan useEffect akan mengarahkan
     return null;
 };
 

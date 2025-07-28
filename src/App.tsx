@@ -1,11 +1,11 @@
 // src/App.tsx
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth'; // Masih butuh useAuth
+// Hapus import { BrowserRouter } dari sini jika ada sebelumnya
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
-// import { UserProfileStatus } dari '../types' tidak lagi dibutuhkan di sini
+import { UserProfileStatus } from '../types'; // Masih diperlukan untuk beberapa komponen
 
 // --- Lazy Loading Components ---
 const Home = lazy(() => import('./pages/HomePage'));
@@ -21,6 +21,7 @@ const Contact = lazy(() => import('./pages/ContactPage'));
 const Donation = lazy(() => import('./pages/DonationPage'));
 const AdminPage = lazy(() => import('../src/pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
+const AdminLoginPage = lazy(() => import('./pages/AdminLoginPage')); // Pastikan ini diimpor
 
 // Definisikan ThemeContext di sini
 export const ThemeContext = createContext({
@@ -28,16 +29,15 @@ export const ThemeContext = createContext({
   toggleTheme: () => {},
 });
 
-// Hapus Komponen AdminProtectedRoute
-// Hapus Komponen UserProtectedRoute
-
 const AppContent: React.FC = () => {
     const location = useLocation();
-    const isAdminRoute = location.pathname.startsWith('/admin');
+    // AdminRoute sekarang hanya jika URL tepat /admin atau /admin/...
+    // Pastikan ini tidak termasuk /admin-login
+    const isAdminRoute = location.pathname.startsWith('/admin') && location.pathname !== '/admin-login';
     const [searchTerm, setSearchTerm] = useState('');
-    // const { loading: authLoading } = useAuth(); // Ini tidak lagi menyebabkan global loading screen
 
     return (
+        // Pastikan TIDAK ADA <BrowserRouter> di sekitar sini
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
             {!isAdminRoute && <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
             
@@ -55,9 +55,9 @@ const AppContent: React.FC = () => {
                         <Route path="/donasi" element={<Donation />} />
                         
                         <Route path="/daftar" element={<Register />} />
-                        <Route path="/login" element={<LoginPage />} /> {/* Halaman login universal */}
+                        <Route path="/login" element={<LoginPage />} /> {/* Halaman login pengguna */}
+                        <Route path="/admin-login" element={<AdminLoginPage />} /> {/* Halaman login admin khusus */}
                         
-                        {/* Rute ini sekarang tidak dilindungi di App.tsx, tetapi akan ditangani di komponen masing-masing */}
                         <Route path="/user" element={<UserPage />} /> 
                         <Route path="/admin/*" element={<AdminPage />} /> 
                         
@@ -92,9 +92,8 @@ const App: React.FC = () => {
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
+      {/* BrowserRouter SUDAH DI index.tsx, JANGAN ADA LAGI DI SINI */}
+      <AppContent />
     </ThemeContext.Provider>
   );
 };

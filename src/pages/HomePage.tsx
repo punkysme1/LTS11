@@ -8,18 +8,22 @@ import { BookOpenIcon, CalendarIcon, ArrowRightIcon } from '../components/icons'
 import { useAuth } from '../hooks/useAuth';
 
 const HomePage: React.FC = () => {
-    const { loading: authLoading } = useAuth(); // Dapatkan status loading dari AuthContext
+    // Ambil user juga, selain loading dari AuthContext
+    const { user, loading: authLoading } = useAuth(); 
     const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
     const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
     const [totalManuscripts, setTotalManuscripts] = useState(0);
     const [lastUpdate, setLastUpdate] = useState('');
-    const [loadingData, setLoadingData] = useState(true); // State loading untuk data spesifik halaman
+    const [loadingData, setLoadingData] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
-            // Jika AuthContext masih loading, tunda fetching data halaman ini.
-            if (authLoading) {
-                console.log('HOME_PAGE_LOG: Waiting for AuthContext to finish loading...');
+            // PERBAIKAN UTAMA: Hanya fetch data jika authStore sudah selesai memuat sesi
+            // dan kita memiliki user yang terdeteksi, atau kita sudah tahu tidak ada user.
+            // Ini mencegah fetch prematur saat AuthStore masih dalam transisi state setelah INITIAL_SESSION/SIGNED_IN
+            if (authLoading || (user === undefined)) { // user === undefined menunjukkan AuthStore belum selesai proses initial session
+                console.log('HOME_PAGE_LOG: Waiting for AuthContext to finish loading or user state to stabilize...');
+                setLoadingData(true); // Pastikan loadingData true selama menunggu
                 return;
             }
 
@@ -39,6 +43,7 @@ const HomePage: React.FC = () => {
                 .from('blog')
                 .select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at')
                 .eq('status', BlogStatus.PUBLISHED)
+                .eq('published', true)
                 .order('tanggal_publikasi', { ascending: false })
                 .limit(3);
 
@@ -61,17 +66,16 @@ const HomePage: React.FC = () => {
         };
 
         fetchData();
-    }, [authLoading]); // Panggil ulang fetchData hanya saat authLoading berubah
-
-    // Tampilkan loading jika AuthContext atau data spesifik halaman sedang dimuat
-    console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'loadingData:', loadingData);
-    if (authLoading || loadingData) {
+    }, [authLoading, user]); // Tambahkan 'user' sebagai dependensi
+    
+    console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'loadingData:', loadingData, 'User:', user);
+    if (authLoading || loadingData || (user === undefined)) { // Tambahkan kondisi (user === undefined)
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat konten...</div>
     }
 
     return (
         <div className="space-y-16">
-            {/* Hero Section */}
+            {/* ... JSX lainnya ... */}
             <section className="text-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 py-20 px-4 rounded-xl shadow-lg">
                 <h1 className="text-5xl md:text-6xl font-extrabold font-serif text-primary-900 dark:text-white leading-tight">
                     Galeri Manuskrip
@@ -84,12 +88,10 @@ const HomePage: React.FC = () => {
                 </p>
                 <div className="mt-10 flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6 text-gray-700 dark:text-gray-300">
                     <div className="flex items-center text-lg bg-white dark:bg-gray-700 px-5 py-3 rounded-full shadow-md">
-                        <BookOpenIcon className="h-6 w-6 mr-3 text-primary-600 dark:text-accent-400" />
                         <span>Total <strong>{totalManuscripts}</strong> Manuskrip</span>
                     </div>
                     {lastUpdate && (
                         <div className="flex items-center text-lg bg-white dark:bg-gray-700 px-5 py-3 rounded-full shadow-md">
-                            <CalendarIcon className="h-6 w-6 mr-3 text-primary-600 dark:text-accent-400" />
                             <span>Update Terakhir: <strong>{lastUpdate}</strong></span>
                         </div>
                     )}
@@ -100,7 +102,6 @@ const HomePage: React.FC = () => {
                         className="inline-flex items-center px-10 py-4 bg-primary-600 text-white font-bold text-xl rounded-full hover:bg-primary-700 dark:bg-accent-500 dark:hover:bg-accent-600 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
                     >
                         Jelajahi Katalog
-                        <ArrowRightIcon className="ml-3 h-6 w-6" />
                     </Link>
                 </div>
             </section>
@@ -111,7 +112,6 @@ const HomePage: React.FC = () => {
                     <h2 className="text-4xl font-bold font-serif text-gray-900 dark:text-white">Manuskrip Terbaru</h2>
                     <Link to="/katalog" className="text-primary-600 dark:text-accent-400 hover:underline text-lg flex items-center">
                         Lihat Semua
-                        <ArrowRightIcon className="ml-2 h-5 w-5" />
                     </Link>
                 </div>
                 {latestManuscripts.length === 0 ? (
@@ -131,7 +131,6 @@ const HomePage: React.FC = () => {
                     <h2 className="text-4xl font-bold font-serif text-gray-900 dark:text-white">Artikel Terkini</h2>
                     <Link to="/blog" className="text-primary-600 dark:text-accent-400 hover:underline text-lg flex items-center">
                         Lihat Semua
-                        <ArrowRightIcon className="ml-2 h-5 w-5" />
                     </Link>
                 </div>
                 {latestPosts.length === 0 ? (
