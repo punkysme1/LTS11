@@ -12,8 +12,7 @@ interface CatalogPageProps {
 const ITEMS_PER_PAGE = 20;
 
 const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
-  // Ambil user juga, selain loading dari AuthContext
-  const { user, loading: authLoading } = useAuth(); 
+  const { user, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized juga
   const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -25,14 +24,14 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
 
   useEffect(() => {
     const fetchManuscripts = async () => {
-      // PERBAIKAN UTAMA: Hanya fetch data jika authStore sudah selesai memuat sesi
-      if (authLoading || (user === undefined)) { // user === undefined menunjukkan AuthStore belum selesai proses initial session
-        console.log('CATALOG_PAGE_LOG: Waiting for AuthContext to finish loading or user state to stabilize...');
+      // Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
+      if (!isInitialized || authLoading) {
+        console.log('CATALOG_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
         setLoading(true); // Pastikan loading true selama menunggu
         return;
       }
       
-      console.log('CATALOG_PAGE_LOG: AuthContext finished, starting data fetch.');
+      console.log('CATALOG_PAGE_LOG: AuthContext finished initializing, starting data fetch.');
       setLoading(true);
       const { data, error } = await supabase
         .from('manuskrip')
@@ -46,7 +45,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
       console.log('CATALOG_PAGE_LOG: Data fetch finished.');
     };
     fetchManuscripts();
-  }, [authLoading, user]); // Tambahkan 'user' sebagai dependensi
+  }, [authLoading, isInitialized]); // Tambahkan 'isInitialized' sebagai dependensi
 
   const categoryCounts = useMemo(() => {
     return manuscripts.reduce((acc, ms) => {
@@ -93,7 +92,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     }
   };
 
-  if (authLoading || loading || (user === undefined)) { // Tambahkan kondisi (user === undefined)
+  if (!isInitialized || authLoading || loading) { // Tambahkan kondisi isInitialized
     return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat katalog...</div>;
   }
 

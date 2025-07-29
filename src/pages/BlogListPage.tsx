@@ -3,41 +3,42 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { BlogPost, BlogStatus } from '../../types';
 import { CalendarIcon } from '../components/icons';
-import { useAuth } from '../hooks/useAuth'; // Import useAuth
+import { useAuth } from '../hooks/useAuth';
 
 const BlogListPage: React.FC = () => {
-    const { loading: authLoading } = useAuth(); // Dapatkan status loading dari AuthContext
+    const { loading: authLoading, isInitialized } = useAuth(); // Dapatkan status loading dan isInitialized
     const [posts, setPosts] = useState<BlogPost[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchPublishedPosts = async () => {
-            // Hanya fetch data jika authStore sudah selesai memuat sesi
-            if (authLoading) {
-                console.log('BLOG_LIST_PAGE_LOG: Waiting for AuthContext to finish loading...');
+            // Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
+            if (!isInitialized || authLoading) {
+                console.log('BLOG_LIST_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
+                setLoading(true); // Pastikan loading true selama menunggu
                 return;
             }
 
-            console.log('BLOG_LIST_PAGE_LOG: AuthContext finished, starting data fetch.');
-            setLoading(true); // Set loading true saat memulai fetch
+            console.log('BLOG_LIST_PAGE_LOG: AuthContext finished initializing, starting data fetch.');
+            setLoading(true);
             const { data, error } = await supabase
                 .from('blog')
                 .select('id, judul_artikel, isi_artikel, penulis, tanggal_publikasi, url_thumbnail, status')
                 .eq('status', BlogStatus.PUBLISHED)
-                .eq('published', true) // Pastikan juga kolom 'published' adalah TRUE
+                .eq('published', true)
                 .order('tanggal_publikasi', { ascending: false });
 
             if (error) console.error('BLOG_LIST_PAGE_ERROR: Error fetching blog posts:', error);
             else setPosts(data || []);
-            setLoading(false); // Set loading false setelah fetch selesai
+            setLoading(false);
             console.log('BLOG_LIST_PAGE_LOG: Data fetch finished.');
         };
 
         fetchPublishedPosts();
-    }, [authLoading]); // Panggil ulang fetchData hanya saat authLoading berubah
+    }, [authLoading, isInitialized]); // Panggil ulang fetchData hanya saat authLoading atau isInitialized berubah
 
     // Gabungkan loading state
-    if (authLoading || loading) return <div className="text-center p-8 text-gray-700 dark:text-gray-300">Memuat artikel...</div>;
+    if (!isInitialized || authLoading || loading) return <div className="text-center p-8 text-gray-700 dark:text-gray-300">Memuat artikel...</div>;
 
     return (
         <div className="max-w-4xl mx-auto p-6 lg:p-8">

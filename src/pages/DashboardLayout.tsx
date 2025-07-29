@@ -1,14 +1,14 @@
 // DashboardLayout.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Link, useNavigate } from 'react-router-dom'; // PERBAIKAN: Import useNavigate
-import { BookOpenIcon, CalendarIcon, NewspaperIcon, PencilIcon, HomeIcon, CheckCircleIcon, ChatAlt2Icon } from '../components/icons'; // Tambahkan ChatAlt2Icon
+import { Link, useNavigate } from 'react-router-dom';
+import { BookOpenIcon, CalendarIcon, NewspaperIcon, PencilIcon, HomeIcon, CheckCircleIcon, ChatAlt2Icon } from '../components/icons';
 
 import ManageManuscripts from './admin/ManageManuscripts';
 import ManageBlog from './admin/ManageBlog';
 import ManageGuestbook from './admin/ManageGuestbook';
 import ManageUsers from './admin/ManageUsers';
-import ManageComments from './admin/ManageComments'; // Import ManageComments
+import ManageComments from './admin/ManageComments';
 
 // Komponen DashboardHome
 const DashboardHome = () => (
@@ -20,24 +20,23 @@ const DashboardHome = () => (
 
 const DashboardLayout: React.FC = () => {
     const { user, signOut, loading, role } = useAuth();
-    const navigate = useNavigate(); // PERBAIKAN: Gunakan useNavigate
+    const navigate = useNavigate(); // Tetap pertahankan useNavigate untuk logout
     const [activePage, setActivePage] = useState('dashboard'); 
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
-    // Efek untuk mengarahkan jika pengguna tidak valid untuk dashboard ini
+    // Pastikan user masih admin saat berada di DashboardLayout
+    // Ini adalah lapisan keamanan tambahan jika user mengubah sesuatu di client-side
     useEffect(() => {
-        if (!loading) { 
-            if (!user) {
-                console.log("DASHBOARD_LAYOUT_LOG: No user logged in, redirecting to /admin-login.");
-                navigate('/admin-login', { replace: true });
-            } else if (user.id !== ADMIN_USER_ID) {
-                console.log(`DASHBOARD_LAYOUT_LOG: User (${user.id}) is logged in but not admin, redirecting to /user.`);
-                navigate('/user', { replace: true }); 
-            }
+        // Jika tidak loading dan user tidak valid (bukan admin atau tidak ada), redirect
+        if (!loading && (!user || role !== 'admin' || user.id !== ADMIN_USER_ID)) {
+            console.log("DASHBOARD_LAYOUT_LOG: Unauthorized access, redirecting to /admin-login.");
+            navigate('/admin-login', { replace: true });
         }
-    }, [user, loading, navigate, ADMIN_USER_ID]);
+    }, [user, role, loading, navigate, ADMIN_USER_ID]);
 
+    // Tampilkan loading screen di sini jika `authStore` masih memuat
+    // Ini penting agar tidak ada "konten kosong" sebelum redirect atau render dashboard
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -46,7 +45,9 @@ const DashboardLayout: React.FC = () => {
         );
     }
 
-    if (!user || user.id !== ADMIN_USER_ID) {
+    // Jika sampai sini, dan user tidak valid, berarti useEffect akan mengarahkan.
+    // Return null untuk mencegah rendering yang tidak diinginkan sesaat sebelum redirect.
+    if (!user || role !== 'admin' || user.id !== ADMIN_USER_ID) {
         return null;
     }
 
@@ -62,7 +63,7 @@ const DashboardLayout: React.FC = () => {
                 return <ManageGuestbook />;
             case 'users':
                 return <ManageUsers />;
-            case 'comments': // KASUS BARU UNTUK MODERASI KOMENTAR
+            case 'comments':
                 return <ManageComments />;
             default:
                 return <DashboardHome />;
@@ -75,7 +76,7 @@ const DashboardLayout: React.FC = () => {
         { id: 'blog', name: 'Blog', icon: <NewspaperIcon className="w-5 h-5" /> },
         { id: 'bukutamu', name: 'Buku Tamu', icon: <CalendarIcon className="w-5 h-5" /> },
         { id: 'users', name: 'Manajemen Pengguna', icon: <CheckCircleIcon className="w-5 h-5" /> },
-        { id: 'comments', name: 'Moderasi Komentar', icon: <ChatAlt2Icon className="w-5 h-5" /> }, // ITEM MENU BARU
+        { id: 'comments', name: 'Moderasi Komentar', icon: <ChatAlt2Icon className="w-5 h-5" /> },
     ];
 
     return (

@@ -10,7 +10,7 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false); // Loading untuk form login ini
   const [error, setError] = useState<string | null>(null);
 
-  const { user: authUser, role, loading: authGlobalLoading } = useAuth(); // Ambil role juga
+  const { user: authUser, role, loading: authGlobalLoading } = useAuth();
   const navigate = useNavigate();
 
   const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
@@ -20,7 +20,7 @@ const LoginPage: React.FC = () => {
     // Pengalihan hanya dilakukan jika AuthContext sudah selesai memuat (loading: false)
     // DAN ada user yang diautentikasi (authUser tidak null)
     // Serta role sudah ditentukan.
-    if (!authGlobalLoading && authUser && role) { // Pastikan role juga sudah terisi
+    if (!authGlobalLoading && authUser && role) {
       if (authUser.id === ADMIN_USER_ID && role === 'admin') {
         console.log('USER_LOGIN_PAGE_LOG: Admin user and role confirmed, redirecting to /admin');
         navigate('/admin', { replace: true });

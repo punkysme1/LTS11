@@ -1,26 +1,14 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from './DashboardLayout';
-import { useNavigate } from 'react-router-dom';
+// Hapus import useNavigate karena pengalihan ditangani AdminRoute
 
 const AdminPage: React.FC = () => {
-    const { user, loading } = useAuth(); // role tidak perlu karena kita cek user.id langsung
-    const navigate = useNavigate();
+    // AdminRoute sudah memastikan user adalah admin dan loading sudah false
+    const { user, loading, role } = useAuth();
     const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
-    useEffect(() => {
-        // Logika pengalihan hanya setelah AuthContext selesai loading
-        if (!loading) {
-            if (!user) {
-                console.log("ADMIN_PAGE_LOG: No user logged in, redirecting to /admin-login.");
-                navigate('/admin-login', { replace: true });
-            } else if (user.id !== ADMIN_USER_ID) { // Cek ID pengguna langsung
-                console.log(`ADMIN_PAGE_LOG: User (${user.id}) is logged in but not admin, redirecting to /user.`);
-                navigate('/user', { replace: true }); // Arahkan ke /user jika bukan admin
-            }
-        }
-    }, [user, loading, navigate, ADMIN_USER_ID]);
-
+    // Ini adalah fallback rendering, AdminRoute seharusnya sudah menangani loading dan redirect
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen">
@@ -29,12 +17,14 @@ const AdminPage: React.FC = () => {
         );
     }
 
-    // Tampilkan DashboardLayout hanya jika user ada DAN ID-nya cocok dengan Admin ID
-    if (user && user.id === ADMIN_USER_ID) {
+    // Hanya render DashboardLayout jika user benar-benar ada dan role-nya admin
+    // Ini harus selalu true jika AdminRoute bekerja dengan benar
+    if (user && role === 'admin' && user.id === ADMIN_USER_ID) {
         return <DashboardLayout />;
     }
 
-    // Ini akan terjangkau jika user tidak ada atau ID bukan admin, dan useEffect akan mengarahkan
+    // Jika sampai sini, berarti ada kondisi yang tidak terduga,
+    // atau AdminRoute gagal mengarahkan. Bisa juga terjadi sesaat sebelum redirect.
     return null;
 };
 

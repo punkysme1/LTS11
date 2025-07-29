@@ -10,19 +10,19 @@ import CommentList from '../components/CommentList';
 
 const BlogPostDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { role, loading: authLoading } = useAuth(); // Dapatkan role dan authLoading
+    const { role, loading: authLoading, isInitialized } = useAuth(); // Dapatkan role, authLoading, dan isInitialized
     const [post, setPost] = useState<BlogPost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPost = async () => {
-            // Hanya fetch data jika authStore sudah selesai memuat sesi
-            if (authLoading) {
-                console.log('BLOG_POST_DETAIL_PAGE_LOG: Waiting for AuthContext to finish loading...');
+            // Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
+            if (!isInitialized || authLoading) {
+                console.log('BLOG_POST_DETAIL_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
                 return;
             }
-            console.log('BLOG_POST_DETAIL_PAGE_LOG: AuthContext finished, starting data fetch.');
+            console.log('BLOG_POST_DETAIL_PAGE_LOG: AuthContext finished initializing, starting data fetch.');
 
             if (!id || isNaN(Number(id))) {
                 setError('ID artikel tidak valid.');
@@ -53,10 +53,10 @@ const BlogPostDetailPage: React.FC = () => {
         };
 
         fetchPost();
-    }, [id, authLoading, role]);
+    }, [id, authLoading, isInitialized, role]); // Tambahkan isInitialized sebagai dependensi
 
     // Gabungkan loading state
-    if (authLoading || loading) {
+    if (!isInitialized || authLoading || loading) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat artikel...</div>;
     }
 

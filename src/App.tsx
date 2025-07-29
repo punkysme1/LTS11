@@ -1,11 +1,13 @@
 // src/App.tsx
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
-// Hapus import { BrowserRouter } dari sini jika ada sebelumnya
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
-import { UserProfileStatus } from '../types'; // Masih diperlukan untuk beberapa komponen
+import { UserProfileStatus } from '../types'; 
+
+// Import AdminRoute yang baru
+import AdminRoute from './pages/AdminRoute'; 
 
 // --- Lazy Loading Components ---
 const Home = lazy(() => import('./pages/HomePage'));
@@ -21,7 +23,7 @@ const Contact = lazy(() => import('./pages/ContactPage'));
 const Donation = lazy(() => import('./pages/DonationPage'));
 const AdminPage = lazy(() => import('../src/pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const AdminLoginPage = lazy(() => import('./pages/AdminLoginPage')); // Pastikan ini diimpor
+const AdminLoginPage = lazy(() => import('./pages/AdminLoginPage'));
 
 // Definisikan ThemeContext di sini
 export const ThemeContext = createContext({
@@ -31,18 +33,15 @@ export const ThemeContext = createContext({
 
 const AppContent: React.FC = () => {
     const location = useLocation();
-    // AdminRoute sekarang hanya jika URL tepat /admin atau /admin/...
-    // Pastikan ini tidak termasuk /admin-login
     const isAdminRoute = location.pathname.startsWith('/admin') && location.pathname !== '/admin-login';
     const [searchTerm, setSearchTerm] = useState('');
 
     return (
-        // Pastikan TIDAK ADA <BrowserRouter> di sekitar sini
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
             {!isAdminRoute && <Header searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
             
             <main className="flex-grow container mx-auto px-4 py-8">
-                <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-700 dark:text-gray-300">Memuat...</div>}>
+                <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-700 dark:text-gray-300">Memuat konten...</div>}>
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/katalog" element={<Catalog searchTerm={searchTerm} />} />
@@ -55,11 +54,19 @@ const AppContent: React.FC = () => {
                         <Route path="/donasi" element={<Donation />} />
                         
                         <Route path="/daftar" element={<Register />} />
-                        <Route path="/login" element={<LoginPage />} /> {/* Halaman login pengguna */}
-                        <Route path="/admin-login" element={<AdminLoginPage />} /> {/* Halaman login admin khusus */}
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/admin-login" element={<AdminLoginPage />} />
                         
-                        <Route path="/user" element={<UserPage />} /> 
-                        <Route path="/admin/*" element={<AdminPage />} /> 
+                        {/* Rute yang dilindungi untuk Admin */}
+                        <Route path="/admin" element={<AdminRoute allowedRoles={['admin']} />}>
+                            <Route path="*" element={<AdminPage />} />
+                        </Route>
+
+                        {/* Rute yang dilindungi untuk Pengguna Terautentikasi (Verified/Pending) */}
+                        {/* Contoh penggunaan AdminRoute untuk melindungi rute pengguna biasa */}
+                        <Route path="/user" element={<AdminRoute allowedRoles={['verified_user', 'pending', 'admin']} />}>
+                            <Route path="" element={<UserPage />} /> 
+                        </Route>
                         
                         <Route path="*" element={<NotFound />} />
                     </Routes>
@@ -92,7 +99,6 @@ const App: React.FC = () => {
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {/* BrowserRouter SUDAH DI index.tsx, JANGAN ADA LAGI DI SINI */}
       <AppContent />
     </ThemeContext.Provider>
   );

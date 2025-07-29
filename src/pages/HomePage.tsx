@@ -8,8 +8,7 @@ import { BookOpenIcon, CalendarIcon, ArrowRightIcon } from '../components/icons'
 import { useAuth } from '../hooks/useAuth';
 
 const HomePage: React.FC = () => {
-    // Ambil user juga, selain loading dari AuthContext
-    const { user, loading: authLoading } = useAuth(); 
+    const { user, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized juga
     const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
     const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
     const [totalManuscripts, setTotalManuscripts] = useState(0);
@@ -18,16 +17,15 @@ const HomePage: React.FC = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            // PERBAIKAN UTAMA: Hanya fetch data jika authStore sudah selesai memuat sesi
-            // dan kita memiliki user yang terdeteksi, atau kita sudah tahu tidak ada user.
-            // Ini mencegah fetch prematur saat AuthStore masih dalam transisi state setelah INITIAL_SESSION/SIGNED_IN
-            if (authLoading || (user === undefined)) { // user === undefined menunjukkan AuthStore belum selesai proses initial session
-                console.log('HOME_PAGE_LOG: Waiting for AuthContext to finish loading or user state to stabilize...');
+            // PERBAIKAN UTAMA: Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
+            // authLoading menunjukkan status transisi, isInitialized menunjukkan proses awal selesai.
+            if (!isInitialized || authLoading) { // Jika belum diinisialisasi atau masih loading auth (misal fetch profil)
+                console.log('HOME_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
                 setLoadingData(true); // Pastikan loadingData true selama menunggu
                 return;
             }
 
-            console.log('HOME_PAGE_LOG: AuthContext finished, starting data fetch.');
+            console.log('HOME_PAGE_LOG: AuthContext finished initializing, starting data fetch.');
             setLoadingData(true);
 
             const { data: manuscriptsData, error: manuscriptsError } = await supabase
@@ -66,16 +64,16 @@ const HomePage: React.FC = () => {
         };
 
         fetchData();
-    }, [authLoading, user]); // Tambahkan 'user' sebagai dependensi
+    }, [authLoading, isInitialized]); // Tambahkan 'isInitialized' sebagai dependensi
     
-    console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'loadingData:', loadingData, 'User:', user);
-    if (authLoading || loadingData || (user === undefined)) { // Tambahkan kondisi (user === undefined)
+    console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'isInitialized:', isInitialized, 'loadingData:', loadingData, 'User:', user);
+    // Tampilkan loading screen hanya jika auth belum diinisialisasi atau salah satu loading masih true
+    if (!isInitialized || authLoading || loadingData) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat konten...</div>
     }
 
     return (
         <div className="space-y-16">
-            {/* ... JSX lainnya ... */}
             <section className="text-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 py-20 px-4 rounded-xl shadow-lg">
                 <h1 className="text-5xl md:text-6xl font-extrabold font-serif text-primary-900 dark:text-white leading-tight">
                     Galeri Manuskrip

@@ -1,12 +1,12 @@
 // src/pages/RegisterPage.tsx
 import React, { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signUpUser } from '../services/userService'; // createUserProfile tidak lagi dipanggil dari sini
-import { SignUpFormData } from '../../types'; // Hapus import UserProfileStatus dan CompleteProfileFormData
+import { signUpUser } from '../services/userService';
+import { SignUpFormData } from '../../types';
 
 // MemoizedFormField tetap sama
 const MemoizedFormField: React.FC<{
-    name: keyof SignUpFormData | 'full_name'; // Tambahkan full_name
+    name: keyof SignUpFormData | 'full_name';
     label: string;
     type?: string;
     required?: boolean;
@@ -72,8 +72,6 @@ const RegisterPage: React.FC = () => {
             return;
         }
 
-        // 1. Lakukan pendaftaran pengguna ke Supabase Auth
-        // Hanya membuat akun di auth.users. Pembuatan profil user_profiles akan menjadi tugas admin.
         const { user, error: signUpError } = await signUpUser({
             email: formData.email,
             password: formData.password
@@ -82,8 +80,6 @@ const RegisterPage: React.FC = () => {
         if (signUpError) {
             setError(signUpError);
         } else if (user) {
-            // PENTING: Pembuatan entri di user_profiles TIDAK LAGI DILAKUKAN DARI SINI OLEH PENGGUNA BARU.
-            // Ini sekarang menjadi tugas admin.
             setSuccessMessage(`Pendaftaran akun berhasil! Silakan login. Admin akan membuatkan profil Anda dan mengaktifkannya.`);
             setFormData({ email: '', password: '', full_name: '' }); // Reset form
             navigate('/login'); // Arahkan ke halaman login

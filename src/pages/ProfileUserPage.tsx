@@ -6,7 +6,7 @@ import { SearchHistoryEntry, UserProfileStatus } from '../../types';
 import { Link, useNavigate } from 'react-router-dom';
 
 const ProfileUserPage: React.FC = () => {
-    const { user, userProfile, role, signOut, loading: authLoading } = useAuth();
+    const { user, userProfile, role, signOut, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized
     const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [errorHistory, setErrorHistory] = useState<string | null>(null);
@@ -16,25 +16,33 @@ const ProfileUserPage: React.FC = () => {
 
     // --- Logika Pengalihan Utama untuk Halaman Pengguna ---
     useEffect(() => {
-        // Hanya jalankan logika pengalihan setelah AuthContext selesai memuat
-        if (!authLoading) {
-            if (!user) {
-                // Jika tidak ada pengguna, arahkan ke halaman login pengguna
-                console.log("PROFILE_USER_PAGE_LOG: Tidak ada pengguna yang login, mengarahkan ke /login.");
-                navigate('/login', { replace: true });
-            } else if (user.id === ADMIN_USER_ID) { // Cek ID pengguna langsung
-                // Jika pengguna adalah admin, arahkan ke dashboard admin
-                console.log("PROFILE_USER_PAGE_LOG: Pengguna adalah admin, mengarahkan ke /admin.");
-                navigate('/admin', { replace: true });
-            }
-            // Jika user ada dan ID bukan admin, biarkan komponen ini menampilkan kontennya.
+        // Hanya jalankan logika pengalihan setelah AuthContext selesai menginisialisasi
+        if (!isInitialized || authLoading) { // Tunggu hingga authStore diinisialisasi penuh
+            console.log("PROFILE_USER_PAGE_LOG: Menunggu otentikasi selesai...");
+            return;
         }
-    }, [user, authLoading, navigate, ADMIN_USER_ID]); // role dihapus dari dependensi karena tidak digunakan langsung di sini untuk pengalihan
+
+        if (!user) {
+            // Jika tidak ada pengguna, arahkan ke halaman login pengguna
+            console.log("PROFILE_USER_PAGE_LOG: Tidak ada pengguna yang login, mengarahkan ke /login.");
+            navigate('/login', { replace: true });
+        } else if (user.id === ADMIN_USER_ID) {
+            // Jika pengguna adalah admin, arahkan ke dashboard admin
+            console.log("PROFILE_USER_PAGE_LOG: Pengguna adalah admin, mengarahkan ke /admin.");
+            navigate('/admin', { replace: true });
+        }
+        // Jika user ada dan ID bukan admin, biarkan komponen ini menampilkan kontennya.
+    }, [user, authLoading, isInitialized, navigate, ADMIN_USER_ID]);
 
     // --- Fetch histori pencarian (hanya jika pengguna sudah diautentikasi dan bukan admin) ---
     const fetchHistory = useCallback(async () => {
         // Memastikan AuthContext selesai memuat, ada user, dan BUKAN admin
-        if (!authLoading && user && user.id !== ADMIN_USER_ID && role === 'verified_user') { // Hanya verified_user yang bisa lihat histori
+        if (!isInitialized || authLoading) { // Tambahkan isInitialized di sini juga
+            setLoadingHistory(true);
+            return;
+        }
+
+        if (user && user.id !== ADMIN_USER_ID && role === 'verified_user') { // Hanya verified_user yang bisa lihat histori
             setLoadingHistory(true);
             setErrorHistory(null);
             try {
@@ -46,11 +54,11 @@ const ProfileUserPage: React.FC = () => {
             } finally {
                 setLoadingHistory(false);
             }
-        } else if (!authLoading) { // Non-verified user atau admin, kosongkan histori
+        } else { // Non-verified user, admin, atau tidak ada user, kosongkan histori
             setSearchHistory([]);
             setLoadingHistory(false);
         }
-    }, [user, role, authLoading, ADMIN_USER_ID]);
+    }, [user, role, authLoading, isInitialized, ADMIN_USER_ID]);
 
     useEffect(() => {
         fetchHistory();
@@ -75,10 +83,10 @@ const ProfileUserPage: React.FC = () => {
     }, []);
 
     // --- Render Loading State ---
-    if (authLoading) {
+    if (!isInitialized || authLoading) { // Gunakan isInitialized di sini juga
         return (
             <div className="text-center py-20 text-gray-700 dark:text-gray-300">
-                Memuat profil pengguna... (Autentikasi sedang berlangsung)
+                Memuat profil pengguna...
             </div>
         );
     }

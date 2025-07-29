@@ -16,7 +16,7 @@ import CommentList from '../components/CommentList';
 
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { role, loading: authLoading } = useAuth();
+    const { role, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized
 
     const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
     const [loading, setLoading] = useState(true);
@@ -35,12 +35,12 @@ const ManuscriptDetailPage: React.FC = () => {
 
     useEffect(() => {
         const fetchManuscriptDetail = async () => {
-            // Hanya fetch data jika authStore sudah selesai memuat sesi
-            if (authLoading) {
-                console.log('MANUSCRIPT_DETAIL_PAGE_LOG: Waiting for AuthContext to finish loading...');
+            // Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
+            if (!isInitialized || authLoading) {
+                console.log('MANUSCRIPT_DETAIL_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
                 return;
             }
-            console.log('MANUSCRIPT_DETAIL_PAGE_LOG: AuthContext finished, starting data fetch.');
+            console.log('MANUSCRIPT_DETAIL_PAGE_LOG: AuthContext finished initializing, starting data fetch.');
 
             if (!id) {
                 setError('ID manuskrip tidak ada di URL.');
@@ -91,7 +91,7 @@ const ManuscriptDetailPage: React.FC = () => {
         if (id) {
             fetchManuscriptDetail();
         }
-    }, [id, authLoading]);
+    }, [id, authLoading, isInitialized]); // Tambahkan isInitialized sebagai dependensi
 
     const openLightbox = useCallback((index: number) => {
         setCurrentImageIndex(index);
@@ -118,7 +118,7 @@ const ManuscriptDetailPage: React.FC = () => {
         }
     };
 
-    if (authLoading || loading) {
+    if (!isInitialized || authLoading || loading) { // Gunakan isInitialized di sini
         return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat detail manuskrip...</div>;
     }
 

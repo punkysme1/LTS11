@@ -10,11 +10,9 @@ const AdminLoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false); // Loading untuk form login ini
   const [error, setError] = useState<string | null>(null);
 
-  // Mengambil state autentikasi global dari AuthContext
   const { user: authUser, role, loading: authGlobalLoading } = useAuth(); 
   const navigate = useNavigate();
 
-  // Dapatkan Admin User ID dari environment variable
   const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
   // Efek untuk mengarahkan pengguna yang sudah login dengan benar
@@ -22,7 +20,7 @@ const AdminLoginPage: React.FC = () => {
     // Pengalihan hanya dilakukan jika AuthContext sudah selesai memuat (loading: false)
     // DAN ada user yang diautentikasi (authUser tidak null)
     // Serta role sudah ditentukan.
-    if (!authGlobalLoading && authUser && role) { // Pastikan role juga sudah terisi
+    if (!authGlobalLoading && authUser && role) {
       if (authUser.id === ADMIN_USER_ID && role === 'admin') {
         console.log('ADMIN_LOGIN_PAGE_LOG: Admin user and role confirmed, redirecting to /admin');
         navigate('/admin', { replace: true });
@@ -73,7 +71,6 @@ const AdminLoginPage: React.FC = () => {
 
   // Jika sudah ada user DAN role sudah terdefinisi, komponen ini tidak perlu dirender,
   // karena useEffect akan mengarahkan.
-  // Ini mencegah form muncul sesaat sebelum pengalihan.
   if (authUser && role) {
       return null; 
   }
