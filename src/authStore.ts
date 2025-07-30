@@ -61,10 +61,11 @@ class AuthStore {
   }
 
   private startLoading(minDelayOverride: number | null = null) {
-    if (!this.state.loading) {
+    if (!this.state.loading) { // Hanya mulai loading jika saat ini tidak dalam proses loading
       this.setState({ loading: true, loadingStartTime: Date.now(), minDelayOverride: minDelayOverride });
       console.log(`AUTH_STORE: Loading started. Min delay override: ${minDelayOverride}ms`);
     } else if (minDelayOverride !== null && this.state.minDelayOverride !== minDelayOverride) {
+      // Izinkan pembaruan minDelayOverride jika loading sedang berjalan
       this.setState({ minDelayOverride: minDelayOverride });
       console.log(`AUTH_STORE: Loading already active, updated min delay override: ${minDelayOverride}ms`);
     }
@@ -135,11 +136,10 @@ class AuthStore {
       let shouldShowLoadingScreen = false;
       let delayOverride: number | null = null;
 
-      if (_event === 'INITIAL_SESSION') {
-          // INITIAL_SESSION adalah event pertama saat aplikasi dimuat atau direfresh keras.
-          // Kita selalu harus memprosesnya untuk mendapatkan state awal.
-          // isInitialized diatur di sini untuk menandai bahwa pemeriksaan sesi awal telah selesai.
-          this.setState({ isInitialized: true }); 
+      // Event UNTUK INITIAL_SESSION hanya diproses sekali sebagai inisialisasi awal.
+      // Setelah itu, isInitialized akan true.
+      if (!this.state.isInitialized && _event === 'INITIAL_SESSION') {
+          this.setState({ isInitialized: true }); // Tandai bahwa inisialisasi awal sudah selesai
           
           if (!currentUser) { // Jika tidak ada user pada INITIAL_SESSION (belum login)
             shouldShowLoadingScreen = false; // Tidak perlu loading screen, langsung tunjukkan konten public
@@ -155,7 +155,7 @@ class AuthStore {
               shouldShowLoadingScreen = false;
               delayOverride = 0; // Pastikan loading selesai segera jika ada
           } else {
-              // Ini adalah login baru atau user yang berbeda, tampilkan loading.
+              // Ini adalah login baru dari form atau user yang berbeda, tampilkan loading.
               shouldShowLoadingScreen = true;
           }
       } else if (_event === 'SIGNED_OUT' || _event === 'USER_DELETED') {
@@ -171,9 +171,10 @@ class AuthStore {
       // --- Mulai loading jika diperlukan ---
       if (shouldShowLoadingScreen) {
           this.startLoading(delayOverride);
-      } else if (this.state.loading) {
-          // Jika tidak seharusnya menampilkan loading screen, TAPI state saat ini masih loading,
-          // segera selesaikan loading (misal dari INITIAL_SESSION yang belum selesai).
+      } else if (this.state.loading && this.state.isInitialized) {
+          // Jika kita tidak seharusnya menampilkan loading screen, TAPI state saat ini masih loading,
+          // dan isInitialized sudah true, segera selesaikan loading.
+          // (Ini penting untuk membersihkan state setelah initial session atau session refresh yang tidak perlu loading)
           console.log('AUTH_STORE_LISTENER: Not supposed to show loading, but state is loading. Finishing immediately.');
           this.finishLoading();
       }
@@ -194,12 +195,11 @@ class AuthStore {
           user: currentUser,
           userProfile: newProfile,
           role: newRole,
-          // 'loading' diatur oleh startLoading/finishLoading, tidak di sini
       });
 
       // --- Selesaikan loading jika diperlukan. Ini dipanggil setelah state diperbarui
       // untuk memastikan komponen bereaksi terhadap data yang sudah lengkap.
-      if (shouldShowLoadingScreen || this.state.loading) {
+      if (shouldShowLoadingScreen || this.state.loading) { // Kondisi ini tetap penting untuk menangkap semua skenario
           this.finishLoading();
       }
     });

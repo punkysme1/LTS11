@@ -6,7 +6,7 @@ import { SearchHistoryEntry, UserProfileStatus } from '../../types';
 import { Link, useNavigate } from 'react-router-dom';
 
 const ProfileUserPage: React.FC = () => {
-    const { user, userProfile, role, signOut, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized
+    const { user, userProfile, role, signOut, loading: authLoading, isInitialized } = useAuth();
     const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [errorHistory, setErrorHistory] = useState<string | null>(null);
@@ -17,7 +17,7 @@ const ProfileUserPage: React.FC = () => {
     // --- Logika Pengalihan Utama untuk Halaman Pengguna ---
     useEffect(() => {
         // Hanya jalankan logika pengalihan setelah AuthContext selesai menginisialisasi
-        if (!isInitialized || authLoading) { // Tunggu hingga authStore diinisialisasi penuh
+        if (!isInitialized || authLoading) { // Tunggu hingga authStore diinisialisasi penuh dan tidak loading
             console.log("PROFILE_USER_PAGE_LOG: Menunggu otentikasi selesai...");
             return;
         }
@@ -36,13 +36,13 @@ const ProfileUserPage: React.FC = () => {
 
     // --- Fetch histori pencarian (hanya jika pengguna sudah diautentikasi dan bukan admin) ---
     const fetchHistory = useCallback(async () => {
-        // Memastikan AuthContext selesai memuat, ada user, dan BUKAN admin
-        if (!isInitialized || authLoading) { // Tambahkan isInitialized di sini juga
+        // Memastikan AuthContext selesai memuat dan diinisialisasi penuh
+        if (!isInitialized || authLoading) {
             setLoadingHistory(true);
             return;
         }
 
-        if (user && user.id !== ADMIN_USER_ID && role === 'verified_user') { // Hanya verified_user yang bisa lihat histori
+        if (user && user.id !== ADMIN_USER_ID && role === 'verified_user') {
             setLoadingHistory(true);
             setErrorHistory(null);
             try {
@@ -83,7 +83,8 @@ const ProfileUserPage: React.FC = () => {
     }, []);
 
     // --- Render Loading State ---
-    if (!isInitialized || authLoading) { // Gunakan isInitialized di sini juga
+    // Tampilkan loading screen di sini sampai authStore benar-benar selesai inisialisasi DAN tidak ada proses loading aktif
+    if (!isInitialized || authLoading) {
         return (
             <div className="text-center py-20 text-gray-700 dark:text-gray-300">
                 Memuat profil pengguna...

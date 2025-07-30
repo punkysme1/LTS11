@@ -10,7 +10,7 @@ import CommentList from '../components/CommentList';
 
 const BlogPostDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { role, loading: authLoading, isInitialized } = useAuth(); // Dapatkan role, authLoading, dan isInitialized
+    const { role, loading: authLoading, isInitialized } = useAuth();
     const [post, setPost] = useState<BlogPost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -53,7 +53,7 @@ const BlogPostDetailPage: React.FC = () => {
         };
 
         fetchPost();
-    }, [id, authLoading, isInitialized, role]); // Tambahkan isInitialized sebagai dependensi
+    }, [id, authLoading, isInitialized, role]);
 
     // Gabungkan loading state
     if (!isInitialized || authLoading || loading) {

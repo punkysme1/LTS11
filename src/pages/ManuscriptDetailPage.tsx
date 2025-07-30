@@ -16,7 +16,7 @@ import CommentList from '../components/CommentList';
 
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { role, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized
+    const { role, loading: authLoading, isInitialized } = useAuth();
 
     const [manuscript, setManuscript] = useState<Manuskrip | null>(null);
     const [loading, setLoading] = useState(true);
@@ -91,7 +91,7 @@ const ManuscriptDetailPage: React.FC = () => {
         if (id) {
             fetchManuscriptDetail();
         }
-    }, [id, authLoading, isInitialized]); // Tambahkan isInitialized sebagai dependensi
+    }, [id, authLoading, isInitialized]);
 
     const openLightbox = useCallback((index: number) => {
         setCurrentImageIndex(index);
@@ -118,7 +118,7 @@ const ManuscriptDetailPage: React.FC = () => {
         }
     };
 
-    if (!isInitialized || authLoading || loading) { // Gunakan isInitialized di sini
+    if (!isInitialized || authLoading || loading) {
         return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat detail manuskrip...</div>;
     }
 

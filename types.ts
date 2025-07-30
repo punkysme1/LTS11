@@ -149,12 +149,14 @@ export interface CompleteProfileFormData {
 export type UserRole = 'guest' | 'pending' | 'verified_user' | 'admin';
 
 // DEFINISI AuthContextType HARUS DI-EXPORT DARI types.ts
+// PERBAIKAN: Tambahkan isInitialized di sini
 export interface AuthContextType {
     session: Session | null;
     user: User | null;
     userProfile: UserProfileData | null;
     role: UserRole;
     loading: boolean;
+    isInitialized: boolean; // <--- BARIS INI DITAMBAHKAN/DIPERBAIKI
     signOut: () => Promise<void>;
 }
 

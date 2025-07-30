@@ -12,8 +12,8 @@ interface CatalogPageProps {
 const ITEMS_PER_PAGE = 20;
 
 const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
-  const { user, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized juga
-  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
+  const { user, loading: authLoading, isInitialized } = useAuth();
+  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]); // Perhatikan 'manuscripts' (jamak)
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
@@ -45,7 +45,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
       console.log('CATALOG_PAGE_LOG: Data fetch finished.');
     };
     fetchManuscripts();
-  }, [authLoading, isInitialized]); // Tambahkan 'isInitialized' sebagai dependensi
+  }, [authLoading, isInitialized]);
 
   const categoryCounts = useMemo(() => {
     return manuscripts.reduce((acc, ms) => {
@@ -57,6 +57,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     }, {} as Record<string, number>);
   }, [manuscripts]);
 
+  // PERBAIKAN: Gunakan 'manuscripts' (jamak) di sini
   const uniqueKategori = useMemo(() => [...new Set(manuscripts.map(m => m.kategori_ilmu_pesantren).filter(Boolean))], [manuscripts]);
   const uniqueBahasa = useMemo(() => [...new Set(manuscripts.flatMap(m => m.bahasa ? m.bahasa.split(',').map(b => b.trim()) : []).filter(Boolean))], [manuscripts]);
   const uniqueAksara = useMemo(() => [...new Set(manuscripts.flatMap(m => m.aksara ? m.aksara.split(',').map(a => a.trim()) : []).filter(Boolean))], [manuscripts]);
@@ -92,7 +93,7 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     }
   };
 
-  if (!isInitialized || authLoading || loading) { // Tambahkan kondisi isInitialized
+  if (!isInitialized || authLoading || loading) {
     return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat katalog...</div>;
   }
 

@@ -1,15 +1,17 @@
+// src/pages/AdminPage.tsx
 import React from 'react';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from './DashboardLayout';
-// Hapus import useNavigate karena pengalihan ditangani AdminRoute
 
 const AdminPage: React.FC = () => {
-    // AdminRoute sudah memastikan user adalah admin dan loading sudah false
-    const { user, loading, role } = useAuth();
+    // Ambil semua state yang relevan dari useAuth
+    const { user, loading, role, isInitialized } = useAuth();
     const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
-    // Ini adalah fallback rendering, AdminRoute seharusnya sudah menangani loading dan redirect
-    if (loading) {
+    // Tampilkan loading screen jika authStore belum diinisialisasi atau masih dalam proses loading
+    // Ini penting agar tidak ada konten kosong sebelum keputusan redirect/render.
+    if (!isInitialized || loading) {
+        console.log("ADMIN_PAGE: Rendering loading screen. isInitialized:", isInitialized, "loading:", loading);
         return (
             <div className="flex items-center justify-center h-screen">
                 <div className="text-xl text-gray-700 dark:text-gray-300">Memuat sesi admin...</div>
@@ -17,14 +19,18 @@ const AdminPage: React.FC = () => {
         );
     }
 
-    // Hanya render DashboardLayout jika user benar-benar ada dan role-nya admin
-    // Ini harus selalu true jika AdminRoute bekerja dengan benar
+    // Setelah loading selesai dan authStore diinisialisasi:
+    // Periksa apakah user ada, role adalah admin, DAN user ID cocok dengan ADMIN_USER_ID.
+    // Jika semua kondisi terpenuhi, render DashboardLayout.
     if (user && role === 'admin' && user.id === ADMIN_USER_ID) {
+        console.log("ADMIN_PAGE: User is authenticated as admin. Rendering DashboardLayout.");
         return <DashboardLayout />;
     }
 
-    // Jika sampai sini, berarti ada kondisi yang tidak terduga,
-    // atau AdminRoute gagal mengarahkan. Bisa juga terjadi sesaat sebelum redirect.
+    // Jika sampai di sini, berarti user tidak valid untuk halaman admin (setelah loading selesai).
+    // AdminRoute seharusnya sudah menangani pengalihan, jadi AdminPage tidak perlu melakukan redirect lagi.
+    // Mengembalikan null untuk mencegah rendering yang tidak diinginkan sesaat sebelum redirect oleh AdminRoute.
+    console.log("ADMIN_PAGE: User is NOT authenticated as admin. Returning null, AdminRoute should handle redirect. User:", user?.id, "Role:", role);
     return null;
 };
 

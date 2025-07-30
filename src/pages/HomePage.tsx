@@ -8,7 +8,8 @@ import { BookOpenIcon, CalendarIcon, ArrowRightIcon } from '../components/icons'
 import { useAuth } from '../hooks/useAuth';
 
 const HomePage: React.FC = () => {
-    const { user, loading: authLoading, isInitialized } = useAuth(); // Ambil isInitialized juga
+    // Ambil isInitialized juga
+    const { user, loading: authLoading, isInitialized } = useAuth(); 
     const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
     const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
     const [totalManuscripts, setTotalManuscripts] = useState(0);
@@ -18,8 +19,9 @@ const HomePage: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             // PERBAIKAN UTAMA: Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
-            // authLoading menunjukkan status transisi, isInitialized menunjukkan proses awal selesai.
-            if (!isInitialized || authLoading) { // Jika belum diinisialisasi atau masih loading auth (misal fetch profil)
+            // isInitialized menunjukkan apakah Supabase sudah selesai memeriksa sesi awal.
+            // authLoading menunjukkan apakah ada proses autentikasi aktif (login, logout, fetch profil).
+            if (!isInitialized || authLoading) {
                 console.log('HOME_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
                 setLoadingData(true); // Pastikan loadingData true selama menunggu
                 return;
@@ -67,7 +69,8 @@ const HomePage: React.FC = () => {
     }, [authLoading, isInitialized]); // Tambahkan 'isInitialized' sebagai dependensi
     
     console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'isInitialized:', isInitialized, 'loadingData:', loadingData, 'User:', user);
-    // Tampilkan loading screen hanya jika auth belum diinisialisasi atau salah satu loading masih true
+    // Tampilkan loading screen hanya jika auth belum diinisialisasi ATAU auth sedang loading ATAU data masih loading
+    // Setelah isInitialized menjadi true dan authLoading false, pesan ini seharusnya hilang.
     if (!isInitialized || authLoading || loadingData) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat konten...</div>
     }

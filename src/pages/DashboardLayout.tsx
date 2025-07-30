@@ -1,4 +1,4 @@
-// DashboardLayout.tsx
+// src/pages/DashboardLayout.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
@@ -10,7 +10,6 @@ import ManageGuestbook from './admin/ManageGuestbook';
 import ManageUsers from './admin/ManageUsers';
 import ManageComments from './admin/ManageComments';
 
-// Komponen DashboardHome
 const DashboardHome = () => (
     <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Selamat Datang di Dashboard Admin</h3>
@@ -19,25 +18,34 @@ const DashboardHome = () => (
 );
 
 const DashboardLayout: React.FC = () => {
-    const { user, signOut, loading, role } = useAuth();
-    const navigate = useNavigate(); // Tetap pertahankan useNavigate untuk logout
+    const { user, signOut, loading, role, isInitialized } = useAuth(); // Ambil isInitialized
+    const navigate = useNavigate();
     const [activePage, setActivePage] = useState('dashboard'); 
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
-    // Pastikan user masih admin saat berada di DashboardLayout
-    // Ini adalah lapisan keamanan tambahan jika user mengubah sesuatu di client-side
+    // Logika pengalihan ini masih relevan di DashboardLayout
+    // sebagai lapisan keamanan tambahan, terutama jika pengguna mencoba mengakses
+    // DashboardLayout secara langsung atau ada perubahan state yang tidak terduga.
     useEffect(() => {
-        // Jika tidak loading dan user tidak valid (bukan admin atau tidak ada), redirect
-        if (!loading && (!user || role !== 'admin' || user.id !== ADMIN_USER_ID)) {
-            console.log("DASHBOARD_LAYOUT_LOG: Unauthorized access, redirecting to /admin-login.");
+        // Hanya jalankan logika pengalihan setelah AuthContext selesai menginisialisasi dan tidak loading
+        if (!isInitialized || loading) {
+            console.log("DASHBOARD_LAYOUT: Waiting for auth to initialize or finish loading for redirect check.");
+            return;
+        }
+
+        // Jika user tidak ada, atau role bukan admin, atau user ID tidak cocok dengan ADMIN_USER_ID,
+        // maka redirect ke halaman login admin.
+        if (!user || role !== 'admin' || user.id !== ADMIN_USER_ID) {
+            console.log("DASHBOARD_LAYOUT: User is not authorized for dashboard. Redirecting to /admin-login.");
             navigate('/admin-login', { replace: true });
         }
-    }, [user, role, loading, navigate, ADMIN_USER_ID]);
+    }, [user, role, loading, isInitialized, navigate, ADMIN_USER_ID]);
 
-    // Tampilkan loading screen di sini jika `authStore` masih memuat
-    // Ini penting agar tidak ada "konten kosong" sebelum redirect atau render dashboard
-    if (loading) {
+    // Tampilkan loading screen di sini jika `authStore` masih memuat atau belum diinisialisasi.
+    // Ini penting agar tidak ada konten kosong atau redirect yang aneh.
+    if (!isInitialized || loading) {
+        console.log("DASHBOARD_LAYOUT: Rendering loading screen. isInitialized:", isInitialized, "loading:", loading);
         return (
             <div className="flex justify-center items-center h-screen">
                 <div className="text-xl text-gray-700 dark:text-gray-300">Memuat dashboard...</div>
@@ -45,12 +53,11 @@ const DashboardLayout: React.FC = () => {
         );
     }
 
-    // Jika sampai sini, dan user tidak valid, berarti useEffect akan mengarahkan.
-    // Return null untuk mencegah rendering yang tidak diinginkan sesaat sebelum redirect.
-    if (!user || role !== 'admin' || user.id !== ADMIN_USER_ID) {
-        return null;
-    }
-
+    // Jika sampai di sini, berarti `authStore` sudah selesai loading/inisialisasi,
+    // dan user sudah diperiksa oleh useEffect di atas.
+    // Jika user tidak valid, useEffect sudah mengarahkan, jadi ini tidak akan terjangkau.
+    // Maka, kita bisa langsung yakin user adalah admin yang valid di sini.
+    console.log("DASHBOARD_LAYOUT: User is authorized. Rendering dashboard content.");
     const renderPage = () => {
         switch (activePage) {
             case 'dashboard':
