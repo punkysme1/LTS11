@@ -8,8 +8,7 @@ import { BookOpenIcon, CalendarIcon, ArrowRightIcon } from '../components/icons'
 import { useAuth } from '../hooks/useAuth';
 
 const HomePage: React.FC = () => {
-    // Ambil isInitialized juga
-    const { user, loading: authLoading, isInitialized } = useAuth(); 
+    const { user, loading: authLoading } = useAuth(); 
     const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
     const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
     const [totalManuscripts, setTotalManuscripts] = useState(0);
@@ -18,60 +17,78 @@ const HomePage: React.FC = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            // PERBAIKAN UTAMA: Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
-            // isInitialized menunjukkan apakah Supabase sudah selesai memeriksa sesi awal.
-            // authLoading menunjukkan apakah ada proses autentikasi aktif (login, logout, fetch profil).
-            if (!isInitialized || authLoading) {
-                console.log('HOME_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
-                setLoadingData(true); // Pastikan loadingData true selama menunggu
+            // Tunggu auth loading selesai sebelum fetch data
+            if (authLoading) {
+                console.log('HOME_PAGE_LOG: Waiting for auth to finish loading...');
+                setLoadingData(true);
                 return;
             }
 
-            console.log('HOME_PAGE_LOG: AuthContext finished initializing, starting data fetch.');
+            console.log('HOME_PAGE_LOG: Auth finished loading, starting data fetch.');
             setLoadingData(true);
 
-            const { data: manuscriptsData, error: manuscriptsError } = await supabase
-                .from('manuskrip')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(8);
+            try {
+                // Fetch manuscripts
+                const { data: manuscriptsData, error: manuscriptsError } = await supabase
+                    .from('manuskrip')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(8);
 
-            if (manuscriptsData) setLatestManuscripts(manuscriptsData);
-            else console.error("HOME_PAGE_ERROR: Error fetching latest manuscripts:", manuscriptsError?.message);
-
-            const { data: postsData, error: postsError } = await supabase
-                .from('blog')
-                .select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at')
-                .eq('status', BlogStatus.PUBLISHED)
-                .eq('published', true)
-                .order('tanggal_publikasi', { ascending: false })
-                .limit(3);
-
-            if (postsData) {
-                setLatestPosts(postsData);
-                if (postsData.length > 0 && postsData[0].tanggal_publikasi) {
-                    setLastUpdate(new Date(postsData[0].tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }));
+                if (manuscriptsData) {
+                    setLatestManuscripts(manuscriptsData);
+                } else {
+                    console.error("HOME_PAGE_ERROR: Error fetching latest manuscripts:", manuscriptsError?.message);
                 }
-            } else console.error("HOME_PAGE_ERROR: Error fetching latest blog posts:", postsError?.message);
 
-            const { count, error: countError } = await supabase
-                .from('manuskrip')
-                .select('*', { count: 'exact', head: true });
+                // Fetch blog posts
+                const { data: postsData, error: postsError } = await supabase
+                    .from('blog')
+                    .select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at')
+                    .eq('status', BlogStatus.PUBLISHED)
+                    .eq('published', true)
+                    .order('tanggal_publikasi', { ascending: false })
+                    .limit(3);
 
-            if (count !== null) setTotalManuscripts(count);
-            else console.error("HOME_PAGE_ERROR: Error fetching manuscript count:", countError?.message);
+                if (postsData) {
+                    setLatestPosts(postsData);
+                    if (postsData.length > 0 && postsData[0].tanggal_publikasi) {
+                        setLastUpdate(new Date(postsData[0].tanggal_publikasi).toLocaleDateString('id-ID', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        }));
+                    }
+                } else {
+                    console.error("HOME_PAGE_ERROR: Error fetching latest blog posts:", postsError?.message);
+                }
 
-            setLoadingData(false);
-            console.log('HOME_PAGE_LOG: Data fetch finished.');
+                // Fetch manuscript count
+                const { count, error: countError } = await supabase
+                    .from('manuskrip')
+                    .select('*', { count: 'exact', head: true });
+
+                if (count !== null) {
+                    setTotalManuscripts(count);
+                } else {
+                    console.error("HOME_PAGE_ERROR: Error fetching manuscript count:", countError?.message);
+                }
+
+            } catch (error) {
+                console.error("HOME_PAGE_ERROR: Unexpected error during data fetch:", error);
+            } finally {
+                setLoadingData(false);
+                console.log('HOME_PAGE_LOG: Data fetch finished.');
+            }
         };
 
         fetchData();
-    }, [authLoading, isInitialized]); // Tambahkan 'isInitialized' sebagai dependensi
+    }, [authLoading]); // Hanya depend pada authLoading
     
-    console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'isInitialized:', isInitialized, 'loadingData:', loadingData, 'User:', user);
-    // Tampilkan loading screen hanya jika auth belum diinisialisasi ATAU auth sedang loading ATAU data masih loading
-    // Setelah isInitialized menjadi true dan authLoading false, pesan ini seharusnya hilang.
-    if (!isInitialized || authLoading || loadingData) {
+    console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'loadingData:', loadingData, 'User:', user?.id);
+    
+    // Show loading hanya jika auth atau data masih loading
+    if (authLoading || loadingData) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat konten...</div>
     }
 
