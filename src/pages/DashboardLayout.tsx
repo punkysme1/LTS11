@@ -1,8 +1,8 @@
 // src/pages/DashboardLayout.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Link, useNavigate } from 'react-router-dom';
-import { BookOpenIcon, CalendarIcon, NewspaperIcon, PencilIcon, HomeIcon, CheckCircleIcon, ChatAlt2Icon } from '../components/icons';
+import { Link } from 'react-router-dom';
+import { HomeIcon, PencilIcon, NewspaperIcon, CalendarIcon, CheckCircleIcon, ChatAlt2Icon } from '../components/icons';
 
 import ManageManuscripts from './admin/ManageManuscripts';
 import ManageBlog from './admin/ManageBlog';
@@ -18,62 +18,25 @@ const DashboardHome = () => (
 );
 
 const DashboardLayout: React.FC = () => {
-    const { user, signOut, loading, role, isInitialized } = useAuth(); // Ambil isInitialized
-    const navigate = useNavigate();
+    const { user, signOut } = useAuth(); // Hanya ambil data yang diperlukan untuk UI
     const [activePage, setActivePage] = useState('dashboard'); 
     const [isSidebarOpen, setSidebarOpen] = useState(true);
-    const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
-    // Logika pengalihan ini masih relevan di DashboardLayout
-    // sebagai lapisan keamanan tambahan, terutama jika pengguna mencoba mengakses
-    // DashboardLayout secara langsung atau ada perubahan state yang tidak terduga.
-    useEffect(() => {
-        // Hanya jalankan logika pengalihan setelah AuthContext selesai menginisialisasi dan tidak loading
-        if (!isInitialized || loading) {
-            console.log("DASHBOARD_LAYOUT: Waiting for auth to initialize or finish loading for redirect check.");
-            return;
-        }
+    // Semua logika `useEffect` untuk redirect dan pengecekan loading/inisialisasi telah dihapus.
+    // AdminRoute sudah menangani semua itu. Jika komponen ini bisa dirender,
+    // berarti pengguna PASTI adalah admin yang valid.
+    
+    console.log("DASHBOARD_LAYOUT: Rendering content because access is guaranteed.");
 
-        // Jika user tidak ada, atau role bukan admin, atau user ID tidak cocok dengan ADMIN_USER_ID,
-        // maka redirect ke halaman login admin.
-        if (!user || role !== 'admin' || user.id !== ADMIN_USER_ID) {
-            console.log("DASHBOARD_LAYOUT: User is not authorized for dashboard. Redirecting to /admin-login.");
-            navigate('/admin-login', { replace: true });
-        }
-    }, [user, role, loading, isInitialized, navigate, ADMIN_USER_ID]);
-
-    // Tampilkan loading screen di sini jika `authStore` masih memuat atau belum diinisialisasi.
-    // Ini penting agar tidak ada konten kosong atau redirect yang aneh.
-    if (!isInitialized || loading) {
-        console.log("DASHBOARD_LAYOUT: Rendering loading screen. isInitialized:", isInitialized, "loading:", loading);
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-xl text-gray-700 dark:text-gray-300">Memuat dashboard...</div>
-            </div>
-        );
-    }
-
-    // Jika sampai di sini, berarti `authStore` sudah selesai loading/inisialisasi,
-    // dan user sudah diperiksa oleh useEffect di atas.
-    // Jika user tidak valid, useEffect sudah mengarahkan, jadi ini tidak akan terjangkau.
-    // Maka, kita bisa langsung yakin user adalah admin yang valid di sini.
-    console.log("DASHBOARD_LAYOUT: User is authorized. Rendering dashboard content.");
     const renderPage = () => {
         switch (activePage) {
-            case 'dashboard':
-                return <DashboardHome />;
-            case 'manuskrip':
-                return <ManageManuscripts />;
-            case 'blog':
-                return <ManageBlog />;
-            case 'bukutamu':
-                return <ManageGuestbook />;
-            case 'users':
-                return <ManageUsers />;
-            case 'comments':
-                return <ManageComments />;
-            default:
-                return <DashboardHome />;
+            case 'dashboard': return <DashboardHome />;
+            case 'manuskrip': return <ManageManuscripts />;
+            case 'blog': return <ManageBlog />;
+            case 'bukutamu': return <ManageGuestbook />;
+            case 'users': return <ManageUsers />;
+            case 'comments': return <ManageComments />;
+            default: return <DashboardHome />;
         }
     };
 

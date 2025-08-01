@@ -1,18 +1,21 @@
 // src/pages/AdminRoute.tsx
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserRole } from '../../types';
 
+// FIX 1: Tambahkan `children` ke dalam tipe properti
 interface AdminRouteProps {
   allowedRoles?: UserRole[];
+  children: React.ReactNode;
 }
 
-const AdminRoute: React.FC<AdminRouteProps> = ({ allowedRoles = ['admin'] }) => {
-  const { user, role, loading } = useAuth();
+// FIX 2: Ambil `children` dari props dan render saat akses diberikan
+const AdminRoute: React.FC<AdminRouteProps> = ({ allowedRoles = ['admin'], children }) => {
+  const { user, role, isInitialized, loading } = useAuth();
 
-  // Show loading screen while authentication is in progress
-  if (loading) {
+  // Tampilkan loading screen saat otentikasi belum siap.
+  if (!isInitialized || loading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="text-xl text-gray-700 dark:text-gray-300">Memuat otentikasi...</div>
@@ -20,21 +23,19 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ allowedRoles = ['admin'] }) => 
     );
   }
 
-  // Redirect if user is not authenticated or doesn't have the required role
+  // Alihkan jika pengguna tidak login atau role tidak sesuai.
   if (!user || !allowedRoles.includes(role)) {
-    console.log("ADMIN_ROUTE: Unauthorized access. User:", user?.id, "Role:", role, "Required Roles:", allowedRoles);
+    console.log("ADMIN_ROUTE: Unauthorized. Redirecting. Role:", role, "Required:", allowedRoles);
     
-    // Redirect based on the required role
     if (allowedRoles.includes('admin')) {
       return <Navigate to="/admin-login" replace />;
-    } else {
-      return <Navigate to="/login" replace />;
     }
+    return <Navigate to="/login" replace />;
   }
 
-  // User is authenticated and has the required role
-  console.log("ADMIN_ROUTE: Access granted. User:", user.id, "Role:", role);
-  return <Outlet />;
+  // FIX 3: Jika akses diberikan, tampilkan `children` yang dibungkusnya.
+  console.log("ADMIN_ROUTE: Access granted. Rendering children component.");
+  return <>{children}</>;
 };
 
 export default AdminRoute;

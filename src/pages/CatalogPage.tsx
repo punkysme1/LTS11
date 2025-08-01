@@ -1,19 +1,18 @@
+// src/pages/CatalogPage.tsx
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { Manuskrip } from '../../types';
 import ManuscriptCard from '../components/ManuscriptCard';
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons';
-import { useAuth } from '../hooks/useAuth';
-
-interface CatalogPageProps {
-  searchTerm: string;
-}
 
 const ITEMS_PER_PAGE = 20;
 
-const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
-  const { user, loading: authLoading, isInitialized } = useAuth();
-  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]); // Perhatikan 'manuscripts' (jamak)
+const CatalogPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const searchTerm = searchParams.get('q') || '';
+
+  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
@@ -23,41 +22,23 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
   });
 
   useEffect(() => {
+    let isMounted = true;
     const fetchManuscripts = async () => {
-      // Hanya fetch data jika authStore sudah SELESAI menginisialisasi sesinya.
-      if (!isInitialized || authLoading) {
-        console.log('CATALOG_PAGE_LOG: Waiting for AuthContext to be fully initialized and not loading...');
-        setLoading(true); // Pastikan loading true selama menunggu
-        return;
-      }
-      
-      console.log('CATALOG_PAGE_LOG: AuthContext finished initializing, starting data fetch.');
       setLoading(true);
-      const { data, error } = await supabase
-        .from('manuskrip')
-        .select('*');
-      if (error) {
-        console.error('CATALOG_PAGE_ERROR: Error fetching manuscripts:', error);
-      } else {
-        setManuscripts(data as Manuskrip[]);
+      const { data, error } = await supabase.from('manuskrip').select('*');
+      if (isMounted) {
+        if (error) {
+          console.error('CATALOG_PAGE_ERROR:', error);
+        } else {
+          setManuscripts(data as Manuskrip[]);
+        }
+        setLoading(false);
       }
-      setLoading(false);
-      console.log('CATALOG_PAGE_LOG: Data fetch finished.');
     };
     fetchManuscripts();
-  }, [authLoading, isInitialized]);
+    return () => { isMounted = false; };
+  }, []);
 
-  const categoryCounts = useMemo(() => {
-    return manuscripts.reduce((acc, ms) => {
-      const category = ms.kategori_ilmu_pesantren;
-      if (category) {
-        acc[category] = (acc[category] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-  }, [manuscripts]);
-
-  // PERBAIKAN: Gunakan 'manuscripts' (jamak) di sini
   const uniqueKategori = useMemo(() => [...new Set(manuscripts.map(m => m.kategori_ilmu_pesantren).filter(Boolean))], [manuscripts]);
   const uniqueBahasa = useMemo(() => [...new Set(manuscripts.flatMap(m => m.bahasa ? m.bahasa.split(',').map(b => b.trim()) : []).filter(Boolean))], [manuscripts]);
   const uniqueAksara = useMemo(() => [...new Set(manuscripts.flatMap(m => m.aksara ? m.aksara.split(',').map(a => a.trim()) : []).filter(Boolean))], [manuscripts]);
@@ -70,17 +51,14 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
 
   const filteredManuscripts = useMemo(() => {
     return manuscripts.filter(ms => {
-      const searchTermLower = searchTerm.toLowerCase();
-      const searchMatch = !searchTerm ||
-        (ms.judul_dari_tim && ms.judul_dari_tim.toLowerCase().includes(searchTermLower)) ||
-        (ms.pengarang && ms.pengarang.toLowerCase().includes(searchTermLower)) ||
-        (ms.deskripsi_umum && ms.deskripsi_umum.toLowerCase().includes(searchTermLower));
-
-      const kategoriMatch = filters.kategori === 'all' || ms.kategori_ilmu_pesantren === filters.kategori;
-      const bahasaMatch = filters.bahasa === 'all' || (ms.bahasa && ms.bahasa.split(',').map(b => b.trim()).includes(filters.bahasa));
-      const aksaraMatch = filters.aksara === 'all' || (ms.aksara && ms.aksara.split(',').map(a => a.trim()).includes(filters.aksara));
-
-      return searchMatch && kategoriMatch && bahasaMatch && aksaraMatch;
+        const searchTermLower = searchTerm.toLowerCase();
+        const searchMatch = !searchTerm ||
+            (ms.judul_dari_tim && ms.judul_dari_tim.toLowerCase().includes(searchTermLower)) ||
+            (ms.pengarang && ms.pengarang.toLowerCase().includes(searchTermLower));
+        const kategoriMatch = filters.kategori === 'all' || ms.kategori_ilmu_pesantren === filters.kategori;
+        const bahasaMatch = filters.bahasa === 'all' || (ms.bahasa && ms.bahasa.split(',').map(b => b.trim()).includes(filters.bahasa));
+        const aksaraMatch = filters.aksara === 'all' || (ms.aksara && ms.aksara.split(',').map(a => a.trim()).includes(filters.aksara));
+        return searchMatch && kategoriMatch && bahasaMatch && aksaraMatch;
     });
   }, [searchTerm, filters, manuscripts]);
 
@@ -93,74 +71,50 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     }
   };
 
-  if (!isInitialized || authLoading || loading) {
+  if (loading) {
     return <div className="text-center py-16 text-gray-700 dark:text-gray-300">Memuat katalog...</div>;
   }
-
+  
   return (
     <div>
       <h1 className="text-4xl font-bold font-serif mb-8 text-center text-gray-900 dark:text-white">Katalog Manuskrip</h1>
-
-      {/* Category Counts */}
-      <div className="mb-8 flex flex-wrap justify-center items-center gap-x-6 gap-y-3 text-sm">
-        <span className="font-semibold text-gray-700 dark:text-gray-200">Jumlah per Kategori:</span>
-        {Object.entries(categoryCounts).length > 0 ? (
-            Object.entries(categoryCounts).map(([category, count]) => (
-            <span key={category} className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full text-gray-600 dark:text-gray-300">
-                {category} <strong className="ml-1.5 text-gray-900 dark:text-gray-100">{count}</strong>
-            </span>
-            ))
-        ) : (
-            <span className="text-gray-500 dark:text-gray-400">Tidak ada kategori.</span>
-        )}
-      </div>
-
-      {/* Filters */}
+      
+      {/* FIX: Mengembalikan semua filter select yang hilang */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-8 flex flex-col sm:flex-row gap-4 items-center">
         <span className="font-semibold text-gray-700 dark:text-gray-200">Filter:</span>
-        <select name="kategori" onChange={handleFilterChange} value={filters.kategori} className="flex-1 w-full sm:w-auto p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-gray-100">
+        <select name="kategori" onChange={handleFilterChange} value={filters.kategori} className="flex-1 w-full sm:w-auto p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600">
           <option value="all">Semua Kategori</option>
           {uniqueKategori.map(k => <option key={k} value={k}>{k}</option>)}
         </select>
-        <select name="bahasa" onChange={handleFilterChange} value={filters.bahasa} className="flex-1 w-full sm:w-auto p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-gray-100">
+        <select name="bahasa" onChange={handleFilterChange} value={filters.bahasa} className="flex-1 w-full sm:w-auto p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600">
           <option value="all">Semua Bahasa</option>
           {uniqueBahasa.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
-        <select name="aksara" onChange={handleFilterChange} value={filters.aksara} className="flex-1 w-full sm:w-auto p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-gray-100">
+        <select name="aksara" onChange={handleFilterChange} value={filters.aksara} className="flex-1 w-full sm:w-auto p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600">
           <option value="all">Semua Aksara</option>
           {uniqueAksara.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
       </div>
 
-      {/* Grid */}
       {paginatedManuscripts.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-10 gap-y-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {paginatedManuscripts.map(ms => (
             <ManuscriptCard key={ms.kode_inventarisasi} manuscript={ms} />
           ))}
         </div>
       ) : (
         <div className="text-center py-16">
-          <p className="text-xl text-gray-600 dark:text-gray-400">Tidak ada manuskrip yang cocok dengan kriteria pencarian Anda.</p>
+          <p className="text-xl text-gray-600 dark:text-gray-400">Tidak ada manuskrip yang cocok dengan kriteria Anda.</p>
         </div>
       )}
 
-      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="mt-12 flex justify-center items-center space-x-4">
-          <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+        <div className="mt-12 flex justify-center items-center space-x-2">
+          <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded-md disabled:opacity-50 bg-gray-200 dark:bg-gray-700">
             <ChevronLeftIcon className="h-5 w-5" />
           </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNumber => (
-            <button
-              key={pageNumber}
-              onClick={() => goToPage(pageNumber)}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${currentPage === pageNumber ? 'bg-primary-600 text-white dark:bg-accent-500' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'} hover:bg-primary-500 dark:hover:bg-accent-400 transition-colors`}
-            >
-              {pageNumber}
-            </button>
-          ))}
-          <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+          <span className="text-sm text-gray-700 dark:text-gray-300">Halaman {currentPage} dari {totalPages}</span>
+          <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded-md disabled:opacity-50 bg-gray-200 dark:bg-gray-700">
             <ChevronRightIcon className="h-5 w-5" />
           </button>
         </div>
@@ -168,5 +122,4 @@ const CatalogPage: React.FC<CatalogPageProps> = ({ searchTerm }) => {
     </div>
   );
 };
-
 export default CatalogPage;

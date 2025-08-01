@@ -1,82 +1,76 @@
+// src/pages/GuestBookPage.tsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { GuestBookEntry, GuestBookStatus } from '../../types';
-import { useAuth } from '../hooks/useAuth'; // Import useAuth
+import { GuestBookEntry } from '../../types';
 
 const GuestBookPage: React.FC = () => {
-    // ... (kode handleSubmit Anda yang mungkin sudah ada) ...
-
     const [name, setName] = useState('');
     const [institution, setInstitution] = useState('');
     const [message, setMessage] = useState('');
     const [submitted, setSubmitted] = useState(false);
-    
     const [approvedEntries, setApprovedEntries] = useState<GuestBookEntry[]>([]);
-    const [loadingData, setLoadingData] = useState(true); // Rename loading to loadingData
-    const { loading: authLoading } = useAuth(); // Import authLoading
+    const [loadingData, setLoadingData] = useState(true);
 
     useEffect(() => {
-        const fetchApprovedEntries = async () => {
-            // Hanya fetch data jika authStore sudah selesai memuat sesi
-            if (authLoading) {
-                console.log('GUESTBOOK_PAGE_LOG: Waiting for AuthContext to finish loading...');
-                return;
-            }
-            console.log('GUESTBOOK_PAGE_LOG: AuthContext finished, starting data fetch.');
+        let isMounted = true;
 
-            setLoadingData(true); // Gunakan setLoadingData
+        const fetchApprovedEntries = async () => {
+            setLoadingData(true);
             const { data, error } = await supabase
                 .from('buku_tamu')
                 .select('*')
-                .eq('is_approved', true) // Filter berdasarkan kolom 'is_approved'
+                .eq('is_approved', true)
                 .order('created_at', { ascending: false });
             
-            if (error) console.error('GUESTBOOK_PAGE_ERROR: Error fetching approved entries:', error);
-            else setApprovedEntries(data || []);
-            setLoadingData(false); // Gunakan setLoadingData
-            console.log('GUESTBOOK_PAGE_LOG: Data fetch finished.');
+            if (isMounted) {
+                if (error) {
+                    console.error('GUESTBOOK_PAGE_ERROR: Error fetching approved entries:', error);
+                } else {
+                    setApprovedEntries(data || []);
+                }
+                setLoadingData(false);
+            }
         };
         fetchApprovedEntries();
-    }, [authLoading]); // Tambahkan authLoading sebagai dependensi
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Cek input tidak kosong
         if (name.trim() === '' || institution.trim() === '' || message.trim() === '') {
             alert('Semua field harus diisi.');
             return;
         }
-
-        setSubmitted(true); // Tampilkan pesan sukses setelah submit
         
         try {
             const { error } = await supabase.from('buku_tamu').insert({
                 nama_pengunjung: name,
                 asal_institusi: institution,
                 pesan: message,
-                is_approved: false, // Default pending, admin yang approve
+                is_approved: false,
             });
 
             if (error) {
-                console.error('GUESTBOOK_PAGE_ERROR: Error submitting guestbook entry:', error);
-                alert('Gagal mengirim pesan buku tamu: ' + error.message);
-                setSubmitted(false); // Reset submitted state on error
-            } else {
-                setName('');
-                setInstitution('');
-                setMessage('');
-                // Tidak perlu refresh approvedEntries di sini, karena admin yang akan approve
-                alert('Pesan Anda berhasil dikirim dan menunggu persetujuan admin.');
+                throw error;
             }
-        } catch (err) {
+            setName('');
+            setInstitution('');
+            setMessage('');
+            setSubmitted(true);
+            alert('Pesan Anda berhasil dikirim dan menunggu persetujuan admin.');
+        } catch (err: any) {
             console.error('GUESTBOOK_PAGE_ERROR: Exception submitting guestbook entry:', err);
-            alert('Terjadi kesalahan tidak dikenal saat mengirim pesan.');
-            setSubmitted(false); // Reset submitted state on error
+            alert('Gagal mengirim pesan buku tamu: ' + err.message);
+            setSubmitted(false);
         }
     };
 
-    // Gabungkan loading state
-    if (authLoading || loadingData) return <p className="text-center">Memuat pesan...</p>;
+    if (loadingData) {
+        return <p className="text-center py-10 text-gray-700 dark:text-gray-300">Memuat pesan...</p>;
+    }
 
     return (
         <div className="max-w-4xl mx-auto">

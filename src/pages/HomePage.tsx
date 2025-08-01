@@ -1,14 +1,12 @@
+// src/pages/HomePage.tsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Manuskrip, BlogPost, BlogStatus } from '../../types';
 import { supabase } from '../supabaseClient';
 import ManuscriptCard from '../components/ManuscriptCard';
 import BlogCard from '../components/BlogCard';
-import { BookOpenIcon, CalendarIcon, ArrowRightIcon } from '../components/icons';
-import { useAuth } from '../hooks/useAuth';
 
 const HomePage: React.FC = () => {
-    const { user, loading: authLoading } = useAuth(); 
     const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
     const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
     const [totalManuscripts, setTotalManuscripts] = useState(0);
@@ -16,80 +14,49 @@ const HomePage: React.FC = () => {
     const [loadingData, setLoadingData] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
+
         const fetchData = async () => {
-            // Tunggu auth loading selesai sebelum fetch data
-            if (authLoading) {
-                console.log('HOME_PAGE_LOG: Waiting for auth to finish loading...');
-                setLoadingData(true);
-                return;
-            }
-
-            console.log('HOME_PAGE_LOG: Auth finished loading, starting data fetch.');
             setLoadingData(true);
-
             try {
-                // Fetch manuscripts
-                const { data: manuscriptsData, error: manuscriptsError } = await supabase
-                    .from('manuskrip')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(8);
+                const [manuscriptsRes, postsRes, countRes] = await Promise.all([
+                    supabase.from('manuskrip').select('*').order('created_at', { ascending: false }).limit(8),
+                    supabase.from('blog').select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at').eq('status', BlogStatus.PUBLISHED).eq('published', true).order('tanggal_publikasi', { ascending: false }).limit(3),
+                    supabase.from('manuskrip').select('*', { count: 'exact', head: true })
+                ]);
+                
+                if (isMounted) {
+                    const { data: manuscriptsData } = manuscriptsRes;
+                    if (manuscriptsData) setLatestManuscripts(manuscriptsData);
 
-                if (manuscriptsData) {
-                    setLatestManuscripts(manuscriptsData);
-                } else {
-                    console.error("HOME_PAGE_ERROR: Error fetching latest manuscripts:", manuscriptsError?.message);
-                }
-
-                // Fetch blog posts
-                const { data: postsData, error: postsError } = await supabase
-                    .from('blog')
-                    .select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at')
-                    .eq('status', BlogStatus.PUBLISHED)
-                    .eq('published', true)
-                    .order('tanggal_publikasi', { ascending: false })
-                    .limit(3);
-
-                if (postsData) {
-                    setLatestPosts(postsData);
-                    if (postsData.length > 0 && postsData[0].tanggal_publikasi) {
-                        setLastUpdate(new Date(postsData[0].tanggal_publikasi).toLocaleDateString('id-ID', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                        }));
+                    const { data: postsData } = postsRes;
+                    if (postsData) {
+                        setLatestPosts(postsData);
+                        if (postsData.length > 0 && postsData[0].tanggal_publikasi) {
+                            setLastUpdate(new Date(postsData[0].tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }));
+                        }
                     }
-                } else {
-                    console.error("HOME_PAGE_ERROR: Error fetching latest blog posts:", postsError?.message);
+                    const { count } = countRes;
+                    if (count !== null) setTotalManuscripts(count);
                 }
-
-                // Fetch manuscript count
-                const { count, error: countError } = await supabase
-                    .from('manuskrip')
-                    .select('*', { count: 'exact', head: true });
-
-                if (count !== null) {
-                    setTotalManuscripts(count);
-                } else {
-                    console.error("HOME_PAGE_ERROR: Error fetching manuscript count:", countError?.message);
-                }
-
             } catch (error) {
                 console.error("HOME_PAGE_ERROR: Unexpected error during data fetch:", error);
             } finally {
-                setLoadingData(false);
-                console.log('HOME_PAGE_LOG: Data fetch finished.');
+                if (isMounted) {
+                    setLoadingData(false);
+                }
             }
         };
 
         fetchData();
-    }, [authLoading]); // Hanya depend pada authLoading
-    
-    console.log('HOME_PAGE_STATE: Rendering. authLoading:', authLoading, 'loadingData:', loadingData, 'User:', user?.id);
-    
-    // Show loading hanya jika auth atau data masih loading
-    if (authLoading || loadingData) {
-        return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat konten...</div>
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    if (loadingData) {
+        return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat konten...</div>;
     }
 
     return (
@@ -124,7 +91,6 @@ const HomePage: React.FC = () => {
                 </div>
             </section>
 
-            {/* Latest Manuscripts Section */}
             <section className="py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-4xl font-bold font-serif text-gray-900 dark:text-white">Manuskrip Terbaru</h2>
@@ -143,7 +109,6 @@ const HomePage: React.FC = () => {
                 )}
             </section>
 
-            {/* Latest Blog Posts Section */}
             <section className="py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-4xl font-bold font-serif text-gray-900 dark:text-white">Artikel Terkini</h2>
@@ -164,5 +129,4 @@ const HomePage: React.FC = () => {
         </div>
     );
 };
-
 export default HomePage;
