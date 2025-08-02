@@ -100,6 +100,22 @@ class AuthStore {
     });
   }
 
+  /**
+   * BARU: Fungsi untuk me-refresh data profil pengguna secara manual.
+   * Ini dipanggil setelah pengguna berhasil membuat profil untuk pertama kalinya.
+   */
+  public async refreshUserProfile() {
+    if (!this.state.user) return; // Hanya jalankan jika ada user yang login
+
+    this.setState({ loading: true });
+    const { profile, role } = await this.fetchUserProfileAndSetRole(this.state.user.id);
+    this.setState({
+      userProfile: profile,
+      role: role,
+      loading: false,
+    });
+  }
+
   public async signOut() {
     this.setState({ loading: true }); 
     await supabase.auth.signOut();

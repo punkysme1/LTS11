@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { CompleteProfileFormData, UserProfileStatus } from '../../types';
 import { createUserProfile } from '../services/userService';
+import { authStore } from '../authStore'; // <-- PERUBAHAN 1: Impor authStore
 
 // Komponen Form internal untuk melengkapi profil
 const CompleteProfileForm: React.FC<{ userEmail: string, userId: string }> = ({ userEmail, userId }) => {
@@ -33,9 +34,11 @@ const CompleteProfileForm: React.FC<{ userEmail: string, userId: string }> = ({ 
         if (createError) {
             setError(createError);
             setLoading(false);
+        } else {
+            // PERUBAHAN 2: Jika berhasil, panggil refresh dari authStore.
+            // Ini akan memicu render ulang komponen induk dengan state terbaru.
+            await authStore.refreshUserProfile();
         }
-        // Jika berhasil, authStore akan otomatis refresh dan komponen ini akan
-        // menampilkan status 'pending' tanpa perlu aksi tambahan.
     };
 
     return (
@@ -66,7 +69,7 @@ const CompleteProfileForm: React.FC<{ userEmail: string, userId: string }> = ({ 
     );
 };
 
-// Komponen Halaman Profil Utama
+// Komponen Halaman Profil Utama (tidak ada perubahan di sini)
 const ProfileUserPage: React.FC = () => {
     const { user, userProfile, role, signOut, loading: authLoading, isInitialized } = useAuth();
     const navigate = useNavigate();
