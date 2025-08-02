@@ -6,10 +6,8 @@ import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
 import AdminRoute from './pages/AdminRoute'; 
 
-// --- Lazy Loading Components ---
 const Home = lazy(() => import('./pages/HomePage'));
 const Catalog = lazy(() => import('./pages/CatalogPage'));
-// ... (sisa import lazy lainnya tidak berubah)
 const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetailPage'));
 const Blog = lazy(() => import('./pages/BlogListPage'));
 const BlogPostDetail = lazy(() => import('./pages/BlogPostDetailPage'));
@@ -28,7 +26,6 @@ export const ThemeContext = createContext({
   toggleTheme: () => {},
 });
 
-// Komponen ini tidak lagi memiliki state `searchTerm`
 const AppContent: React.FC = () => {
     const location = useLocation();
     const isAdminRoute = location.pathname.startsWith('/admin');
@@ -38,10 +35,9 @@ const AppContent: React.FC = () => {
             {!isAdminRoute && <Header />}
             
             <main className="flex-grow container mx-auto px-4 py-8">
-                <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-700 dark:text-gray-300">Memuat halaman...</div>}>
+                <Suspense fallback={<div className="flex justify-center items-center h-screen">Memuat halaman...</div>}>
                     <Routes>
                         <Route path="/" element={<Home />} />
-                        {/* FIX: Catalog tidak lagi menerima prop searchTerm */}
                         <Route path="/katalog" element={<Catalog />} />
                         <Route path="/manuskrip/:id" element={<ManuscriptDetail />} />
                         <Route path="/blog" element={<Blog />} />
@@ -61,8 +57,10 @@ const AppContent: React.FC = () => {
                             </AdminRoute>
                         } />
 
+                        {/* RUTE PENGGUNA YANG DILINDUNGI */}
                         <Route path="/user" element={
-                            <AdminRoute allowedRoles={['verified_user', 'pending', 'admin']}>
+                            // FIX: Menambahkan 'authenticated' ke dalam role yang diizinkan
+                            <AdminRoute allowedRoles={['verified_user', 'pending', 'admin', 'authenticated']}>
                                 <UserPage />
                             </AdminRoute>
                         } />

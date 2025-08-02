@@ -44,24 +44,33 @@ class AuthStore {
   }
 
   private setState(newState: Partial<AuthStoreState>) {
-    const prevState = this.state;
     this.state = { ...this.state, ...newState };
-    if (JSON.stringify(prevState) !== JSON.stringify(this.state)) {
-      this.listeners.forEach(listener => listener(this.state));
-    }
+    this.listeners.forEach(listener => listener(this.state));
   }
 
   private async fetchUserProfileAndSetRole(userId: string): Promise<{ profile: UserProfileData | null, role: UserRole }> {
-    const profile = await getUserProfile(userId);
-    let newRole: UserRole = 'guest';
+    // 1. Cek apakah admin
     if (userId === import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim()) {
-      newRole = 'admin';
-    } else if (profile?.status === UserProfileStatus.VERIFIED) {
-      newRole = 'verified_user';
-    } else if (profile?.status === UserProfileStatus.PENDING) {
-      newRole = 'pending';
+        const profile = await getUserProfile(userId);
+        return { profile, role: 'admin' };
     }
-    return { profile, role: newRole };
+
+    // 2. Jika bukan admin, coba ambil profilnya
+    const profile = await getUserProfile(userId);
+
+    // 3. Tentukan role berdasarkan profil yang ada
+    if (profile) {
+        if (profile.status === UserProfileStatus.VERIFIED) {
+            return { profile, role: 'verified_user' };
+        }
+        if (profile.status === UserProfileStatus.PENDING) {
+            return { profile, role: 'pending' };
+        }
+    }
+
+    // 4. FIX: Jika user ada tapi profil TIDAK ditemukan, beri role 'authenticated'
+    // Ini adalah status untuk user yang baru konfirmasi email dan perlu melengkapi profil.
+    return { profile: null, role: 'authenticated' };
   }
 
   private setupAuthListener() {

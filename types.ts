@@ -72,6 +72,7 @@ export interface BlogPost {
   status?: BlogStatus;
   url_thumbnail?: string;
   created_at: string;
+  published?: boolean;
 }
 
 export enum GuestBookStatus {
@@ -88,6 +89,7 @@ export interface GuestBookEntry {
   tanggal_kirim?: string;
   status?: GuestBookStatus;
   created_at: string;
+  is_approved?: boolean;
 }
 
 export interface SearchHistoryEntry {
@@ -103,7 +105,6 @@ export enum UserProfileStatus {
   PENDING = 'PENDING',
   VERIFIED = 'VERIFIED',
   REJECTED = 'REJECTED',
-  NO_PROFILE = 'NO_PROFILE', // Ditambahkan untuk representasi di ManageUsers
 }
 
 export interface UserProfileData {
@@ -125,6 +126,13 @@ export interface UserProfileData {
     };
 }
 
+export interface CompleteProfileFormData {
+    full_name: string;
+    domicile_address?: string;
+    institution_affiliation?: string;
+}
+
+export type UserRole = 'guest' | 'authenticated' | 'pending' | 'verified_user' | 'admin';
 // Interface untuk data yang dikirim dari form pendaftaran (hanya email & password)
 export interface SignUpFormData {
     email: string;
@@ -144,9 +152,6 @@ export interface CompleteProfileFormData {
     phone_number?: string; // Dijadikan opsional
     status?: UserProfileStatus; // Admin bisa mengatur status awal
 }
-
-// BARU: Role Pengguna
-export type UserRole = 'guest' | 'pending' | 'verified_user' | 'admin';
 
 // DEFINISI AuthContextType HARUS DI-EXPORT DARI types.ts
 // PERBAIKAN: Tambahkan isInitialized di sini
