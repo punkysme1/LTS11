@@ -1,61 +1,22 @@
 // src/pages/HomePage.tsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Manuskrip, BlogPost, BlogStatus } from '../../types';
-import { supabase } from '../supabaseClient';
+import { useData } from '../hooks/useData';
 import ManuscriptCard from '../components/ManuscriptCard';
 import BlogCard from '../components/BlogCard';
 
 const HomePage: React.FC = () => {
-    const [latestManuscripts, setLatestManuscripts] = useState<Manuskrip[]>([]);
-    const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
-    const [totalManuscripts, setTotalManuscripts] = useState(0);
-    const [lastUpdate, setLastUpdate] = useState('');
-    const [loadingData, setLoadingData] = useState(true);
+    const { manuscripts, blogPosts, loading } = useData();
 
-    useEffect(() => {
-        let isMounted = true;
+    // Ambil beberapa item untuk ditampilkan di beranda
+    const latestManuscripts = manuscripts.slice(0, 8);
+    const latestPosts = blogPosts.slice(0, 3);
+    const totalManuscripts = manuscripts.length;
+    const lastUpdate = blogPosts.length > 0 && blogPosts[0].tanggal_publikasi
+        ? new Date(blogPosts[0].tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
+        : '';
 
-        const fetchData = async () => {
-            setLoadingData(true);
-            try {
-                const [manuscriptsRes, postsRes, countRes] = await Promise.all([
-                    supabase.from('manuskrip').select('*').order('created_at', { ascending: false }).limit(8),
-                    supabase.from('blog').select('id, judul_artikel, penulis, isi_artikel, status, tanggal_publikasi, url_thumbnail, created_at').eq('status', BlogStatus.PUBLISHED).eq('published', true).order('tanggal_publikasi', { ascending: false }).limit(3),
-                    supabase.from('manuskrip').select('*', { count: 'exact', head: true })
-                ]);
-                
-                if (isMounted) {
-                    const { data: manuscriptsData } = manuscriptsRes;
-                    if (manuscriptsData) setLatestManuscripts(manuscriptsData);
-
-                    const { data: postsData } = postsRes;
-                    if (postsData) {
-                        setLatestPosts(postsData);
-                        if (postsData.length > 0 && postsData[0].tanggal_publikasi) {
-                            setLastUpdate(new Date(postsData[0].tanggal_publikasi).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }));
-                        }
-                    }
-                    const { count } = countRes;
-                    if (count !== null) setTotalManuscripts(count);
-                }
-            } catch (error) {
-                console.error("HOME_PAGE_ERROR: Unexpected error during data fetch:", error);
-            } finally {
-                if (isMounted) {
-                    setLoadingData(false);
-                }
-            }
-        };
-
-        fetchData();
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
-
-    if (loadingData) {
+    if (loading) {
         return <div className="text-center py-20 text-gray-700 dark:text-gray-300">Memuat konten...</div>;
     }
 
@@ -98,7 +59,7 @@ const HomePage: React.FC = () => {
                         Lihat Semua
                     </Link>
                 </div>
-                {latestManuscripts.length === 0 ? (
+                {latestManuscripts.length === 0 && !loading ? (
                     <p className="text-center text-gray-600 dark:text-gray-400">Belum ada manuskrip terbaru yang ditemukan.</p>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-10 gap-y-12">
@@ -116,7 +77,7 @@ const HomePage: React.FC = () => {
                         Lihat Semua
                     </Link>
                 </div>
-                {latestPosts.length === 0 ? (
+                {latestPosts.length === 0 && !loading ? (
                     <p className="text-center text-gray-600 dark:text-gray-400">Belum ada artikel terbaru yang dipublikasikan.</p>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

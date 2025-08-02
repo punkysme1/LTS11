@@ -1,8 +1,8 @@
 // src/pages/CatalogPage.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
-import { Manuskrip } from '../../types';
+import { useData } from '../hooks/useData';
+// FIX: 'Manuskrip' dihapus dari import karena tidak lagi digunakan secara langsung di file ini.
 import ManuscriptCard from '../components/ManuscriptCard';
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons';
 
@@ -11,9 +11,8 @@ const ITEMS_PER_PAGE = 20;
 const CatalogPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const searchTerm = searchParams.get('q') || '';
+  const { manuscripts, loading } = useData();
 
-  const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
     kategori: 'all',
@@ -22,22 +21,8 @@ const CatalogPage: React.FC = () => {
   });
 
   useEffect(() => {
-    let isMounted = true;
-    const fetchManuscripts = async () => {
-      setLoading(true);
-      const { data, error } = await supabase.from('manuskrip').select('*');
-      if (isMounted) {
-        if (error) {
-          console.error('CATALOG_PAGE_ERROR:', error);
-        } else {
-          setManuscripts(data as Manuskrip[]);
-        }
-        setLoading(false);
-      }
-    };
-    fetchManuscripts();
-    return () => { isMounted = false; };
-  }, []);
+    setCurrentPage(1);
+  }, [searchTerm, filters]);
 
   const uniqueKategori = useMemo(() => [...new Set(manuscripts.map(m => m.kategori_ilmu_pesantren).filter(Boolean))], [manuscripts]);
   const uniqueBahasa = useMemo(() => [...new Set(manuscripts.flatMap(m => m.bahasa ? m.bahasa.split(',').map(b => b.trim()) : []).filter(Boolean))], [manuscripts]);
@@ -46,7 +31,6 @@ const CatalogPage: React.FC = () => {
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
-    setCurrentPage(1);
   };
 
   const filteredManuscripts = useMemo(() => {
@@ -79,7 +63,6 @@ const CatalogPage: React.FC = () => {
     <div>
       <h1 className="text-4xl font-bold font-serif mb-8 text-center text-gray-900 dark:text-white">Katalog Manuskrip</h1>
       
-      {/* FIX: Mengembalikan semua filter select yang hilang */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-8 flex flex-col sm:flex-row gap-4 items-center">
         <span className="font-semibold text-gray-700 dark:text-gray-200">Filter:</span>
         <select name="kategori" onChange={handleFilterChange} value={filters.kategori} className="flex-1 w-full sm:w-auto p-2 border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600">

@@ -3,10 +3,13 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-// import { AuthProvider } from './contexts/AuthContext'; // Hapus ini
 import { BrowserRouter } from 'react-router-dom';
+import { dataStore } from './dataStore'; // Import dataStore
 
 console.log('MAIN_APP_ENTRY_POINT: Application is starting...');
+
+// Ambil data publik satu kali saat aplikasi dimuat
+dataStore.initialize();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,9 +18,9 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(
-  <BrowserRouter>
-    {/* AuthProvider tidak lagi membungkus App,
-        sekarang state diakses langsung via useAuth dari authStore */}
-    <App /> 
-  </BrowserRouter>
+  <React.StrictMode>
+    <BrowserRouter>
+      <App /> 
+    </BrowserRouter>
+  </React.StrictMode>
 );
