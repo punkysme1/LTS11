@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
 import AdminRoute from './pages/AdminRoute'; 
+import { dataStore } from './dataStore'; // Import dataStore
 
 const Home = lazy(() => import('./pages/HomePage'));
 const Catalog = lazy(() => import('./pages/CatalogPage'));
@@ -29,6 +30,14 @@ export const ThemeContext = createContext({
 const AppContent: React.FC = () => {
     const location = useLocation();
     const isAdminRoute = location.pathname.startsWith('/admin');
+
+    // --- PERBAIKAN KRUSIAL DI SINI ---
+    // Memanggil dataStore.initialize() sekali saat aplikasi dimuat.
+    // Ini akan memicu pengambilan data blog, manuskrip, dll.
+    useEffect(() => {
+        dataStore.initialize();
+    }, []);
+    // --- AKHIR PERBAIKAN ---
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
@@ -57,9 +66,7 @@ const AppContent: React.FC = () => {
                             </AdminRoute>
                         } />
 
-                        {/* RUTE PENGGUNA YANG DILINDUNGI */}
                         <Route path="/user" element={
-                            // FIX: Menambahkan 'authenticated' ke dalam role yang diizinkan
                             <AdminRoute allowedRoles={['verified_user', 'pending', 'admin', 'authenticated']}>
                                 <UserPage />
                             </AdminRoute>

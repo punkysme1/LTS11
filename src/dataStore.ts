@@ -42,20 +42,34 @@ class DataStore {
     }
 
     public async initialize() {
-        // Hanya fetch data jika belum pernah sama sekali
         if (this.hasFetched) return;
         this.hasFetched = true;
 
         this.setState({ loading: true });
 
         try {
+            // --- AWAL PERBAIKAN ---
+            // 1. Query blog disederhanakan, hanya mengandalkan 'status'.
+            // 2. Ditambahkan filter tanggal untuk hanya menampilkan post yang sudah waktunya terbit.
+            const blogPostsQuery = supabase
+                .from('blog')
+                .select('*')
+                .eq('status', BlogStatus.PUBLISHED)
+                .lte('tanggal_publikasi', new Date().toISOString()) // Hanya tampilkan post yang tanggalnya <= hari ini
+                .order('tanggal_publikasi', { ascending: false });
+            // --- AKHIR PERBAIKAN ---
+
             const [manuscriptsRes, blogPostsRes, guestBookRes] = await Promise.all([
                 supabase.from('manuskrip').select('*').order('created_at', { ascending: false }),
-                supabase.from('blog').select('*').eq('status', BlogStatus.PUBLISHED).eq('published', true).order('tanggal_publikasi', { ascending: false }),
+                blogPostsQuery, // Menggunakan query yang sudah diperbaiki
                 supabase.from('buku_tamu').select('*').eq('is_approved', true).order('created_at', { ascending: false })
             ]);
 
             if (manuscriptsRes.error || blogPostsRes.error || guestBookRes.error) {
+                // Log error spesifik untuk debugging
+                console.error('Manuscripts Error:', manuscriptsRes.error);
+                console.error('Blog Posts Error:', blogPostsRes.error);
+                console.error('Guest Book Error:', guestBookRes.error);
                 throw new Error('Gagal mengambil sebagian data publik.');
             }
 
