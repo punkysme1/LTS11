@@ -109,3 +109,9 @@ export const ChatAlt2Icon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H16.5m2.25 0a.75.75 0 00-1.5 0v2.25m-4.5-2.25v2.25m-4.5-2.25v2.25M9 10.5H7.5a2.25 2.25 0 00-2.25 2.25v2.25a2.25 2.25 0 002.25 2.25h1.5m-4.5-2.25h4.5m-4.5 0a2.25 2.25 0 00-2.25 2.25V18a2.25 2.25 0 002.25 2.25h1.5m-1.5-4.5L12 18.75l3-3.75m-6-13.5l4.5 4.5m-4.5 4.5l4.5 4.5M21 12c0-4.556-3.644-8.25-8.125-8.25S4.75 7.444 4.75 12s3.644 8.25 8.125 8.25S21 16.556 21 12z" />
     </svg>
 );
+
+export const UserIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+    </svg>
+);

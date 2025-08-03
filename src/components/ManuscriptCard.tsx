@@ -13,7 +13,7 @@ const ManuscriptCard: React.FC<ManuscriptCardProps> = ({ manuscript }) => {
       to={`/manuskrip/${manuscript.kode_inventarisasi}`}
       className="group block bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden"
     >
-      <div className="aspect-[5/4] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center"> {/* PERUBAHAN DI SINI: aspect-[5/4] */}
+      <div className="aspect-[5/4] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
         {manuscript.url_kover ? (
           <img
             src={manuscript.url_kover}
@@ -22,15 +22,18 @@ const ManuscriptCard: React.FC<ManuscriptCardProps> = ({ manuscript }) => {
             loading="lazy"
           />
         ) : (
-          <span className="text-gray-400 dark:text-gray-500 text-sm">Tidak ada gambar</span>
+          <span className="text-gray-400 dark:text-gray-500 text-sm p-4 text-center">Gambar tidak tersedia</span>
         )}
       </div>
       <div className="p-4">
         <p className="text-sm text-gray-500 dark:text-gray-400">{manuscript.kode_inventarisasi}</p>
-        <h3 className="font-semibold mt-1 text-gray-800 dark:text-gray-100 group-hover:text-primary-600 dark:group-hover:text-accent-400 truncate">
+        <h3 className="font-semibold mt-1 text-gray-800 dark:text-gray-100 group-hover:text-primary-600 dark:group-hover:text-accent-400 truncate" title={manuscript.judul_dari_tim}>
           {manuscript.judul_dari_tim}
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{manuscript.pengarang}</p>
+        {/* -- PERBAIKAN DI SINI: Memberi fallback jika pengarang tidak ada -- */}
+        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 truncate">
+          {manuscript.pengarang || 'Pengarang tidak diketahui'}
+        </p>
       </div>
     </Link>
   );
