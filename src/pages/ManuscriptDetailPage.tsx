@@ -12,13 +12,12 @@ import ShareButtons from '../components/ShareButtons';
 const ManuscriptDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { manuscripts, loading: dataLoading } = useData();
-    // 'role' sekarang akan digunakan
     const { role, loading: authLoading, isInitialized } = useAuth(); 
     
     const manuscript = manuscripts.find(m => m.kode_inventarisasi === id);
 
+    // Variabel dan state ini sekarang akan digunakan
     const [activeTab, setActiveTab] = useState('infoUmum');
-    // 'mainImage' sekarang akan digunakan
     const [mainImage, setMainImage] = useState(''); 
     const [allImages, setAllImages] = useState<string[]>([]);
     const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -38,7 +37,6 @@ const ManuscriptDetailPage: React.FC = () => {
         }
     }, [manuscript]);
 
-    // 'openLightbox' sekarang akan digunakan
     const openLightbox = useCallback((index: number) => { 
         setCurrentImageIndex(index);
         setLightboxOpen(true);
@@ -53,9 +51,23 @@ const ManuscriptDetailPage: React.FC = () => {
     }
     
     const currentUrl = window.location.href;
-    const description = manuscript.deskripsi_umum?.substring(0, 155) + '...' || 'Detail manuskrip dari Pusat Digitalisasi Manuskrip Qomaruddin.';
+    
+    const buildShareDescription = () => {
+        const details = [];
+        if (manuscript.judul_dari_tim) details.push(`Judul: ${manuscript.judul_dari_tim}`);
+        if (manuscript.pengarang) details.push(`Pengarang: ${manuscript.pengarang}`);
+        if (manuscript.penyalin) details.push(`Penyalin: ${manuscript.penyalin}`);
+        if (manuscript.kategori_ilmu_pesantren) details.push(`Kategori: ${manuscript.kategori_ilmu_pesantren}`);
+        let finalDescription = details.join('\n');
+        if (manuscript.deskripsi_umum) {
+            finalDescription += `\n\n${manuscript.deskripsi_umum}`;
+        }
+        return finalDescription.substring(0, 250) + (finalDescription.length > 250 ? '...' : '');
+    };
+    
+    const shareDescription = buildShareDescription();
 
-    // 'DetailItem' sekarang akan digunakan di dalam renderTabContent
+    // Komponen 'DetailItem' sekarang akan digunakan
     const DetailItem: React.FC<{ label: string; value?: React.ReactNode }> = ({ label, value }) => (
         (value && value.toString().trim() !== '' && value.toString().trim() !== 'null') ? (
             <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4 border-t border-gray-200 dark:border-gray-700 first:border-t-0">
@@ -64,14 +76,13 @@ const ManuscriptDetailPage: React.FC = () => {
             </div>
         ) : null
     );
-    
-    // 'renderLink' sekarang akan digunakan di dalam renderTabContent
+
     const renderLink = (url: string | undefined, text: string) => {
         if (!url) return text;
         return <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">{text}</a>;
     }
 
-    // 'renderTabContent' sekarang berisi implementasi lengkap dan akan dipanggil
+    // Fungsi renderTabContent sekarang akan dipanggil
     const renderTabContent = () => {
         switch (activeTab) {
             case 'infoUmum':
@@ -163,9 +174,10 @@ const ManuscriptDetailPage: React.FC = () => {
         }
     };
     
-    // 'TabButton' sekarang akan digunakan untuk merender tombol tab
+    // Komponen TabButton sekarang akan dipanggil
     const TabButton: React.FC<{tabId: string, label: string}> = ({tabId, label}) => (
         <button 
+            // Menggunakan setActiveTab dan activeTab
             onClick={() => setActiveTab(tabId)} 
             className={`${activeTab === tabId ? 'border-primary-500 text-primary-600 dark:text-accent-300' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:hover:text-gray-300'} whitespace-nowrap py-4 px-3 border-b-2 font-medium text-sm transition-colors`}
         >
@@ -177,15 +189,15 @@ const ManuscriptDetailPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 md:p-8 my-8 max-w-7xl mx-auto">
             <Helmet>
                 <title>{`${manuscript.judul_dari_tim} - Manuskrip Qomaruddin`}</title>
-                <meta name="description" content={description} />
+                <meta name="description" content={shareDescription} />
                 <meta property="og:title" content={manuscript.judul_dari_tim} />
-                <meta property="og:description" content={description} />
+                <meta property="og:description" content={shareDescription} />
                 {manuscript.url_kover && <meta property="og:image" content={manuscript.url_kover} />}
                 <meta property="og:url" content={currentUrl} />
                 <meta property="og:type" content="article" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="twitter:title" content={manuscript.judul_dari_tim} />
-                <meta name="twitter:description" content={description} />
+                <meta name="twitter:description" content={shareDescription} />
                 {manuscript.url_kover && <meta name="twitter:image" content={manuscript.url_kover} />}
             </Helmet>
 
@@ -202,7 +214,6 @@ const ManuscriptDetailPage: React.FC = () => {
                                 src={mainImage}
                                 alt="Kover utama"
                                 className="w-full h-full object-contain cursor-pointer transition-transform duration-300 hover:scale-105"
-                                // Memanggil openLightbox
                                 onClick={() => openLightbox(allImages.indexOf(mainImage))}
                             />
                         ) : <div className="flex items-center justify-center h-full text-gray-500">Gambar tidak tersedia</div>}
@@ -222,10 +233,10 @@ const ManuscriptDetailPage: React.FC = () => {
                     )}
                 </div>
 
+                {/* --- PERBAIKAN DI SINI: Mengembalikan logika tab yang hilang --- */}
                 <div className="lg:col-span-3">
                     <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
                         <nav className="-mb-px flex space-x-2 sm:space-x-4" aria-label="Tabs">
-                            {/* Memanggil TabButton */}
                             <TabButton tabId="infoUmum" label="Info Umum" />
                             <TabButton tabId="fisik" label="Atribut Fisik" />
                             <TabButton tabId="produksi" label="Produksi" />
@@ -233,14 +244,12 @@ const ManuscriptDetailPage: React.FC = () => {
                             <TabButton tabId="relasi" label="Relasi & Ref." />
                         </nav>
                     </div>
-                    {/* Memanggil renderTabContent */}
                     <div className="mt-6">{renderTabContent()}</div>
                 </div>
             </div>
 
             <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold font-serif mb-4 text-gray-900 dark:text-white">Komentar dan Diskusi</h2>
-                {/* Menggunakan 'role' dan merender 'CommentForm' serta 'Link' */}
                 {role === 'verified_user' || role === 'admin' ? (
                     <CommentForm targetId={manuscript.kode_inventarisasi} type="manuskrip" />
                 ) : (
@@ -248,7 +257,6 @@ const ManuscriptDetailPage: React.FC = () => {
                         Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> untuk berkomentar.
                     </p>
                 )}
-                {/* Merender 'CommentList' */}
                 <CommentList targetId={manuscript.kode_inventarisasi} type="manuskrip" userRole={role} />
             </div>
 
