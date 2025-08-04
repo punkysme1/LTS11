@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { Comment, UserRole } from '../../types';
-import CommentForm from './CommentForm'; // Impor CommentForm untuk balasan
+import CommentForm from './CommentForm';
 
 interface CommentListProps {
     targetId: string | number;
@@ -14,10 +14,22 @@ interface CommentWithReplies extends Comment {
     replies: CommentWithReplies[];
 }
 
-// Komponen baru untuk menampilkan satu item komentar dan memanggil dirinya sendiri untuk balasan (rekursif)
-const CommentItem: React.FC<{ comment: CommentWithReplies; onCommentPosted: () => void; userRole: UserRole; targetId: string | number; type: 'manuskrip' | 'blog' }> = ({ comment, onCommentPosted, userRole, targetId, type }) => {
+const CommentItem: React.FC<{ 
+    comment: CommentWithReplies; 
+    onCommentPosted: () => void; 
+    userRole: UserRole; 
+    targetId: string | number; 
+    type: 'manuskrip' | 'blog' 
+}> = ({ comment, onCommentPosted, userRole, targetId, type }) => {
     const [showReplyForm, setShowReplyForm] = useState(false);
-    const authorName = (comment.user_profiles && (comment.user_profiles as any).full_name) ? (comment.user_profiles as any).full_name : 'Pengguna Tidak Dikenal';
+    
+    const authorName = comment.user_profiles?.full_name || 'Pengguna Tidak Dikenal';
+    const canReply = userRole === 'admin' || userRole === 'verified_user';
+
+    const handleNewReply = () => {
+        setShowReplyForm(false);
+        onCommentPosted();
+    };
 
     return (
         <div className="py-2">
@@ -28,24 +40,23 @@ const CommentItem: React.FC<{ comment: CommentWithReplies; onCommentPosted: () =
                 </div>
                 <p className="text-gray-800 dark:text-gray-200 break-words whitespace-pre-wrap mb-3">{comment.content}</p>
                 
-                {/* Tombol Balas */}
-                <button onClick={() => setShowReplyForm(!showReplyForm)} className="text-sm font-semibold text-primary-600 hover:underline">
-                    {showReplyForm ? 'Tutup' : 'Balas'}
-                </button>
+                {canReply && (
+                    <button onClick={() => setShowReplyForm(!showReplyForm)} className="text-sm font-semibold text-primary-600 hover:underline">
+                        {showReplyForm ? 'Tutup' : 'Balas'}
+                    </button>
+                )}
             </div>
 
-            {/* Form Balasan */}
             {showReplyForm && (
                 <CommentForm
                     targetId={targetId}
                     type={type}
                     parentId={comment.id}
-                    onCommentPosted={onCommentPosted}
+                    onCommentPosted={handleNewReply}
                     onCancelReply={() => setShowReplyForm(false)}
                 />
             )}
 
-            {/* Render Balasan (Replies) */}
             {comment.replies && comment.replies.length > 0 && (
                 <div className="ml-4 md:ml-8 border-l-2 border-gray-200 dark:border-gray-600 pl-4 mt-2">
                     {comment.replies.map(reply => (
@@ -70,16 +81,14 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const buildCommentTree = (comments: Comment[]): CommentWithReplies[] => {
+    const buildCommentTree = useCallback((comments: Comment[]): CommentWithReplies[] => {
         const commentMap: { [key: number]: CommentWithReplies } = {};
         const tree: CommentWithReplies[] = [];
 
-        // Inisialisasi setiap komentar dengan array balasan kosong
         comments.forEach(comment => {
             commentMap[comment.id] = { ...comment, replies: [] };
         });
 
-        // Susun komentar ke dalam pohon
         comments.forEach(comment => {
             if (comment.parent_id && commentMap[comment.parent_id]) {
                 commentMap[comment.parent_id].replies.push(commentMap[comment.id]);
@@ -89,35 +98,63 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
         });
 
         return tree;
-    };
+    }, []);
 
     const fetchComments = useCallback(async () => {
         setLoading(true);
         setError(null);
-        let query = supabase.from('comments').select(`*, user_profiles!comments_user_id_fkey(full_name)`);
+        let query = supabase.from('comments').select(`
+            id, content, created_at, parent_id,
+            user_profiles ( full_name )
+        `);
 
-        if (type === 'manuskrip') query = query.eq('manuscript_id', targetId);
-        else query = query.eq('blog_id', targetId);
+        if (type === 'manuskrip') {
+            query = query.eq('manuscript_id', targetId);
+        } else {
+            query = query.eq('blog_id', targetId);
+        }
+        
+        if (userRole !== 'admin') {
+            query = query.eq('status', 'approved');
+        }
 
-        if (userRole !== 'admin') query = query.eq('status', 'approved');
-
-        query = query.order('created_at', { ascending: true }); // Ambil dari yang terlama agar pohon benar
+        query = query.order('created_at', { ascending: true });
 
         const { data, error: dbError } = await query;
+        
         if (dbError) {
+            console.error("Error fetching comments:", dbError);
             setError('Gagal memuat komentar.');
         } else {
-            const tree = buildCommentTree(data as any[] as Comment[]);
+            const tree = buildCommentTree(data as unknown as Comment[]);
             setCommentTree(tree);
         }
         setLoading(false);
-    }, [targetId, type, userRole]);
+    }, [targetId, type, userRole, buildCommentTree]);
 
     useEffect(() => {
         fetchComments();
-        const subscription = supabase.channel(`comments_channel_${type}_${targetId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => fetchComments()).subscribe();
-        return () => { supabase.removeChannel(subscription); };
-    }, [fetchComments, targetId, type]);
+        
+        const channel = supabase.channel(`comments_channel_${type}_${targetId}`);
+        
+        // --- PERUBAHAN DI SINI ---
+        const subscription = channel
+            // Variabel 'payload' dihapus karena tidak digunakan
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => {
+                fetchComments();
+            })
+            .subscribe();
+    
+        // Fungsi cleanup sekarang menggunakan variabel 'subscription'
+        return () => {
+            supabase.removeChannel(subscription);
+        };
+    }, [fetchComments, type, targetId]);
+    
+    const handleNewComment = () => {
+        fetchComments();
+    };
+
 
     if (loading) return <p className="text-gray-600 dark:text-gray-400 mt-4">Memuat komentar...</p>;
     if (error) return <p className="text-red-600 dark:text-red-400 mt-4">{error}</p>;
@@ -129,7 +166,7 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
                 <CommentItem 
                     key={comment.id} 
                     comment={comment} 
-                    onCommentPosted={fetchComments} // Panggil fetchComments lagi setelah ada komentar baru
+                    onCommentPosted={handleNewComment}
                     userRole={userRole}
                     targetId={targetId}
                     type={type}

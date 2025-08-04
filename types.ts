@@ -1,8 +1,9 @@
 // src/types.ts
-import { Session, User } from '@supabase/supabase-js'; // Import Session dan User
+import { Session, User } from '@supabase/supabase-js';
+
+// ... (Interface lain seperti Manuskrip, BlogPost, dll. tidak berubah) ...
 
 export interface Manuskrip {
-  // ... (field-field yang sudah ada)
   kode_inventarisasi: string;
   judul_dari_tim: string;
   afiliasi?: string;
@@ -13,7 +14,7 @@ export interface Manuskrip {
   link_digital_afiliasi?: string;
   link_digital_tppkp_qomaruddin?: string;
   url_kover?: string;
-  url_konten?: string; // URL yang dipisahkan baris baru
+  url_konten?: string;
   klasifikasi_kailani?: string;
   kategori_ilmu_pesantren?: string;
   deskripsi_umum?: string;
@@ -49,15 +50,12 @@ export interface Manuskrip {
   kelengkapan_naskah?: string;
   catatan_catatan?: string;
   created_at: string;
-
   kata_kunci?: string;
   glosarium?: string;
   referensi?: Array<{ judul: string; penulis: string; tahun: number | string; link: string }>;
   manuskrip_terkait?: string; 
   tokoh_terkait?: string;
-  
-  // --- PERUBAHAN DI SINI ---
-  jenis_kertas?: string; // Field baru ditambahkan
+  jenis_kertas?: string;
 }
 
 export enum BlogStatus {
@@ -96,9 +94,9 @@ export interface GuestBookEntry {
 
 export interface SearchHistoryEntry {
     id: number;
-    user_id: string; // UUID
+    user_id: string;
     query: string;
-    timestamp: string; // ISO string
+    timestamp: string;
     created_at: string;
 }
 
@@ -126,30 +124,7 @@ export interface UserProfileData {
     };
 }
 
-export interface CompleteProfileFormData {
-    full_name: string;
-    domicile_address?: string;
-    institution_affiliation?: string;
-}
-
 export type UserRole = 'guest' | 'authenticated' | 'pending' | 'verified_user' | 'admin';
-
-export interface SignUpFormData {
-    email: string;
-    password: string;
-}
-
-export interface CompleteProfileFormData {
-    full_name: string;
-    domicile_address?: string;
-    institution_affiliation?: string;
-    is_alumni?: boolean;
-    alumni_unit?: string | null;
-    alumni_grad_year?: number | null;
-    occupation?: string;
-    phone_number?: string;
-    status?: UserProfileStatus;
-}
 
 export interface AuthContextType {
     session: Session | null;
@@ -161,6 +136,7 @@ export interface AuthContextType {
     signOut: () => Promise<void>;
 }
 
+// --- PERUBAHAN UTAMA DI SINI ---
 export interface Comment {
     id: number;
     user_id: string;
@@ -169,6 +145,7 @@ export interface Comment {
     content: string;
     status: 'pending' | 'approved' | 'rejected';
     created_at: string;
+    parent_id?: number | null; // Properti ini ditambahkan
     user_profiles?: {
         full_name: string;
     } | null;
