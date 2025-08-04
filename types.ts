@@ -17,7 +17,7 @@ export interface Manuskrip {
   klasifikasi_kailani?: string;
   kategori_ilmu_pesantren?: string;
   deskripsi_umum?: string;
-  hlm_pemisah?: string; // Sudah ada di skema
+  hlm_pemisah?: string;
   pengarang?: string;
   penyalin?: string;
   tahun_penulisan_di_teks?: string;
@@ -29,7 +29,7 @@ export interface Manuskrip {
   kover?: string;
   ukuran_kover?: string;
   jilid?: string;
-  ukuran_kertas?: string; // BARU: Jenis Kertas
+  ukuran_kertas?: string;
   ukuran_dimensi?: string;
   watermark?: string;
   countermark?: string;
@@ -50,12 +50,14 @@ export interface Manuskrip {
   catatan_catatan?: string;
   created_at: string;
 
-  // --- FIELD BARU UNTUK REFERENSI ---
   kata_kunci?: string;
   glosarium?: string;
-  referensi?: Array<{ judul: string; penulis: string; tahun: number; link: string }>;
-  manuskrip_terkait?: string; // Manuskrip yang berhubungan
-  tokoh_terkait?: string; // Tokoh yang berhubungan
+  referensi?: Array<{ judul: string; penulis: string; tahun: number | string; link: string }>;
+  manuskrip_terkait?: string; 
+  tokoh_terkait?: string;
+  
+  // --- PERUBAHAN DI SINI ---
+  jenis_kertas?: string; // Field baru ditambahkan
 }
 
 export enum BlogStatus {
@@ -100,7 +102,6 @@ export interface SearchHistoryEntry {
     created_at: string;
 }
 
-// PERBAIKAN DI SINI: Tambahkan NO_PROFILE
 export enum UserProfileStatus {
   PENDING = 'PENDING',
   VERIFIED = 'VERIFIED',
@@ -113,15 +114,14 @@ export interface UserProfileData {
     domicile_address: string;
     institution_affiliation: string;
     is_alumni: boolean;
-    alumni_unit?: string | null; // Bisa null
-    alumni_grad_year?: number | null; // Bisa null
+    alumni_unit?: string | null;
+    alumni_grad_year?: number | null;
     occupation: string;
     phone_number: string;
-    status: UserProfileStatus; // Menggunakan enum UserProfileStatus
+    status: UserProfileStatus;
     created_at: string;
     updated_at: string;
-    // BARU: Field email yang akan di-join dari auth.users (untuk Admin)
-    auth_users?: { // Nama properti akan menjadi auth_users jika Anda select alias
+    auth_users?: {
         email?: string;
     };
 }
@@ -133,49 +133,43 @@ export interface CompleteProfileFormData {
 }
 
 export type UserRole = 'guest' | 'authenticated' | 'pending' | 'verified_user' | 'admin';
-// Interface untuk data yang dikirim dari form pendaftaran (hanya email & password)
+
 export interface SignUpFormData {
     email: string;
     password: string;
 }
 
-// Interface untuk data yang dikirim saat melengkapi profil (setelah sign-up)
-// Digunakan oleh admin saat membuat profil baru untuk user
 export interface CompleteProfileFormData {
     full_name: string;
-    domicile_address?: string; // Dijadikan opsional karena mungkin admin tidak mengisi semua
-    institution_affiliation?: string; // Dijadikan opsional
-    is_alumni?: boolean; // Dijadikan opsional
-    alumni_unit?: string | null; // Dijadikan opsional, bisa null
-    alumni_grad_year?: number | null; // Dijadikan opsional, bisa null
-    occupation?: string; // Dijadikan opsional
-    phone_number?: string; // Dijadikan opsional
-    status?: UserProfileStatus; // Admin bisa mengatur status awal
+    domicile_address?: string;
+    institution_affiliation?: string;
+    is_alumni?: boolean;
+    alumni_unit?: string | null;
+    alumni_grad_year?: number | null;
+    occupation?: string;
+    phone_number?: string;
+    status?: UserProfileStatus;
 }
 
-// DEFINISI AuthContextType HARUS DI-EXPORT DARI types.ts
-// PERBAIKAN: Tambahkan isInitialized di sini
 export interface AuthContextType {
     session: Session | null;
     user: User | null;
     userProfile: UserProfileData | null;
     role: UserRole;
     loading: boolean;
-    isInitialized: boolean; // <--- BARIS INI DITAMBAHKAN/DIPERBAIKI
+    isInitialized: boolean;
     signOut: () => Promise<void>;
 }
 
-// BARU: Tipe data untuk komentar
 export interface Comment {
     id: number;
-    user_id: string; // UUID dari user yang berkomentar
-    manuscript_id?: string; // UUID dari manuskrip yang dikomentari (opsional)
-    blog_id?: number; // ID dari blog post yang dikomentari (opsional)
+    user_id: string;
+    manuscript_id?: string;
+    blog_id?: number;
     content: string;
-    status: 'pending' | 'approved' | 'rejected'; // Status komentar
+    status: 'pending' | 'approved' | 'rejected';
     created_at: string;
-    // Untuk menampilkan nama user, bisa di-join dari `user_profiles`
     user_profiles?: {
         full_name: string;
-    } | null; // Bisa null jika relasi gagal atau user_profile dihapus
+    } | null;
 }

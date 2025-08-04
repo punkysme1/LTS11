@@ -4,10 +4,10 @@ import { Manuskrip } from '../../../types';
 import * as XLSX from 'xlsx';
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../../components/icons';
 
-// Membungkus FormField dengan React.memo untuk optimasi
+// Komponen FormField tetap sama
 const MemoizedFormField: React.FC<{ name: keyof Manuskrip, label: string, type?: string, disabled?: boolean, rows?: number, value: string | number | undefined, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void }> = React.memo(({ name, label, type = 'text', disabled = false, rows, value, onChange }) => {
     const displayValue = (type === 'number' && (value === 0 || value === null || value === undefined)) ? '' : (value || '');
-
+    // ... (implementasi komponen tidak berubah)
     return (
         <div>
             <label htmlFor={name as string} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
@@ -41,6 +41,7 @@ const MAX_REFERENCE_FIELDS = 10;
 const ITEMS_PER_PAGE_ADMIN = 10;
 
 const ManageManuscripts: React.FC = () => {
+    // ... (state dan hooks lainnya tetap sama)
     const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,8 @@ const ManageManuscripts: React.FC = () => {
     const [searchTermAdmin, setSearchTermAdmin] = useState('');
     const [currentPageAdmin, setCurrentPageAdmin] = useState(1);
 
+
+    // ... (semua fungsi handler seperti fetchManuscripts, handleInputChange, dll. tidak berubah)
     const fetchManuscripts = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
@@ -233,18 +236,11 @@ const ManageManuscripts: React.FC = () => {
             url_konten: finalUrlKonten,
             referensi: finalReferences.length > 0 ? finalReferences : null,
         };
-
-        console.log('Menyimpan data manuskrip...');
-        console.log('formData yang akan dikirim:', dataToSave);
         
         let supabaseCall;
         if (editingManuscript) {
-            console.log('Melakukan UPDATE untuk ID:', editingManuscript.kode_inventarisasi);
-            console.log('Data editingManuscript:', editingManuscript);
             supabaseCall = await supabase.from('manuskrip').update(dataToSave).eq('kode_inventarisasi', editingManuscript.kode_inventarisasi);
         } else {
-            console.log('Melakukan INSERT');
-            console.log('editingManuscript (saat insert, seharusnya null):', editingManuscript);
             supabaseCall = await supabase.from('manuskrip').insert([dataToSave]);
         }
 
@@ -252,17 +248,17 @@ const ManageManuscripts: React.FC = () => {
 
         if (error) {
             console.error('Error dari Supabase:', error);
-            console.error('Pesan Error:', error.message);
-            console.error('Detail Error:', error.details);
             alert('Gagal menyimpan: ' + (error.message || 'Terjadi kesalahan tidak dikenal.'));
         } else {
-            console.log('Operasi Supabase berhasil. Data yang dikembalikan:', data);
             alert('Artikel berhasil disimpan.');
             setShowModal(false);
             fetchManuscripts();
         }
     };
 
+
+    // --- PERUBAHAN DI SINI ---
+    // Header Excel diperbarui untuk mencakup semua kolom dari file SQL
     const excelHeaders = [
         "kode_inventarisasi", "judul_dari_tim", "afiliasi", "nama_koleksi", 
         "nomor_koleksi", "judul_dari_afiliasi", "nomor_digitalisasi", 
@@ -271,22 +267,23 @@ const ManageManuscripts: React.FC = () => {
         "deskripsi_umum", "hlm_pemisah", "pengarang", "penyalin", 
         "tahun_penulisan_di_teks", "konversi_masehi", "lokasi_penyalina", 
         "asal_usul_naskah", "bahasa", "aksara", "kover", "ukuran_kover", 
-        "jilid", "ukuran_kertas", "ukuran_dimensi", "watermark", 
+        "jilid", "ukuran_kertas", "jenis_kertas", "ukuran_dimensi", "watermark", 
         "countermark", "tinta", "jumlah_halaman", "halaman_kosong", 
         "jumlah_baris_per_halaman", "rubrikasi", "iluminasi", 
         "ilustrasi", "catatan_pinggir", "catatan_makna", "kolofon", 
         "catatan_marginal", "kondisi_fisik_naskah", "keterbacaan", 
-        "kelengkapan_naskah", "catatan_catatan",
-        "kata_kunci", "glosarium", "referensi", "manuskrip_terkait", "tokoh_terkait", "jenis_kertas"
+        "kelengkapan_naskah", "catatan_catatan", "kata_kunci", "glosarium", 
+        "referensi", "manuskrip_terkait", "tokoh_terkait"
     ];
 
     const handleDownloadTemplate = () => {
         const ws = XLSX.utils.aoa_to_sheet([excelHeaders]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Manuskrip");
-        XLSX.writeFile(wb, "template_manuskrip.xlsx");
+        XLSX.writeFile(wb, "template_manuskrip_lengkap.xlsx");
     };
     
+    // ... (Fungsi handleBulkUpload tetap sama, ia akan menggunakan excelHeaders yang baru)
     const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) {
@@ -352,9 +349,11 @@ const ManageManuscripts: React.FC = () => {
         reader.readAsArrayBuffer(file);
     };
 
+
     return (
         <div className="p-6">
-            {error && <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-900 dark:text-red-200" role="alert">{error}</div>}
+            {/* ... (Tampilan utama, tabel, dan paginasi tidak berubah) */}
+             {error && <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-900 dark:text-red-200" role="alert">{error}</div>}
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                 <div className="flex justify-between items-center mb-4 flex-wrap gap-y-3">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Manajemen Manuskrip</h2>
@@ -453,8 +452,11 @@ const ManageManuscripts: React.FC = () => {
                         <h3 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                             {editingManuscript ? 'Edit Manuskrip' : 'Tambah Manuskrip'}
                         </h3>
+                        {/* --- PERUBAHAN DI SINI --- */}
+                        {/* Konten modal diperbarui dengan semua field */}
                         <div className="p-4 overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {/* SEKSI 1: Info Utama & Klasifikasi */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Info Utama & Klasifikasi</h4>
                                 <MemoizedFormField name="kode_inventarisasi" label="Kode Inventarisasi (Wajib)" disabled={!!editingManuscript} value={formData.kode_inventarisasi} onChange={handleInputChange} />
                                 <MemoizedFormField name="judul_dari_tim" label="Judul Tim (Wajib)" value={formData.judul_dari_tim} onChange={handleInputChange} />
@@ -467,11 +469,10 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="nomor_digitalisasi" label="Nomor Digitalisasi" value={formData.nomor_digitalisasi} onChange={handleInputChange} />
                                 <MemoizedFormField name="link_digital_afiliasi" label="Link Digital Afiliasi" value={formData.link_digital_afiliasi} onChange={handleInputChange} />
                                 <MemoizedFormField name="link_digital_tppkp_qomaruddin" label="Link Digital TPPKP Qomaruddin" value={formData.link_digital_tppkp_qomaruddin} onChange={handleInputChange} />
-                                
+
+                                {/* SEKSI 2: URL Gambar */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">URL Gambar</h4>
                                 <MemoizedFormField name="url_kover" label="URL Kover" value={formData.url_kover} onChange={handleInputChange} />
-                                
-                                {/* Bagian untuk multiple URL Konten */}
                                 <div className="col-span-full">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL Konten (maks. {MAX_URL_FIELDS} link)</label>
                                     <div className="space-y-2">
@@ -485,54 +486,35 @@ const ManageManuscripts: React.FC = () => {
                                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                                                 />
                                                 {urlContentFields.length > 1 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRemoveUrlField(index)}
-                                                        className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
-                                                        title="Hapus URL ini"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                                        </svg>
-                                                    </button>
+                                                    <button type="button" onClick={() => handleRemoveUrlField(index)} className="p-2 text-red-600 hover:text-red-800" title="Hapus URL">X</button>
                                                 )}
                                             </div>
                                         ))}
                                     </div>
                                     {urlContentFields.length < MAX_URL_FIELDS && (
-                                        <button
-                                            type="button"
-                                            onClick={handleAddUrlField}
-                                            className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200 dark:bg-primary-700 dark:text-primary-200 dark:hover:bg-primary-600"
-                                        >
-                                            + Tambah URL
-                                        </button>
+                                        <button type="button" onClick={handleAddUrlField} className="mt-2 text-sm text-primary-600 hover:text-primary-800">+ Tambah URL</button>
                                     )}
                                 </div>
-                                {/* End Bagian baru untuk multiple URL Konten */}
-
+                                
+                                {/* SEKSI 3: Atribut Fisik */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Atribut Fisik</h4>
                                 <MemoizedFormField name="kondisi_fisik_naskah" label="Kondisi Fisik" value={formData.kondisi_fisik_naskah} onChange={handleInputChange} />
                                 <MemoizedFormField name="ukuran_dimensi" label="Ukuran Dimensi" value={formData.ukuran_dimensi} onChange={handleInputChange} />
+                                <MemoizedFormField name="jenis_kertas" label="Jenis Kertas" value={formData.jenis_kertas} onChange={handleInputChange} />
+                                <MemoizedFormField name="ukuran_kertas" label="Ukuran Kertas" value={formData.ukuran_kertas} onChange={handleInputChange} />
                                 <MemoizedFormField name="kover" label="Kover" value={formData.kover} onChange={handleInputChange} />
                                 <MemoizedFormField name="ukuran_kover" label="Ukuran Kover" value={formData.ukuran_kover} onChange={handleInputChange} />
                                 <MemoizedFormField name="jilid" label="Jilid" value={formData.jilid} onChange={handleInputChange} />
-                                <MemoizedFormField name="ukuran_kertas" label="Ukuran Kertas" value={formData.ukuran_kertas} onChange={handleInputChange} />
                                 <MemoizedFormField name="watermark" label="Watermark" value={formData.watermark} onChange={handleInputChange} />
                                 <MemoizedFormField name="countermark" label="Countermark" value={formData.countermark} onChange={handleInputChange} />
                                 <MemoizedFormField name="tinta" label="Tinta" value={formData.tinta} onChange={handleInputChange} />
                                 <MemoizedFormField name="jumlah_halaman" label="Jumlah Halaman" type="number" value={formData.jumlah_halaman} onChange={handleInputChange} />
                                 <MemoizedFormField name="halaman_kosong" label="Halaman Kosong" value={formData.halaman_kosong} onChange={handleInputChange} />
                                 <MemoizedFormField name="jumlah_baris_per_halaman" label="Jumlah Baris per Halaman" value={formData.jumlah_baris_per_halaman} onChange={handleInputChange} />
-                                <MemoizedFormField name="rubrikasi" label="Rubrikasi" value={formData.rubrikasi} onChange={handleInputChange} />
-                                <MemoizedFormField name="iluminasi" label="Iluminasi" value={formData.iluminasi} onChange={handleInputChange} />
-                                <MemoizedFormField name="ilustrasi" label="Ilustrasi" value={formData.ilustrasi} onChange={handleInputChange} />
-                                <MemoizedFormField name="catatan_pinggir" label="Catatan Pinggir" value={formData.catatan_pinggir} onChange={handleInputChange} />
-                                <MemoizedFormField name="catatan_makna" label="Catatan Makna" value={formData.catatan_makna} onChange={handleInputChange} />
                                 <MemoizedFormField name="keterbacaan" label="Keterbacaan" value={formData.keterbacaan} onChange={handleInputChange} />
                                 <MemoizedFormField name="kelengkapan_naskah" label="Kelengkapan Naskah" value={formData.kelengkapan_naskah} onChange={handleInputChange} />
-                                <MemoizedFormField name="hlm_pemisah" label="Halaman Pemisah" value={formData.hlm_pemisah} onChange={handleInputChange} />
 
+                                {/* SEKSI 4: Konten & Produksi */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Konten & Produksi</h4>
                                 <MemoizedFormField name="pengarang" label="Pengarang" value={formData.pengarang} onChange={handleInputChange} />
                                 <MemoizedFormField name="penyalin" label="Penyalin" value={formData.penyalin} onChange={handleInputChange} />
@@ -542,21 +524,27 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="asal_usul_naskah" label="Asal-usul Naskah" value={formData.asal_usul_naskah} onChange={handleInputChange} />
                                 <MemoizedFormField name="bahasa" label="Bahasa" value={formData.bahasa} onChange={handleInputChange} />
                                 <MemoizedFormField name="aksara" label="Aksara" value={formData.aksara} onChange={handleInputChange} />
+                                <MemoizedFormField name="rubrikasi" label="Rubrikasi" value={formData.rubrikasi} onChange={handleInputChange} />
+                                <MemoizedFormField name="iluminasi" label="Iluminasi" value={formData.iluminasi} onChange={handleInputChange} />
+                                <MemoizedFormField name="ilustrasi" label="Ilustrasi" value={formData.ilustrasi} onChange={handleInputChange} />
+                                <MemoizedFormField name="catatan_pinggir" label="Catatan Pinggir" value={formData.catatan_pinggir} onChange={handleInputChange} />
+                                <MemoizedFormField name="catatan_makna" label="Catatan Makna" value={formData.catatan_makna} onChange={handleInputChange} />
+                                <MemoizedFormField name="hlm_pemisah" label="Halaman Pemisah" value={formData.hlm_pemisah} onChange={handleInputChange} />
                                 <MemoizedFormField name="kolofon" label="Kolofon" type="textarea" rows={5} value={formData.kolofon} onChange={handleInputChange} />
-                                <MemoizedFormField name="catatan_catatan" label="Catatan Tambahan" type="textarea" rows={5} value={formData.catatan_catatan} onChange={handleInputChange} />
                                 <MemoizedFormField name="catatan_marginal" label="Catatan Marginal" type="textarea" rows={5} value={formData.catatan_marginal} onChange={handleInputChange} />
                                 <MemoizedFormField name="deskripsi_umum" label="Deskripsi Umum" type="textarea" rows={5} value={formData.deskripsi_umum} onChange={handleInputChange} />
+                                <MemoizedFormField name="catatan_catatan" label="Catatan Tambahan" type="textarea" rows={5} value={formData.catatan_catatan} onChange={handleInputChange} />
 
-                                {/* BAGIAN BARU UNTUK REFERENSI DAN LAINNYA */}
+                                {/* SEKSI 5: Referensi & Metadata Tambahan */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Referensi & Metadata Tambahan</h4>
                                 <MemoizedFormField name="kata_kunci" label="Kata Kunci (pisahkan koma)" value={formData.kata_kunci} onChange={handleInputChange} />
                                 <MemoizedFormField name="glosarium" label="Glosarium" type="textarea" rows={3} value={formData.glosarium} onChange={handleInputChange} />
-                                <MemoizedFormField name="manuskrip_terkait" label="Manuskrip Terkait (Kode Inventarisasi, pisahkan koma)" value={formData.manuskrip_terkait} onChange={handleInputChange} />
+                                <MemoizedFormField name="manuskrip_terkait" label="Manuskrip Terkait (Kode, pisahkan koma)" value={formData.manuskrip_terkait} onChange={handleInputChange} />
                                 <MemoizedFormField name="tokoh_terkait" label="Tokoh Terkait (Nama, pisahkan koma)" value={formData.tokoh_terkait} onChange={handleInputChange} />
-
                                 <div className="col-span-full">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Daftar Referensi (maks. {MAX_REFERENCE_FIELDS})</label>
-                                    <div className="space-y-4 rounded-md p-3 border border-gray-200 dark:border-gray-700">
+                                    <label className="block text-sm font-medium">Daftar Referensi</label>
+                                    {/* ... (logika untuk input referensi tidak berubah) */}
+                                     <div className="space-y-4 rounded-md p-3 border border-gray-200 dark:border-gray-700">
                                         {referenceFields.map((ref, index) => (
                                             <div key={index} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600">
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -575,7 +563,7 @@ const ManageManuscripts: React.FC = () => {
                                                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                                                     />
                                                     <input
-                                                        type="text" // Tahun juga sebagai teks
+                                                        type="text" 
                                                         value={ref.tahun}
                                                         onChange={(e) => handleReferenceFieldChange(index, 'tahun', e.target.value)}
                                                         placeholder="Tahun"
@@ -590,32 +578,20 @@ const ManageManuscripts: React.FC = () => {
                                                     />
                                                 </div>
                                                 {referenceFields.length > 1 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRemoveReferenceField(index)}
-                                                        className="mt-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 text-sm"
-                                                    >
-                                                        Hapus Referensi
-                                                    </button>
+                                                    <button type="button" onClick={() => handleRemoveReferenceField(index)} className="mt-2 text-red-600 hover:text-red-800 text-sm">Hapus</button>
                                                 )}
                                             </div>
                                         ))}
                                         {referenceFields.length < MAX_REFERENCE_FIELDS && (
-                                            <button
-                                                type="button"
-                                                onClick={handleAddReferenceField}
-                                                className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200 dark:bg-primary-700 dark:text-primary-200 dark:hover:bg-primary-600"
-                                            >
-                                                + Tambah Referensi
-                                            </button>
+                                            <button type="button" onClick={handleAddReferenceField} className="mt-2 text-sm text-primary-600 hover:text-primary-800">+ Tambah Referensi</button>
                                         )}
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
-                            <button onClick={() => setShowModal(false)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm bg-gray-300 hover:bg-gray-400 text-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200">Batal</button>
-                            <button onClick={handleSave} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm bg-primary-600 hover:bg-primary-700 text-white">Simpan</button>
+                            <button onClick={() => setShowModal(false)} className="px-4 py-2 bg-gray-200 rounded-md">Batal</button>
+                            <button onClick={handleSave} className="px-4 py-2 bg-primary-600 text-white rounded-md">Simpan</button>
                         </div>
                     </div>
                 </div>

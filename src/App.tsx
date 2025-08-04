@@ -1,12 +1,15 @@
 // src/App.tsx
 import React, { useState, useEffect, createContext, Suspense, lazy } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
+// --- PERUBAHAN DI SINI ---
+import { Helmet, HelmetProvider } from 'react-helmet-async';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NotFound from './pages/NotFound';
 import AdminRoute from './pages/AdminRoute'; 
-import { dataStore } from './dataStore'; // Import dataStore
+import { dataStore } from './dataStore';
 
+// ... (semua import lazy-loaded components tetap sama)
 const Home = lazy(() => import('./pages/HomePage'));
 const Catalog = lazy(() => import('./pages/CatalogPage'));
 const ManuscriptDetail = lazy(() => import('./pages/ManuscriptDetailPage'));
@@ -22,6 +25,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const AdminLoginPage = lazy(() => import('./pages/AdminLoginPage'));
 const DashboardLayout = lazy(() => import('./pages/DashboardLayout'));
 
+
 export const ThemeContext = createContext({
   theme: 'light',
   toggleTheme: () => {},
@@ -31,21 +35,25 @@ const AppContent: React.FC = () => {
     const location = useLocation();
     const isAdminRoute = location.pathname.startsWith('/admin');
 
-    // --- PERBAIKAN KRUSIAL DI SINI ---
-    // Memanggil dataStore.initialize() sekali saat aplikasi dimuat.
-    // Ini akan memicu pengambilan data blog, manuskrip, dll.
     useEffect(() => {
         dataStore.initialize();
     }, []);
-    // --- AKHIR PERBAIKAN ---
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
+            {/* Default meta tags untuk seluruh situs */}
+            <Helmet>
+                <title>Pusat Digitalisasi Manuskrip Qomaruddin</title>
+                <meta name="description" content="Jelajahi koleksi manuskrip digital dari Pondok Pesantren Qomaruddin, Sampurnan, Bungah, Gresik." />
+                <meta property="og:site_name" content="Pusat Digitalisasi Manuskrip Qomaruddin" />
+            </Helmet>
+
             {!isAdminRoute && <Header />}
             
             <main className="flex-grow container mx-auto px-4 py-8">
                 <Suspense fallback={<div className="flex justify-center items-center h-screen">Memuat halaman...</div>}>
                     <Routes>
+                        {/* ... (semua Route tetap sama) */}
                         <Route path="/" element={<Home />} />
                         <Route path="/katalog" element={<Catalog />} />
                         <Route path="/manuskrip/:id" element={<ManuscriptDetail />} />
@@ -102,9 +110,12 @@ const App: React.FC = () => {
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <AppContent />
-    </ThemeContext.Provider>
+    // --- PERUBAHAN DI SINI ---
+    <HelmetProvider>
+      <ThemeContext.Provider value={{ theme, toggleTheme }}>
+        <AppContent />
+      </ThemeContext.Provider>
+    </HelmetProvider>
   );
 };
 
