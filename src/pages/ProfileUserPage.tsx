@@ -2,30 +2,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../supabaseClient';
-import { UserProfileData, UserProfileStatus } from '../../types'; 
+import { UserProfileData } from '../../types'; 
 import { Link, useNavigate } from 'react-router-dom';
 
-// --- PERBAIKAN UTAMA ADA DI DALAM KOMPONEN INI ---
 const MemoizedProfileFormField: React.FC<{
     name: keyof UserProfileData;
     label: string;
     type?: string;
     required?: boolean;
-    value: string | number | boolean | null | undefined; // 1. Tipe diubah untuk menerima 'null'
+    value: string | number | boolean | null | undefined;
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
     disabled?: boolean;
 }> = React.memo(({ name, label, type = 'text', required = true, value, onChange, disabled = false }) => {
     const isCheckbox = type === 'checkbox';
-    
-    // 2. Logika untuk menentukan nilai yang akan ditampilkan pada input
     let displayValue;
     if (isCheckbox) {
-        displayValue = !!value; // Untuk checkbox, kita butuh boolean
+        displayValue = !!value;
     } else {
-        // Untuk input lain, pastikan bukan boolean dan ubah null/undefined menjadi string kosong
         displayValue = (typeof value === 'boolean' || value === null || value === undefined) ? '' : value;
     }
-
     return (
         <div>
             <label htmlFor={name as string} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -35,14 +30,14 @@ const MemoizedProfileFormField: React.FC<{
                 {isCheckbox ? (
                     <input
                         type="checkbox" id={name as string} name={name as string}
-                        checked={displayValue as boolean} // Menggunakan 'checked'
+                        checked={displayValue as boolean}
                         onChange={onChange} disabled={disabled}
                         className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                     />
                 ) : (
                     <input
                         type={type} id={name as string} name={name as string}
-                        value={displayValue as string | number} // Menggunakan 'value'
+                        value={displayValue as string | number}
                         onChange={onChange} required={required} disabled={disabled}
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:disabled:bg-gray-800"
                     />
@@ -92,6 +87,7 @@ const ProfileUserPage: React.FC = () => {
         navigate('/');
     };
 
+    // --- PERBAIKAN KUNCI: Menggunakan metode 'upsert' ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -105,34 +101,32 @@ const ProfileUserPage: React.FC = () => {
         }
 
         const dataToSubmit = {
+            id: user.id, // Primary key WAJIB disertakan untuk upsert
             full_name: formData.full_name,
             domicile_address: formData.domicile_address,
             institution_affiliation: formData.institution_affiliation,
-            is_alumni: formData.is_alumni,
+            is_alumni: !!formData.is_alumni,
             alumni_unit: formData.is_alumni ? formData.alumni_unit : null,
             alumni_grad_year: formData.is_alumni && formData.alumni_grad_year ? Number(formData.alumni_grad_year) : null,
             occupation: formData.occupation,
             phone_number: formData.phone_number,
+            status: userProfile?.status || 'pending' // Pertahankan status lama atau set 'pending' untuk user baru
         };
-
-        let response;
-        if (userProfile) {
-            response = await supabase
-                .from('user_profiles')
-                .update(dataToSubmit)
-                .eq('id', user.id);
-        } else {
-            response = await supabase
-                .from('user_profiles')
-                .insert({ ...dataToSubmit, id: user.id, status: UserProfileStatus.PENDING });
-        }
+        
+        // Perintah upsert akan otomatis INSERT jika belum ada, atau UPDATE jika sudah ada.
+        const { error: upsertError } = await supabase
+            .from('user_profiles')
+            .upsert(dataToSubmit, {
+                onConflict: 'id', // Tentukan kolom yang menjadi penentu konflik
+            });
 
         setLoading(false);
 
-        if (response.error) {
-            setError(response.error.message);
+        if (upsertError) {
+            setError(upsertError.message);
         } else {
-            setSuccessMessage(userProfile ? 'Profil berhasil diperbarui!' : 'Profil berhasil dibuat! Data Anda akan diverifikasi oleh Admin.');
+            setSuccessMessage('Profil berhasil disimpan!');
+            // Reload halaman setelah 2 detik untuk memastikan data terbaru ditampilkan
             setTimeout(() => window.location.reload(), 2000);
         }
     };
@@ -161,7 +155,7 @@ const ProfileUserPage: React.FC = () => {
 
             <div className="mb-6 p-3 bg-gray-100 dark:bg-gray-700 rounded-md text-sm">
                 <p><strong>Email:</strong> {user.email}</p>
-                <p><strong>Status Profil:</strong> <span className="font-semibold capitalize">{profileStatus}</span></p>
+                <p><strong>Status Profil:</strong> <span className="font-semibold capitalize">{profileStatus.replace('_', ' ')}</span></p>
                 {userProfile?.status === 'pending' && <p className="text-yellow-600">Profil Anda sedang menunggu verifikasi oleh admin.</p>}
             </div>
 
