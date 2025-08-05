@@ -1,5 +1,6 @@
 // src/dataStore.ts
 import { supabase } from './supabaseClient';
+// --- PERBAIKAN 1: Impor kembali 'BlogStatus' ---
 import { Manuskrip, BlogPost, GuestBookEntry, BlogStatus } from '../types';
 
 interface DataStoreState {
@@ -45,28 +46,26 @@ class DataStore {
         if (this.hasFetched) return;
         this.hasFetched = true;
 
-        this.setState({ loading: true });
+        this.setState({ loading: true, error: null });
 
         try {
-            // --- AWAL PERBAIKAN ---
-            // 1. Query blog disederhanakan, hanya mengandalkan 'status'.
-            // 2. Ditambahkan filter tanggal untuk hanya menampilkan post yang sudah waktunya terbit.
+            const today = new Date().toISOString().split('T')[0];
+            
+            // --- PERBAIKAN 2: Gunakan enum BlogStatus.PUBLISHED yang nilainya "Published" ---
             const blogPostsQuery = supabase
                 .from('blog')
                 .select('*')
-                .eq('status', BlogStatus.PUBLISHED)
-                .lte('tanggal_publikasi', new Date().toISOString()) // Hanya tampilkan post yang tanggalnya <= hari ini
+                .eq('status', BlogStatus.PUBLISHED) // Menggunakan enum yang benar
+                .lte('tanggal_publikasi', today) 
                 .order('tanggal_publikasi', { ascending: false });
-            // --- AKHIR PERBAIKAN ---
 
             const [manuscriptsRes, blogPostsRes, guestBookRes] = await Promise.all([
                 supabase.from('manuskrip').select('*').order('created_at', { ascending: false }),
-                blogPostsQuery, // Menggunakan query yang sudah diperbaiki
+                blogPostsQuery,
                 supabase.from('buku_tamu').select('*').eq('is_approved', true).order('created_at', { ascending: false })
             ]);
 
             if (manuscriptsRes.error || blogPostsRes.error || guestBookRes.error) {
-                // Log error spesifik untuk debugging
                 console.error('Manuscripts Error:', manuscriptsRes.error);
                 console.error('Blog Posts Error:', blogPostsRes.error);
                 console.error('Guest Book Error:', guestBookRes.error);

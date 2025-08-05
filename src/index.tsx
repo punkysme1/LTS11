@@ -4,12 +4,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { BrowserRouter } from 'react-router-dom';
-import { dataStore } from './dataStore'; // Import dataStore
+// --- PERBAIKAN: Hapus baris import di bawah ini karena sudah tidak digunakan ---
+// import { dataStore } from './dataStore'; 
 
 console.log('MAIN_APP_ENTRY_POINT: Application is starting...');
-
-// Ambil data publik satu kali saat aplikasi dimuat
-dataStore.initialize();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

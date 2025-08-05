@@ -1,8 +1,6 @@
 // src/types.ts
 import { Session, User } from '@supabase/supabase-js';
 
-// ... (Interface lain seperti Manuskrip, BlogPost, dll. tidak berubah) ...
-
 export interface Manuskrip {
   kode_inventarisasi: string;
   judul_dari_tim: string;
@@ -58,6 +56,7 @@ export interface Manuskrip {
   jenis_kertas?: string;
 }
 
+// --- PERBAIKAN: Kembalikan ke format huruf kapital sesuai permintaan database ---
 export enum BlogStatus {
   DRAFT = 'Draft',
   PUBLISHED = 'Published',
@@ -75,10 +74,11 @@ export interface BlogPost {
   published?: boolean;
 }
 
+// Enum ini tetap menggunakan huruf kecil karena sudah benar untuk tabel buku_tamu
 export enum GuestBookStatus {
-  PENDING = 'Pending',
-  APPROVED = 'Approved',
-  REJECTED = 'Rejected',
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
 }
 
 export interface GuestBookEntry {
@@ -100,10 +100,12 @@ export interface SearchHistoryEntry {
     created_at: string;
 }
 
+// Enum ini tetap menggunakan huruf kecil untuk konsistensi
 export enum UserProfileStatus {
-  PENDING = 'PENDING',
-  VERIFIED = 'VERIFIED',
-  REJECTED = 'REJECTED',
+  PENDING = 'pending',
+  VERIFIED = 'verified',
+  REJECTED = 'rejected',
+  NO_PROFILE = 'no_profile'
 }
 
 export interface UserProfileData {
@@ -136,7 +138,6 @@ export interface AuthContextType {
     signOut: () => Promise<void>;
 }
 
-// --- PERUBAHAN UTAMA DI SINI ---
 export interface Comment {
     id: number;
     user_id: string;
@@ -145,7 +146,7 @@ export interface Comment {
     content: string;
     status: 'pending' | 'approved' | 'rejected';
     created_at: string;
-    parent_id?: number | null; // Properti ini ditambahkan
+    parent_id?: number | null;
     user_profiles?: {
         full_name: string;
     } | null;

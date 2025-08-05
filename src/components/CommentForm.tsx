@@ -2,18 +2,19 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../hooks/useAuth';
-import { Comment, UserProfileStatus } from '../../types'; // Tipe diimpor dari file yang sudah benar
+import { Comment, UserProfileStatus } from '../../types';
 import { Link } from 'react-router-dom';
 
+// --- PERBAIKAN 1: Menyesuaikan nama properti agar cocok dengan komponen lain ---
 interface CommentFormProps {
     targetId: string | number;
     type: 'manuskrip' | 'blog';
     parentId?: number | null;
-    onCommentPosted?: (newComment: Comment) => void;
+    onSuccess?: (newComment: Comment) => void; // Diganti dari onCommentPosted
     onCancelReply?: () => void;
 }
 
-const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, parentId = null, onCommentPosted, onCancelReply }) => {
+const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, parentId = null, onSuccess, onCancelReply }) => {
     const { user, userProfile } = useAuth();
     const [content, setContent] = useState('');
     const [loading, setLoading] = useState(false);
@@ -33,8 +34,7 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, parentId = nu
         setLoading(true);
         setError(null);
         
-        // Membuat objek data dengan tipe yang lebih kuat
-        const insertData: Omit<Comment, 'id' | 'created_at'> = {
+        const insertData: Omit<Comment, 'id' | 'created_at' | 'user_profiles'> = {
             user_id: user.id,
             content: content,
             status: 'pending',
@@ -43,10 +43,11 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, parentId = nu
             blog_id: type === 'blog' ? Number(targetId) : undefined,
         };
 
+        // --- PERBAIKAN 2: Menggunakan join '!inner' yang lebih aman dan terbukti berfungsi ---
         const { data, error: dbError } = await supabase
             .from('comments')
             .insert(insertData)
-            .select('*, user_profiles(full_name)')
+            .select('*, user_profiles!inner(full_name)')
             .single();
 
         setLoading(false);
@@ -54,15 +55,24 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, parentId = nu
             setError('Gagal mengirim komentar: ' + dbError.message);
         } else {
             setContent('');
-            if (onCommentPosted && data) onCommentPosted(data as Comment);
-            if (onCancelReply) onCancelReply();
+            // --- PERBAIKAN 3: Memanggil callback yang sesuai setelah sukses ---
+            if (onSuccess && data) {
+                onSuccess(data as Comment);
+            }
+            // Jika ini form balasan, panggil juga onCancelReply untuk menutup form
+            if (isReplyForm && onCancelReply) {
+                onCancelReply();
+            } else if (!isReplyForm) {
+                // Untuk komentar utama, cukup beri notifikasi
+                 alert("Komentar Anda berhasil dikirim dan sedang menunggu moderasi.");
+            }
         }
     };
 
     const isReplyForm = parentId !== null;
 
     return (
-        <div className={`mt-4 ${isReplyForm ? 'ml-4 md:ml-8 border-l-2 pl-4' : 'p-4 bg-gray-100 dark:bg-gray-700 rounded-lg shadow-inner'}`}>
+        <div className={`mt-4 ${isReplyForm ? 'ml-4 md:ml-8' : 'p-4 bg-gray-100 dark:bg-gray-700 rounded-lg shadow-inner'}`}>
             {!isReplyForm && <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Tulis Komentar</h3>}
             <form onSubmit={handleSubmit}>
                 <textarea
@@ -90,8 +100,10 @@ const CommentForm: React.FC<CommentFormProps> = ({ targetId, type, parentId = nu
                     </button>
                 </div>
 
-                {!user && !isReplyForm && (
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-2">Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> untuk berkomentar.</p>
+                {!user && (
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-4">
+                        Silakan <Link to="/login" className="text-primary-600 hover:underline">login</Link> untuk berkomentar.
+                    </p>
                 )}
             </form>
         </div>

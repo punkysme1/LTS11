@@ -30,9 +30,9 @@ const ContactPage: React.FC = () => {
                     </div>
                 </div>
                 <div className="rounded-lg shadow-lg overflow-hidden">
-                    {/* FIX: Menggunakan URL embed Google Maps yang valid */}
+                    {/* --- PERBAIKAN: Menggunakan URL embed Google Maps yang valid --- */}
                     <iframe
-                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3959.436734499351!2d112.59349881525704!3d-7.07433437137583!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e77e23197607e1b%3A0x9d3f2a1b98af9856!2sPondok%20Pesantren%20Qomaruddin!5e0!3m2!1sen!2sid!4v1678886543210!5m2!1sen!2sid"
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3959.380963844626!2d112.59363387499805!3d-7.08111249292214!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e77e0b3c1b63e91%3A0xf6396495b291c94a!2sPondok%20Pesantren%20Qomaruddin!5e0!3m2!1sen!2sid!4v1722847778393!5m2!1sen!2sid"
                         width="100%"
                         height="450"
                         style={{ border: 0 }}

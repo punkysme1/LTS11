@@ -41,7 +41,6 @@ const MAX_REFERENCE_FIELDS = 10;
 const ITEMS_PER_PAGE_ADMIN = 10;
 
 const ManageManuscripts: React.FC = () => {
-    // ... (state dan hooks lainnya tetap sama)
     const [manuscripts, setManuscripts] = useState<Manuskrip[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -51,12 +50,9 @@ const ManageManuscripts: React.FC = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [urlContentFields, setUrlContentFields] = useState<string[]>([]);
     const [referenceFields, setReferenceFields] = useState<Array<{ judul: string; penulis: string; tahun: string; link: string }>>([]);
-
     const [searchTermAdmin, setSearchTermAdmin] = useState('');
     const [currentPageAdmin, setCurrentPageAdmin] = useState(1);
 
-
-    // ... (semua fungsi handler seperti fetchManuscripts, handleInputChange, dll. tidak berubah)
     const fetchManuscripts = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
@@ -108,7 +104,6 @@ const ManageManuscripts: React.FC = () => {
         setSearchTermAdmin(e.target.value);
         setCurrentPageAdmin(1);
     }, []);
-
 
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -187,10 +182,11 @@ const ManageManuscripts: React.FC = () => {
         
         setEditingManuscript(data);
         setFormData(data);
-
+        
+        // --- PERBAIKAN 1: Menambahkan tipe 'string' eksplisit pada parameter 'url' ---
         const parsedUrls = (data.url_konten || '')
                             .split('\n')
-                            .map(url => url.trim())
+                            .map((url: string) => url.trim())
                             .filter(url => url !== '');
         setUrlContentFields(parsedUrls.length > 0 ? parsedUrls : ['']);
 
@@ -239,12 +235,13 @@ const ManageManuscripts: React.FC = () => {
         
         let supabaseCall;
         if (editingManuscript) {
-            supabaseCall = await supabase.from('manuskrip').update(dataToSave).eq('kode_inventarisasi', editingManuscript.kode_inventarisasi);
+            supabaseCall = supabase.from('manuskrip').update(dataToSave).eq('kode_inventarisasi', editingManuscript.kode_inventarisasi);
         } else {
-            supabaseCall = await supabase.from('manuskrip').insert([dataToSave]);
+            supabaseCall = supabase.from('manuskrip').insert([dataToSave]);
         }
-
-        const { data, error } = supabaseCall;
+        
+        // --- PERBAIKAN 2: Menghapus variabel 'data' yang tidak pernah digunakan ---
+        const { error } = await supabaseCall;
 
         if (error) {
             console.error('Error dari Supabase:', error);
@@ -257,8 +254,6 @@ const ManageManuscripts: React.FC = () => {
     };
 
 
-    // --- PERUBAHAN DI SINI ---
-    // Header Excel diperbarui untuk mencakup semua kolom dari file SQL
     const excelHeaders = [
         "kode_inventarisasi", "judul_dari_tim", "afiliasi", "nama_koleksi", 
         "nomor_koleksi", "judul_dari_afiliasi", "nomor_digitalisasi", 
@@ -283,7 +278,6 @@ const ManageManuscripts: React.FC = () => {
         XLSX.writeFile(wb, "template_manuskrip_lengkap.xlsx");
     };
     
-    // ... (Fungsi handleBulkUpload tetap sama, ia akan menggunakan excelHeaders yang baru)
     const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) {
@@ -352,13 +346,11 @@ const ManageManuscripts: React.FC = () => {
 
     return (
         <div className="p-6">
-            {/* ... (Tampilan utama, tabel, dan paginasi tidak berubah) */}
              {error && <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-900 dark:text-red-200" role="alert">{error}</div>}
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                 <div className="flex justify-between items-center mb-4 flex-wrap gap-y-3">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Manajemen Manuskrip</h2>
                     <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-                        {/* Kolom Pencarian */}
                         <div className="relative">
                             <input
                                 type="text"
@@ -414,7 +406,6 @@ const ManageManuscripts: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
-                    {/* Pagination Controls */}
                     {totalPagesAdmin > 1 && (
                         <div className="mt-4 flex justify-center items-center space-x-2">
                             <button
@@ -452,11 +443,8 @@ const ManageManuscripts: React.FC = () => {
                         <h3 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                             {editingManuscript ? 'Edit Manuskrip' : 'Tambah Manuskrip'}
                         </h3>
-                        {/* --- PERUBAHAN DI SINI --- */}
-                        {/* Konten modal diperbarui dengan semua field */}
                         <div className="p-4 overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {/* SEKSI 1: Info Utama & Klasifikasi */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Info Utama & Klasifikasi</h4>
                                 <MemoizedFormField name="kode_inventarisasi" label="Kode Inventarisasi (Wajib)" disabled={!!editingManuscript} value={formData.kode_inventarisasi} onChange={handleInputChange} />
                                 <MemoizedFormField name="judul_dari_tim" label="Judul Tim (Wajib)" value={formData.judul_dari_tim} onChange={handleInputChange} />
@@ -470,7 +458,6 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="link_digital_afiliasi" label="Link Digital Afiliasi" value={formData.link_digital_afiliasi} onChange={handleInputChange} />
                                 <MemoizedFormField name="link_digital_tppkp_qomaruddin" label="Link Digital TPPKP Qomaruddin" value={formData.link_digital_tppkp_qomaruddin} onChange={handleInputChange} />
 
-                                {/* SEKSI 2: URL Gambar */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">URL Gambar</h4>
                                 <MemoizedFormField name="url_kover" label="URL Kover" value={formData.url_kover} onChange={handleInputChange} />
                                 <div className="col-span-full">
@@ -496,7 +483,6 @@ const ManageManuscripts: React.FC = () => {
                                     )}
                                 </div>
                                 
-                                {/* SEKSI 3: Atribut Fisik */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Atribut Fisik</h4>
                                 <MemoizedFormField name="kondisi_fisik_naskah" label="Kondisi Fisik" value={formData.kondisi_fisik_naskah} onChange={handleInputChange} />
                                 <MemoizedFormField name="ukuran_dimensi" label="Ukuran Dimensi" value={formData.ukuran_dimensi} onChange={handleInputChange} />
@@ -514,7 +500,6 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="keterbacaan" label="Keterbacaan" value={formData.keterbacaan} onChange={handleInputChange} />
                                 <MemoizedFormField name="kelengkapan_naskah" label="Kelengkapan Naskah" value={formData.kelengkapan_naskah} onChange={handleInputChange} />
 
-                                {/* SEKSI 4: Konten & Produksi */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Konten & Produksi</h4>
                                 <MemoizedFormField name="pengarang" label="Pengarang" value={formData.pengarang} onChange={handleInputChange} />
                                 <MemoizedFormField name="penyalin" label="Penyalin" value={formData.penyalin} onChange={handleInputChange} />
@@ -535,7 +520,6 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="deskripsi_umum" label="Deskripsi Umum" type="textarea" rows={5} value={formData.deskripsi_umum} onChange={handleInputChange} />
                                 <MemoizedFormField name="catatan_catatan" label="Catatan Tambahan" type="textarea" rows={5} value={formData.catatan_catatan} onChange={handleInputChange} />
 
-                                {/* SEKSI 5: Referensi & Metadata Tambahan */}
                                 <h4 className="col-span-full font-bold text-lg mt-4 pb-2 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">Referensi & Metadata Tambahan</h4>
                                 <MemoizedFormField name="kata_kunci" label="Kata Kunci (pisahkan koma)" value={formData.kata_kunci} onChange={handleInputChange} />
                                 <MemoizedFormField name="glosarium" label="Glosarium" type="textarea" rows={3} value={formData.glosarium} onChange={handleInputChange} />
@@ -543,7 +527,6 @@ const ManageManuscripts: React.FC = () => {
                                 <MemoizedFormField name="tokoh_terkait" label="Tokoh Terkait (Nama, pisahkan koma)" value={formData.tokoh_terkait} onChange={handleInputChange} />
                                 <div className="col-span-full">
                                     <label className="block text-sm font-medium">Daftar Referensi</label>
-                                    {/* ... (logika untuk input referensi tidak berubah) */}
                                      <div className="space-y-4 rounded-md p-3 border border-gray-200 dark:border-gray-700">
                                         {referenceFields.map((ref, index) => (
                                             <div key={index} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600">

@@ -5,24 +5,30 @@ import { Comment } from '../../../types';
 import { useAuth } from '../../hooks/useAuth';
 
 const ManageComments: React.FC = () => {
-    // --- PERBAIKAN DI SINI: 'role' dihapus karena tidak digunakan ---
-    const { user } = useAuth();
-    // --- AKHIR PERBAIKAN ---
+    // --- FIX START ---
+    // 1. Destructure 'role' from useAuth. The 'user' object is not needed for permission checks here.
+    const { role } = useAuth();
+    // --- FIX END ---
 
     const [comments, setComments] = useState<Comment[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
+    
+    // This constant is no longer necessary and can be removed.
+    // const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
     const fetchComments = useCallback(async () => {
-        if (!user || user.id !== ADMIN_USER_ID) {
+        // --- FIX START ---
+        // 2. Simplify the permission check to rely only on the user's role.
+        if (role !== 'admin') {
+        // --- FIX END ---
             setError('Anda tidak memiliki izin untuk melihat halaman ini.');
             setLoading(false);
             return;
         }
 
         setLoading(true);
+        // ... rest of the function is fine
         setError(null);
         try {
             const { data, error: dbError } = await supabase
@@ -45,7 +51,7 @@ const ManageComments: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [user, ADMIN_USER_ID]);
+    }, [role]); // Dependency is now 'role'
 
     useEffect(() => {
         fetchComments();
@@ -63,7 +69,10 @@ const ManageComments: React.FC = () => {
     }, [fetchComments]);
 
     const handleStatusChange = async (commentId: number, newStatus: 'approved' | 'pending' | 'rejected') => {
-        if (!user || user.id !== ADMIN_USER_ID) {
+        // --- FIX START ---
+        // 3. Use the role for the authorization check.
+        if (role !== 'admin') {
+        // --- FIX END ---
             alert('Anda tidak memiliki izin untuk melakukan tindakan ini.');
             return;
         }
@@ -72,7 +81,10 @@ const ManageComments: React.FC = () => {
     };
 
     const handleDeleteComment = async (commentId: number) => {
-        if (!user || user.id !== ADMIN_USER_ID) {
+        // --- FIX START ---
+        // 4. Use the role for the authorization check here as well.
+        if (role !== 'admin') {
+        // --- FIX END ---
             alert('Anda tidak memiliki izin untuk melakukan tindakan ini.');
             return;
         }
@@ -83,6 +95,7 @@ const ManageComments: React.FC = () => {
     };
 
     if (loading) return <div className="text-center py-8">Memuat komentar...</div>;
+    // ... rest of the component is fine
     if (error) return <div className="text-center py-8 text-red-600">{error}</div>;
     if (comments.length === 0) return <div className="text-center py-8">Tidak ada komentar.</div>;
 

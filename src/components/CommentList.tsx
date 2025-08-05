@@ -5,175 +5,163 @@ import { Comment, UserRole } from '../../types';
 import CommentForm from './CommentForm';
 
 interface CommentListProps {
-    targetId: string | number;
-    type: 'manuskrip' | 'blog';
-    userRole: UserRole;
+  targetId: string | number;
+  type: 'manuskrip' | 'blog';
+  userRole: UserRole;
 }
 
-interface CommentWithReplies extends Comment {
-    replies: CommentWithReplies[];
-}
+const CommentItem: React.FC<{ comment: Comment; onCommentPosted: () => void; userRole: UserRole }> = ({ comment, onCommentPosted, userRole }) => {
+  const [showReplyForm, setShowReplyForm] = useState(false);
+  const [replies, setReplies] = useState<Comment[]>([]);
+  const [loadingReplies, setLoadingReplies] = useState(false);
 
-const CommentItem: React.FC<{ 
-    comment: CommentWithReplies; 
-    onCommentPosted: () => void; 
-    userRole: UserRole; 
-    targetId: string | number; 
-    type: 'manuskrip' | 'blog' 
-}> = ({ comment, onCommentPosted, userRole, targetId, type }) => {
-    const [showReplyForm, setShowReplyForm] = useState(false);
+  const fetchReplies = useCallback(async () => {
+    if (!comment.id) return;
+    setLoadingReplies(true);
     
-    const authorName = comment.user_profiles?.full_name || 'Pengguna Tidak Dikenal';
-    const canReply = userRole === 'admin' || userRole === 'verified_user';
+    // --- PERBAIKAN 1: Menggunakan nama relasi foreign key yang spesifik ---
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*, user_profiles!comments_user_id_fkey(full_name)')
+      .eq('parent_id', comment.id)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: true });
 
-    const handleNewReply = () => {
-        setShowReplyForm(false);
-        onCommentPosted();
-    };
+    if (error) {
+      console.error('Error fetching replies:', error);
+    } else {
+      setReplies(data || []);
+    }
+    setLoadingReplies(false);
+  }, [comment.id]);
 
-    return (
-        <div className="py-2">
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm">
-                <div className="flex justify-between items-start mb-2">
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">{authorName}</p>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">{new Date(comment.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                </div>
-                <p className="text-gray-800 dark:text-gray-200 break-words whitespace-pre-wrap mb-3">{comment.content}</p>
-                
-                {canReply && (
-                    <button onClick={() => setShowReplyForm(!showReplyForm)} className="text-sm font-semibold text-primary-600 hover:underline">
-                        {showReplyForm ? 'Tutup' : 'Balas'}
-                    </button>
-                )}
-            </div>
+  useEffect(() => {
+    fetchReplies();
+  }, [fetchReplies]);
+  
+  const handleReplySuccess = (newComment: Comment) => {
+    setReplies(prevReplies => [...prevReplies, newComment]);
+    setShowReplyForm(false);
+  };
+  
+  const handleCancelReply = () => {
+    setShowReplyForm(false);
+  };
 
-            {showReplyForm && (
-                <CommentForm
-                    targetId={targetId}
-                    type={type}
-                    parentId={comment.id}
-                    onCommentPosted={handleNewReply}
-                    onCancelReply={() => setShowReplyForm(false)}
-                />
-            )}
-
-            {comment.replies && comment.replies.length > 0 && (
-                <div className="ml-4 md:ml-8 border-l-2 border-gray-200 dark:border-gray-600 pl-4 mt-2">
-                    {comment.replies.map(reply => (
-                        <CommentItem 
-                            key={reply.id} 
-                            comment={reply} 
-                            onCommentPosted={onCommentPosted}
-                            userRole={userRole}
-                            targetId={targetId}
-                            type={type}
-                        />
-                    ))}
-                </div>
-            )}
+  const authorName = (comment.user_profiles as any)?.full_name || 'Pengguna';
+  
+  return (
+    <div className="ml-0 md:ml-8 py-4 border-t border-gray-200 dark:border-gray-700 first:border-t-0">
+      <div className="flex items-start space-x-3">
+        <div className="flex-shrink-0">
+          <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-gray-600 flex items-center justify-center">
+            <span className="text-primary-700 dark:text-gray-200 font-semibold">{authorName.charAt(0)}</span>
+          </div>
         </div>
-    );
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{authorName}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {new Date(comment.created_at).toLocaleString('id-ID')}
+            </p>
+          </div>
+          <p className="mt-1 text-gray-700 dark:text-gray-300">{comment.content}</p>
+          {(userRole === 'verified_user' || userRole === 'admin') && (
+             <button
+                onClick={() => setShowReplyForm(!showReplyForm)}
+                className="mt-2 text-sm font-medium text-primary-600 hover:text-primary-800 dark:text-accent-400 dark:hover:text-accent-300"
+             >
+                {showReplyForm ? 'Batal' : 'Balas'}
+             </button>
+          )}
+        </div>
+      </div>
+
+      {showReplyForm && (
+        <div className="mt-2">
+            <CommentForm
+                targetId={comment.blog_id || comment.manuscript_id!}
+                type={comment.blog_id ? 'blog' : 'manuskrip'}
+                parentId={comment.id}
+                onSuccess={handleReplySuccess}
+                onCancelReply={handleCancelReply}
+            />
+        </div>
+      )}
+
+      {loadingReplies && <p className="ml-12 mt-2 text-sm">Memuat balasan...</p>}
+      
+      {replies.length > 0 && (
+        <div className="mt-4 space-y-4">
+          {replies.map(reply => (
+            <CommentItem key={reply.id} comment={reply} onCommentPosted={onCommentPosted} userRole={userRole} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
-
 const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) => {
-    const [commentTree, setCommentTree] = useState<CommentWithReplies[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    const buildCommentTree = useCallback((comments: Comment[]): CommentWithReplies[] => {
-        const commentMap: { [key: number]: CommentWithReplies } = {};
-        const tree: CommentWithReplies[] = [];
+  const fetchComments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-        comments.forEach(comment => {
-            commentMap[comment.id] = { ...comment, replies: [] };
-        });
+    // --- PERBAIKAN 2: Menggunakan nama relasi foreign key yang spesifik ---
+    const { data, error: fetchError } = await supabase
+      .from('comments')
+      .select('*, user_profiles!comments_user_id_fkey(full_name)')
+      .eq(type === 'blog' ? 'blog_id' : 'manuscript_id', targetId)
+      .eq('status', 'approved')
+      .is('parent_id', null)
+      .order('created_at', { ascending: false });
 
-        comments.forEach(comment => {
-            if (comment.parent_id && commentMap[comment.parent_id]) {
-                commentMap[comment.parent_id].replies.push(commentMap[comment.id]);
-            } else {
-                tree.push(commentMap[comment.id]);
-            }
-        });
+    if (fetchError) {
+      console.error('Error fetching comments:', fetchError);
+      setError('Gagal memuat daftar komentar.');
+    } else {
+      setComments(data || []);
+    }
+    setLoading(false);
+  }, [targetId, type]);
 
-        return tree;
-    }, []);
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
-    const fetchComments = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        let query = supabase.from('comments').select(`
-            id, content, created_at, parent_id,
-            user_profiles ( full_name )
-        `);
+  if (loading) {
+    return <p className="py-4 text-center">Memuat komentar...</p>;
+  }
 
-        if (type === 'manuskrip') {
-            query = query.eq('manuscript_id', targetId);
-        } else {
-            query = query.eq('blog_id', targetId);
-        }
-        
-        if (userRole !== 'admin') {
-            query = query.eq('status', 'approved');
-        }
+  if (error) {
+    return <p className="py-4 text-center text-red-600">{error}</p>;
+  }
+  
+  const handleTopLevelCommentSuccess = () => {
+      fetchComments();
+  };
 
-        query = query.order('created_at', { ascending: true });
+  return (
+    <div className="mt-6">
+       { (userRole === 'verified_user' || userRole === 'admin') &&
+          <CommentForm targetId={targetId} type={type} onSuccess={handleTopLevelCommentSuccess} />
+       }
 
-        const { data, error: dbError } = await query;
-        
-        if (dbError) {
-            console.error("Error fetching comments:", dbError);
-            setError('Gagal memuat komentar.');
-        } else {
-            const tree = buildCommentTree(data as unknown as Comment[]);
-            setCommentTree(tree);
-        }
-        setLoading(false);
-    }, [targetId, type, userRole, buildCommentTree]);
-
-    useEffect(() => {
-        fetchComments();
-        
-        const channel = supabase.channel(`comments_channel_${type}_${targetId}`);
-        
-        // --- PERUBAHAN DI SINI ---
-        const subscription = channel
-            // Variabel 'payload' dihapus karena tidak digunakan
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => {
-                fetchComments();
-            })
-            .subscribe();
-    
-        // Fungsi cleanup sekarang menggunakan variabel 'subscription'
-        return () => {
-            supabase.removeChannel(subscription);
-        };
-    }, [fetchComments, type, targetId]);
-    
-    const handleNewComment = () => {
-        fetchComments();
-    };
-
-
-    if (loading) return <p className="text-gray-600 dark:text-gray-400 mt-4">Memuat komentar...</p>;
-    if (error) return <p className="text-red-600 dark:text-red-400 mt-4">{error}</p>;
-    if (commentTree.length === 0) return <p className="text-gray-600 dark:text-gray-400 mt-4">Belum ada komentar.</p>;
-
-    return (
-        <div className="mt-8 space-y-4">
-            {commentTree.map((comment) => (
-                <CommentItem 
-                    key={comment.id} 
-                    comment={comment} 
-                    onCommentPosted={handleNewComment}
-                    userRole={userRole}
-                    targetId={targetId}
-                    type={type}
-                />
-            ))}
-        </div>
-    );
+      <div className="mt-8 space-y-6">
+        {comments.length === 0 ? (
+          <p className="text-gray-500 dark:text-gray-400 py-4">Belum ada komentar. Jadilah yang pertama!</p>
+        ) : (
+          comments.map(comment => (
+            <CommentItem key={comment.id} comment={comment} onCommentPosted={fetchComments} userRole={userRole} />
+          ))
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default CommentList;
