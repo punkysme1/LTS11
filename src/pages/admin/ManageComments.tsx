@@ -5,30 +5,19 @@ import { Comment } from '../../../types';
 import { useAuth } from '../../hooks/useAuth';
 
 const ManageComments: React.FC = () => {
-    // --- FIX START ---
-    // 1. Destructure 'role' from useAuth. The 'user' object is not needed for permission checks here.
     const { role } = useAuth();
-    // --- FIX END ---
-
     const [comments, setComments] = useState<Comment[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    
-    // This constant is no longer necessary and can be removed.
-    // const ADMIN_USER_ID = import.meta.env.VITE_REACT_APP_ADMIN_USER_ID?.trim();
 
     const fetchComments = useCallback(async () => {
-        // --- FIX START ---
-        // 2. Simplify the permission check to rely only on the user's role.
         if (role !== 'admin') {
-        // --- FIX END ---
             setError('Anda tidak memiliki izin untuk melihat halaman ini.');
             setLoading(false);
             return;
         }
 
         setLoading(true);
-        // ... rest of the function is fine
         setError(null);
         try {
             const { data, error: dbError } = await supabase
@@ -40,62 +29,56 @@ const ManageComments: React.FC = () => {
                 .order('created_at', { ascending: false });
 
             if (dbError) {
-                console.error('Error fetching comments for moderation:', dbError);
-                setError(`Gagal memuat komentar: ${dbError.message}`);
-            } else {
-                setComments(data as any[] as Comment[]);
+                throw dbError;
             }
+            setComments(data as any[] as Comment[]);
         } catch (err: any) {
             console.error('Exception fetching comments for moderation:', err);
             setError('Terjadi kesalahan saat memuat komentar: ' + err.message);
         } finally {
             setLoading(false);
         }
-    }, [role]); // Dependency is now 'role'
+    }, [role]);
 
     useEffect(() => {
         fetchComments();
-
-        const channel = supabase
-            .channel('comments_admin_moderation_channel')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => {
-                fetchComments(); 
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     }, [fetchComments]);
 
     const handleStatusChange = async (commentId: number, newStatus: 'approved' | 'pending' | 'rejected') => {
-        // --- FIX START ---
-        // 3. Use the role for the authorization check.
         if (role !== 'admin') {
-        // --- FIX END ---
             alert('Anda tidak memiliki izin untuk melakukan tindakan ini.');
             return;
         }
         const { error: updateError } = await supabase.from('comments').update({ status: newStatus }).eq('id', commentId);
-        if (updateError) alert('Gagal memperbarui status: ' + updateError.message);
+        
+        // --- PERBAIKAN: Panggil fetchComments() setelah aksi berhasil ---
+        if (updateError) {
+            alert('Gagal memperbarui status: ' + updateError.message);
+        } else {
+            alert(`Status komentar berhasil diubah menjadi ${newStatus}.`);
+            fetchComments(); // Muat ulang data untuk perbarui UI
+        }
     };
 
     const handleDeleteComment = async (commentId: number) => {
-        // --- FIX START ---
-        // 4. Use the role for the authorization check here as well.
         if (role !== 'admin') {
-        // --- FIX END ---
             alert('Anda tidak memiliki izin untuk melakukan tindakan ini.');
             return;
         }
         if (window.confirm('Hapus permanen komentar ini?')) {
             const { error: deleteError } = await supabase.from('comments').delete().eq('id', commentId);
-            if (deleteError) alert('Gagal menghapus: ' + deleteError.message);
+
+            // --- PERBAIKAN: Panggil fetchComments() setelah aksi berhasil ---
+            if (deleteError) {
+                alert('Gagal menghapus: ' + deleteError.message);
+            } else {
+                alert('Komentar berhasil dihapus.');
+                fetchComments(); // Muat ulang data untuk perbarui UI
+            }
         }
     };
 
     if (loading) return <div className="text-center py-8">Memuat komentar...</div>;
-    // ... rest of the component is fine
     if (error) return <div className="text-center py-8 text-red-600">{error}</div>;
     if (comments.length === 0) return <div className="text-center py-8">Tidak ada komentar.</div>;
 

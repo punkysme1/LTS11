@@ -18,8 +18,6 @@ const CommentItem: React.FC<{ comment: Comment; onCommentPosted: () => void; use
   const fetchReplies = useCallback(async () => {
     if (!comment.id) return;
     setLoadingReplies(true);
-    
-    // --- PERBAIKAN 1: Menggunakan nama relasi foreign key yang spesifik ---
     const { data, error } = await supabase
       .from('comments')
       .select('*, user_profiles!comments_user_id_fkey(full_name)')
@@ -39,9 +37,17 @@ const CommentItem: React.FC<{ comment: Comment; onCommentPosted: () => void; use
     fetchReplies();
   }, [fetchReplies]);
   
+  // --- PERBAIKAN KUNCI: Fungsi ini HANYA menangani balasan ---
   const handleReplySuccess = (newComment: Comment) => {
+    // 1. Tambahkan balasan baru ke daftar balasan lokal di bawah induknya.
+    // Ini membuat balasan langsung muncul di tempat yang benar.
     setReplies(prevReplies => [...prevReplies, newComment]);
+
+    // 2. Tutup form balasan.
     setShowReplyForm(false);
+    
+    // PENTING: Kita tidak memanggil onCommentPosted() di sini.
+    // Ini mencegah komentar balasan muncul sebagai duplikat di daftar komentar utama.
   };
   
   const handleCancelReply = () => {
@@ -111,7 +117,6 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
     setLoading(true);
     setError(null);
 
-    // --- PERBAIKAN 2: Menggunakan nama relasi foreign key yang spesifik ---
     const { data, error: fetchError } = await supabase
       .from('comments')
       .select('*, user_profiles!comments_user_id_fkey(full_name)')
@@ -141,6 +146,7 @@ const CommentList: React.FC<CommentListProps> = ({ targetId, type, userRole }) =
     return <p className="py-4 text-center text-red-600">{error}</p>;
   }
   
+  // Fungsi ini dipanggil setelah komentar UTAMA berhasil dikirim
   const handleTopLevelCommentSuccess = () => {
       fetchComments();
   };
