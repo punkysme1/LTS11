@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Playfair Display", "Amiri", serif;
+  --font-arabic: "Amiri", serif;
+  --font-sans: "Inter", sans-serif;
+  
+  --color-primary: #1A1C1E;
+  --color-secondary: #8B7355;
+  --color-accent: #C2A178;
+  --color-bg-base: #FCFAF7;
+  --color-bg-sidebar: #F4F1EC;
+  --color-border: #DED6C9;
+  --color-text-main: #2D2A26;
+}
+
+@layer base {
+  body {
+    @apply font-sans bg-bg-base text-text-main antialiased;
+  }
+
+  h1, h2, h3, h4, .font-serif {
+    @apply font-serif;
+  }
+
+  /* Support for Arabic text blocks */
+  .arabic-text {
+    @apply font-arabic text-2xl leading-relaxed text-right;
+    direction: rtl;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
