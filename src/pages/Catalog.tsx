@@ -64,18 +64,18 @@ export default function Catalog() {
       </header>
 
       {/* Search & Filters */}
-      <div className="flex flex-col lg:flex-row gap-6 mb-12">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-6 mb-12">
+        <div className="relative w-full">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-secondary" size={18} />
           <input 
             type="text" 
-            placeholder="Cari Judul Manuskrip atau Kode Inventaris..."
+            placeholder="Cari Judul Afiliasi (Kitab Kuning), Judul Tim, atau Kode Inventaris..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full pl-14 pr-6 py-4 bg-bg-sidebar/30 border border-border rounded-2xl focus:ring-2 focus:ring-secondary/20 outline-none transition-all text-sm font-medium"
+            className="w-full pl-14 pr-6 py-5 bg-bg-sidebar/30 border border-border rounded-2xl focus:ring-2 focus:ring-secondary/20 outline-none transition-all text-base font-medium shadow-sm"
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth">
+        <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar scroll-smooth">
           {CATEGORIES.map(cat => (
             <button
               key={cat}
@@ -118,11 +118,12 @@ export default function Catalog() {
                 >
                   <Link to={`/katalog/${m.id}`}>
                     <div className="bg-white border border-border rounded-lg p-4 shadow-sm hover:shadow-xl transition-all duration-300 relative h-full flex flex-col">
+                      {/* 1. Foto thumbnail */}
                       <div className="relative aspect-[3/4] overflow-hidden rounded mb-4 bg-bg-base">
                         <img 
                           src={getGoogleDriveUrl(m.url_kover || '') as string || 'https://images.unsplash.com/photo-1544640808-32ca72ac7f67?auto=format&fit=crop&q=80&w=800'} 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100" 
-                          alt={m.judul_dari_tim}
+                          alt={m.judul_dari_afiliasi || m.judul_dari_tim}
                         />
                         <div className="absolute top-2 right-2">
                            <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-primary shadow-sm ring-1 ring-black/5">
@@ -132,24 +133,31 @@ export default function Catalog() {
                       </div>
                       
                       <div className="flex-1 flex flex-col min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
+                        {/* 2. Kategori Ilmu Pesantren. Kode Inventarisasi */}
+                        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                           <span className="px-2 py-0.5 bg-secondary/10 text-secondary text-[8px] font-bold rounded uppercase tracking-widest border border-secondary/10">
                             {m.kategori_ilmu_pesantren || 'Manuskrip'}
                           </span>
-                          <span className="text-[8px] font-bold text-secondary/40 uppercase tracking-widest">{m.kode_inventarisasi}</span>
+                          <span className="text-[8px] font-black text-secondary/30 uppercase tracking-widest">• {m.kode_inventarisasi}</span>
                         </div>
                         
-                        <h3 className="text-base font-serif font-black text-primary mb-2 line-clamp-2 leading-tight group-hover:text-secondary transition-colors italic">
-                          {m.judul_dari_afiliasi || m.judul_dari_tim}
+                        {/* 3. Judul Dari Afiliasi (kitab kuning) */}
+                        <h3 className="text-base font-serif font-black text-primary mb-1 line-clamp-2 leading-tight group-hover:text-secondary transition-colors italic">
+                          {m.judul_dari_afiliasi || m.judul_dari_tim || m.kode_inventarisasi}
                         </h3>
                         
-                        <div className="text-[10px] text-secondary/60 mb-4 line-clamp-1 italic">
-                          {m.judul_dari_afiliasi ? m.judul_dari_tim : m.pengarang || 'Pengarang tidak diketahui'}
+                        {/* 4. Pengarang */}
+                        <div className="text-[10px] font-bold text-secondary/60 mb-4 line-clamp-1 italic">
+                          {m.pengarang || 'Pengarang Anonim'}
                         </div>
+
+                        {/* 5. Divider */}
+                        <div className="h-px w-full bg-border/50 mb-3" />
                         
-                        <div className="mt-auto pt-4 flex items-center justify-between border-t border-border/50">
-                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-secondary uppercase tracking-wider">
-                              <Clock size={10} /> {m.tahun_penulisan_di_teks || 'N/A'}
+                        {/* 6. Kondisi Manuskrip */}
+                        <div className="mt-auto pt-2 flex items-center justify-between">
+                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-secondary/50 uppercase tracking-[0.2em]">
+                              <Clock size={10} className="text-secondary/30" /> {m.kondisi_manuskrip || 'Tidak tercatat'}
                            </div>
                            <ArrowRight size={14} className="text-secondary/40 group-hover:text-secondary group-hover:translate-x-1 transition-all" />
                         </div>

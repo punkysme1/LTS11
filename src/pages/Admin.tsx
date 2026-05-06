@@ -68,6 +68,10 @@ function Admin() {
   
   const [activeTab, setActiveTab] = useState<'manuscripts' | 'blogs' | 'guestbook'>('manuscripts');
   const [manuscripts, setManuscripts] = useState<Manuscript[]>([]);
+  const [totalManuscripts, setTotalManuscripts] = useState(0);
+  const [manuscriptPage, setManuscriptPage] = useState(1);
+  const manuscriptLimit = 20;
+
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [guestbook, setGuestbook] = useState<GuestbookEntry[]>([]);
   
@@ -136,8 +140,9 @@ function Admin() {
   const fetchData = async () => {
     try {
       if (activeTab === 'manuscripts') {
-        const { data } = await manuscriptService.getAll(1, 200);
+        const { data, total } = await manuscriptService.getAll(manuscriptPage, manuscriptLimit, searchTerm);
         setManuscripts(data);
+        setTotalManuscripts(total);
       } else if (activeTab === 'blogs') {
         const data = await blogService.getAll();
         setBlogs(data);
@@ -155,7 +160,18 @@ function Admin() {
     if (user && (user.id === '0d34701c-895f-4e0c-ad80-fa1e4cb31c9c' || (user.email && ADMIN_EMAILS.includes(user.email)))) {
       fetchData();
     }
-  }, [activeTab]);
+  }, [activeTab, manuscriptPage]);
+
+  // Debounced search for manuscripts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (activeTab === 'manuscripts') {
+        setManuscriptPage(1);
+        fetchData();
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const handleDelete = async (id: string, type: 'manuscript' | 'blog' | 'guestbook') => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
@@ -607,19 +623,15 @@ function Admin() {
                   </tr>
                 </thead>
                 <tbody className="text-sm font-medium">
-                  {manuscripts.filter(m => 
-                    (m.judul_dari_afiliasi || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-                    m.judul_dari_tim.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                    m.kode_inventarisasi.toLowerCase().includes(searchTerm.toLowerCase())
-                  ).map(m => (
+                  {manuscripts.map(m => (
                     <tr key={m.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
                       <td className="py-6 pr-4">
                         <div className="text-gray-900 font-bold">{m.kode_inventarisasi}</div>
                         <div className="text-[10px] text-gray-400">{m.id}</div>
                       </td>
                       <td className="py-6 pr-4">
-                        <div className="text-gray-900 font-black">{m.judul_dari_afiliasi || m.judul_dari_tim}</div>
-                        <div className="text-xs text-gray-400 italic">{m.judul_dari_tim}</div>
+                        <div className="text-gray-900 font-black">{m.judul_dari_tim || m.kode_inventarisasi}</div>
+                        <div className="text-xs text-gray-400 italic">{m.judul_dari_afiliasi}</div>
                       </td>
                       <td className="py-6 pr-4">
                         <span className="px-3 py-1 bg-gray-100 rounded-full text-[10px] text-gray-500 font-bold uppercase">{m.kategori_ilmu_pesantren}</span>
@@ -645,6 +657,34 @@ function Admin() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalManuscripts > manuscriptLimit && (
+              <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
+                <div className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+                  Menampilkan {manuscripts.length} dari {totalManuscripts} naskah
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    disabled={manuscriptPage === 1}
+                    onClick={() => setManuscriptPage(p => p - 1)}
+                    className="px-4 py-2 bg-gray-50 text-[#5A5A40] rounded-lg text-xs font-bold uppercase tracking-widest disabled:opacity-30 hover:bg-gray-100 transition-all border border-gray-100"
+                  >
+                    Sebelumnya
+                  </button>
+                  <div className="flex items-center px-4 text-xs font-bold text-[#5A5A40]">
+                    Halaman {manuscriptPage} dari {Math.ceil(totalManuscripts / manuscriptLimit)}
+                  </div>
+                  <button
+                    disabled={manuscriptPage >= Math.ceil(totalManuscripts / manuscriptLimit)}
+                    onClick={() => setManuscriptPage(p => p + 1)}
+                    className="px-4 py-2 bg-[#5A5A40] text-white rounded-lg text-xs font-bold uppercase tracking-widest disabled:opacity-30 hover:bg-[#4a4a34] transition-all"
+                  >
+                    Selanjutnya
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -747,6 +787,10 @@ function Admin() {
                     <section>
                       <h3 className="text-sm font-bold text-[#5A5A40] border-b border-gray-100 pb-2 mb-4 uppercase tracking-widest">Informasi Umum</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Judul Afiliasi (Kitab Kuning)</label>
+                          <input type="text" value={editingItem.data.judul_dari_afiliasi || ''} onChange={e => setEditingItem({ ...editingItem, data: { ...editingItem.data, judul_dari_afiliasi: e.target.value } })} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-transparent focus:ring-2 focus:ring-[#5A5A40] outline-none font-bold" placeholder="Contoh: Kitab Fathul Mu'in" />
+                        </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Judul Tim</label>
                           <input type="text" value={editingItem.data.judul_dari_tim || ''} onChange={e => setEditingItem({ ...editingItem, data: { ...editingItem.data, judul_dari_tim: e.target.value } })} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-transparent focus:ring-2 focus:ring-[#5A5A40] outline-none" />
