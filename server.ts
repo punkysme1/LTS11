@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   // Logging middleware
   app.use((req, res, next) => {
@@ -66,21 +66,27 @@ async function startServer() {
       env: { 
         hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
         hasApiKey: !!process.env.CLOUDINARY_API_KEY,
-        hasApiSecret: !!process.env.CLOUDINARY_API_SECRET
+        hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
+        nodeEnv: process.env.NODE_ENV,
+        port: PORT
       } 
     });
   });
 
-  // Debug route for /api/upload
-  app.get("/api/upload", (req, res) => {
-    res.json({ message: "This endpoint only accepts POST requests for file uploads." });
+  // Debug/Catch-all route for /api/upload to diagnos 405
+  app.all("/api/upload", (req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} /api/upload - Received`);
+    if (req.method === "POST") {
+      return next();
+    }
+    res.status(405).json({ 
+      error: `Method ${req.method} not allowed on /api/upload. Use POST instead.`,
+      receivedMethod: req.method
+    });
   });
 
   // API Route for Cloudinary Upload
-  app.post("/api/upload", (req, res, next) => {
-    console.log(`[${new Date().toISOString()}] Incoming POST request to /api/upload`);
-    next();
-  }, upload.single("file"), async (req, res) => {
+  app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         console.warn("Upload attempt without file");
