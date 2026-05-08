@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
-import { Upload, FileDown, Plus, Edit, Trash2, CheckCircle, AlertCircle, Search, LogOut, ShieldCheck, User, X, Save } from 'lucide-react';
+import { Upload, FileDown, Plus, Edit, Trash2, CheckCircle, AlertCircle, Search, LogOut, ShieldCheck, User, X, Save, Loader2, Check, FileImage } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { manuscriptService } from '../services/manuscriptService';
 import { blogService } from '../services/blogService';
@@ -16,13 +16,25 @@ import { cn } from '../lib/utils';
 
 const ADMIN_EMAILS = ['maghfurmunif@gmail.com', 'punkysme@gmail.com'];
 
-const MultiLinkInput = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
+const MultiLinkInput = ({ value, onChange, onUpload }: { value: string, onChange: (val: string) => void, onUpload: (file: File, callback: (url: string) => void) => Promise<void> }) => {
   const links = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const [isUploading, setIsUploading] = useState(false);
   
   const addLink = () => {
-    const newLink = prompt('Paste link Google Drive:');
+    const newLink = prompt('Paste link Google Drive atau URL Gambar:');
     if (newLink) {
       onChange([...links, newLink].join(', '));
+    }
+  };
+
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsUploading(true);
+      onUpload(file, (url) => {
+        onChange([...links, url].join(', '));
+        setIsUploading(true); // Temporary to avoid flicker, actually helper sets it back
+      }).finally(() => setIsUploading(false));
     }
   };
 
@@ -48,13 +60,20 @@ const MultiLinkInput = ({ value, onChange }: { value: string, onChange: (val: st
         ))}
         {links.length === 0 && <span className="text-[10px] text-gray-400 italic">Belum ada link halaman...</span>}
       </div>
-      <button 
-        type="button"
-        onClick={addLink}
-        className="w-full py-3 bg-white border-2 border-dashed border-gray-200 rounded-xl text-[10px] font-bold text-gray-400 uppercase tracking-widest hover:bg-gray-50 hover:border-gray-300 hover:text-gray-600 transition-all flex items-center justify-center gap-2"
-      >
-        <Plus size={14} /> Tambah Link Baru
-      </button>
+      <div className="flex gap-2">
+        <button 
+          type="button"
+          onClick={addLink}
+          className="flex-1 py-3 bg-white border-2 border-dashed border-gray-200 rounded-xl text-[10px] font-bold text-gray-400 uppercase tracking-widest hover:bg-gray-50 hover:border-gray-300 hover:text-gray-600 transition-all flex items-center justify-center gap-2"
+        >
+          <Plus size={14} /> Tambah Link
+        </button>
+        <label className="flex-1 py-3 bg-[#5A5A40] text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#4a4a34] transition-all cursor-pointer flex items-center justify-center gap-2">
+          {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} 
+          {isUploading ? 'Uploading...' : 'Upload Gambar'}
+          <input type="file" className="hidden" accept="image/*" onChange={handleFileSelect} disabled={isUploading} />
+        </label>
+      </div>
     </div>
   );
 };
@@ -72,11 +91,13 @@ function Admin() {
   const [manuscriptPage, setManuscriptPage] = useState(1);
   const manuscriptLimit = 20;
 
+  const [isUploading, setIsUploading] = useState<string | null>(null); // To track which field is uploading
+
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [guestbook, setGuestbook] = useState<GuestbookEntry[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
+  const [isExcelUploading, setIsExcelUploading] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const [editingItem, setEditingItem] = useState<{ type: 'manuscript' | 'blog' | 'guestbook', data: any } | null>(null);
@@ -172,6 +193,34 @@ function Admin() {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  const handleFileUpload = async (file: File, onComplete: (url: string) => void) => {
+    const fieldId = Math.random().toString(36).substring(7);
+    setIsUploading(fieldId);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+      onComplete(result.url);
+    } catch (error) {
+      console.error('Error uploading:', error);
+      alert('Gagal mengunggah gambar. Pastikan Cloudinary sudah dikonfigurasi.');
+    } finally {
+      setIsUploading(null);
+    }
+  };
 
   const handleDelete = async (id: string, type: 'manuscript' | 'blog' | 'guestbook') => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
@@ -345,7 +394,7 @@ function Admin() {
     setMsg({ type: 'success', text: 'Berhasil mengekspor data ke Excel.' });
   };
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleExcelUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!user || !user.email || !ADMIN_EMAILS.includes(user.email)) {
       setMsg({ type: 'error', text: 'Hanya admin yang boleh mengunggah data.' });
       return;
@@ -354,7 +403,7 @@ function Admin() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
+    setIsExcelUploading(true);
     setMsg(null);
     const reader = new FileReader();
     reader.onload = async (evt) => {
@@ -442,7 +491,7 @@ function Admin() {
           text: `Gagal: ${err.message || 'Terjadi kesalahan saat mengunggah.'}. Pastikan tabel manuscripts sudah ada dan RLS mengizinkan akses anon.` 
         });
       } finally {
-        setIsUploading(false);
+        setIsExcelUploading(false);
         // Reset input file agar bisa upload file yang sama lagi jika perlu
         e.target.value = '';
       }
@@ -545,8 +594,8 @@ function Admin() {
             </button>
             <label className="px-6 py-3 bg-[#5A5A40] text-white rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-[#4a4a34] transition-all shadow-md">
               <Plus size={20} />
-              {isUploading ? 'Mengunggah...' : 'Mass Upload .xls'}
-              <input type="file" accept=".xls,.xlsx" onChange={handleFileUpload} className="hidden" />
+              {isExcelUploading ? 'Mengunggah...' : 'Mass Upload .xls'}
+              <input type="file" accept=".xls,.xlsx" onChange={handleExcelUpload} className="hidden" />
             </label>
           </div>
           <button onClick={handleLogout} className="p-3 bg-gray-100 rounded-xl text-gray-600 hover:text-red-500 transition-colors" title="Logout">
@@ -876,9 +925,31 @@ function Admin() {
                     <section>
                       <h3 className="text-sm font-bold text-[#5A5A40] border-b border-gray-100 pb-2 mb-4 uppercase tracking-widest">Media & Link</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Link Kover (Drive)</label>
-                          <input type="text" value={editingItem.data.url_kover || ''} onChange={e => setEditingItem({ ...editingItem, data: { ...editingItem.data, url_kover: e.target.value } })} className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-transparent focus:ring-2 focus:ring-[#5A5A40] outline-none" />
+                        <div className="col-span-1 md:col-span-2">
+                          <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Link Kover</label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              value={editingItem.data.url_kover || ''} 
+                              onChange={e => setEditingItem({ ...editingItem, data: { ...editingItem.data, url_kover: e.target.value } })} 
+                              className="flex-1 px-4 py-3 rounded-xl bg-gray-50 border border-transparent focus:ring-2 focus:ring-[#5A5A40] outline-none font-mono text-xs" 
+                              placeholder="URL Google Drive atau Foto" 
+                            />
+                            <label className="px-6 py-3 bg-[#5A5A40] text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#4a4a34] transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap">
+                              {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} 
+                              <span>Upload Kover</span>
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept="image/*" 
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleFileUpload(file, (url) => setEditingItem({ ...editingItem, data: { ...editingItem.data, url_kover: url } }));
+                                }} 
+                                disabled={!!isUploading} 
+                              />
+                            </label>
+                          </div>
                         </div>
                         <div className="col-span-1 md:col-span-2">
                           <label className="block text-xs font-bold text-gray-400 uppercase mb-3">
@@ -887,9 +958,10 @@ function Admin() {
                           <MultiLinkInput 
                             value={editingItem.data.url_konten || ''} 
                             onChange={val => setEditingItem({ ...editingItem, data: { ...editingItem.data, url_konten: val } })}
+                            onUpload={handleFileUpload}
                           />
                           <p className="mt-3 text-[10px] text-secondary/60 italic leading-relaxed">
-                            * Anda bisa memasukkan link Folder (Google Drive) atau Link Foto langsung (.jpg, Cloudinary, dsb) satu per satu. Disarankan menggunakan link foto langsung (.jpg) untuk performa terbaik.
+                            * Anda bisa memasukkan link Folder (Google Drive) atau Link Foto langsung (.jpg, Cloudinary, dsb) satu per satu. Menggunakan Cloudinary sangat disarankan untuk performa terbaik.
                           </p>
                         </div>
                         <div>
