@@ -20,8 +20,29 @@ async function startServer() {
 
   // Logging middleware
   app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${res.statusCode} (${duration}ms)`);
+    });
     next();
+  });
+
+  // Health check - MOVED TO TOP to ensure it's always hit first
+  app.get("/api/health", (req, res) => {
+    console.log("Processing /api/health request");
+    res.status(200).json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      env: { 
+        hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+        hasApiKey: !!process.env.CLOUDINARY_API_KEY,
+        hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
+        nodeEnv: process.env.NODE_ENV,
+        port: PORT,
+        cwd: process.cwd()
+      } 
+    });
   });
 
   // Basic Middlewares
@@ -55,22 +76,6 @@ async function startServer() {
   const upload = multer({ 
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-  });
-
-  // Health check to verify custom server is running
-  app.get("/api/health", (req, res) => {
-    console.log("Health check hit");
-    res.json({ 
-      status: "ok", 
-      time: new Date().toISOString(),
-      env: { 
-        hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
-        hasApiKey: !!process.env.CLOUDINARY_API_KEY,
-        hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
-        nodeEnv: process.env.NODE_ENV,
-        port: PORT
-      } 
-    });
   });
 
   // Debug/Catch-all route for /api/upload to diagnos 405
@@ -123,7 +128,10 @@ async function startServer() {
   });
 
   // Vite middleware or Static files
-  const isProd = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+  // Robust production check: if dist folder exists, we are likely in production
+  const distPath = path.join(process.cwd(), "dist");
+  const fs = await import("fs");
+  const isProd = fs.existsSync(distPath) || process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
   
   if (!isProd) {
     console.log("Running in DEVELOPMENT mode with Vite Middleware");
@@ -133,11 +141,21 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    console.log("Running in PRODUCTION mode serving static files");
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    console.log(`Running in PRODUCTION mode serving from: ${distPath}`);
+    app.use(express.static(distPath, { index: false })); // Don't serve index automatically to avoid conflicts with API
+    
+    app.get("*", (req, res, next) => {
+      // If it looks like an API call but wasn't caught, return 404 JSON instead of index.html
+      if (req.url.startsWith('/api/')) {
+        return res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+      }
+      
+      const indexPath = path.join(distPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send("Production build not found. Please run 'npm run build' first.");
+      }
     });
   }
 
