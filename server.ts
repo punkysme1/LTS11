@@ -27,6 +27,7 @@ async function startServer() {
   // Basic Middlewares
   app.use(cors());
   app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Cloudinary Config - Lazy loaded to prevent crash if keys missing
   const getCloudinary = () => {
@@ -77,7 +78,7 @@ async function startServer() {
 
   // API Route for Cloudinary Upload
   app.post("/api/upload", (req, res, next) => {
-    console.log("Incoming POST request to /api/upload");
+    console.log(`[${new Date().toISOString()}] Incoming POST request to /api/upload`);
     next();
   }, upload.single("file"), async (req, res) => {
     try {
