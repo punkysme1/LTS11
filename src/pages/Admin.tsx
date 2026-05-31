@@ -97,6 +97,9 @@ function Admin() {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [guestbook, setGuestbook] = useState<GuestbookEntry[]>([]);
   
+  const [cloudinaryCloudName, setCloudinaryCloudName] = useState(() => typeof window !== 'undefined' ? (localStorage.getItem('cloudinary_cloud_name') || '') : '');
+  const [cloudinaryUploadPreset, setCloudinaryUploadPreset] = useState(() => typeof window !== 'undefined' ? (localStorage.getItem('cloudinary_upload_preset') || '') : '');
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [isExcelUploading, setIsExcelUploading] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -1094,6 +1097,64 @@ function Admin() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Cloudinary Client-side Settings */}
+      <div className="mt-12 bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-teal-600">
+            <FileImage size={20} />
+          </div>
+          <div>
+            <h2 className="text-xl font-serif font-bold text-gray-900">Konfigurasi Cloudinary Client-Side (Unsigned)</h2>
+            <p className="text-sm text-gray-500">Gunakan ini untuk upload gambar langsung secara mandiri tanpa server backend (Sangat berguna di Cloudflare Pages atau Vercel static).</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Cloud Name</label>
+            <input 
+              type="text" 
+              value={cloudinaryCloudName} 
+              onChange={e => setCloudinaryCloudName(e.target.value)} 
+              placeholder="Contoh: dzussloo4" 
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-transparent focus:ring-2 focus:ring-[#5A5A40] outline-none text-sm transition-all shadow-inner font-mono" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Upload Preset (Unsigned)</label>
+            <input 
+              type="text" 
+              value={cloudinaryUploadPreset} 
+              onChange={e => setCloudinaryUploadPreset(e.target.value)} 
+              placeholder="Contoh: your_unsigned_preset_name" 
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-transparent focus:ring-2 focus:ring-[#5A5A40] outline-none text-sm transition-all shadow-inner font-mono" 
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+          <div className="text-xs text-gray-500 leading-relaxed max-w-2xl">
+            <strong className="text-gray-700 block mb-1">💡 Cara membuat & mengatur Unsigned Preset di Cloudinary:</strong> 
+            1. Daftar / Log in ke Cloudinary, temukan <strong className="text-[#5A5A40]">Cloud Name</strong> Anda di Dashboard.<br />
+            2. Masuk ke menu <strong className="text-[#5A5A40]">Settings (ikon roda gigi) ⚙️</strong> &rarr; pilih tab <strong className="text-[#5A5A40]">Upload</strong>.<br />
+            3. Scroll ke bawah sampai menemukan bagian <strong className="text-[#5A5A40]">Upload presets</strong>, lalu klik <strong className="text-[#5A5A40]">Add upload preset</strong>.<br />
+            4. Atur <strong>Signing Mode</strong> dari <span className="line-through">Signed</span> menjadi <strong className="text-green-600 font-bold bg-green-50 px-1 py-0.5 rounded">Unsigned</strong>.<br />
+            5. Klik <strong>Save</strong> di pojok kanan atas, lalu salin nama preset tersebut ke kolom di atas.
+          </div>
+          <button
+            onClick={() => {
+              localStorage.setItem('cloudinary_cloud_name', cloudinaryCloudName.trim());
+              localStorage.setItem('cloudinary_upload_preset', cloudinaryUploadPreset.trim());
+              alert('Konfigurasi Cloudinary berhasil disimpan secara lokal di browser Anda! Sekarang Anda sudah bisa langsung upload gambar.');
+            }}
+            className="w-full xl:w-auto px-8 py-4 bg-[#5A5A40] text-white rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-[#4a4a34] transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer self-stretch xl:self-auto"
+          >
+            <Check size={16} />
+            Simpan Konfigurasi
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

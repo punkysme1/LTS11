@@ -86,19 +86,25 @@ export const uploadFile = async (file: File): Promise<string> => {
   }
 
   // Method 3: Direct Client-Side Cloudinary Upload (using Unsigned Preset)
-  // Retrieve cloud name (fallback to public-accessible env variable if user set it)
+  // Retrieve cloud name and upload preset from localStorage or Vite env
+  const cloudNameLocal = typeof window !== 'undefined' ? (localStorage.getItem("cloudinary_cloud_name") || localStorage.getItem("CLOUDINARY_CLOUD_NAME")) : null;
+  const uploadPresetLocal = typeof window !== 'undefined' ? (localStorage.getItem("cloudinary_upload_preset") || localStorage.getItem("CLOUDINARY_UPLOAD_PRESET")) : null;
+
   const cloudNameEnv = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  const finalCloudName = cloudNameLocal || cloudNameEnv;
+  const finalPreset = uploadPresetLocal || uploadPreset;
   
-  if (cloudNameEnv && uploadPreset) {
-    console.log("Direct client-side Cloudinary configurations found. Trying direct upload...");
+  if (finalCloudName && finalPreset) {
+    console.log("Direct client-side Cloudinary configurations found. Trying direct upload...", { finalCloudName, finalPreset });
     try {
-      const cleanCloudName = cloudNameEnv.replace("@", "").trim();
+      const cleanCloudName = finalCloudName.replace("@", "").trim();
       const url = `https://api.cloudinary.com/v1_1/${cleanCloudName}/image/upload`;
       
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
+      formData.append("upload_preset", finalPreset);
       
       const response = await fetch(url, {
         method: "POST",
@@ -113,10 +119,17 @@ export const uploadFile = async (file: File): Promise<string> => {
         }
       } else {
         const errorText = await response.text();
-        console.error("Cloudinary native upload error:", errorText);
+        console.error("Cloudinary native upload error response:", errorText);
+        let errorReason = errorText;
+        try {
+          const errJson = JSON.parse(errorText);
+          errorReason = errJson.error?.message || errorText;
+        } catch (_) {}
+        throw new Error(`Cloudinary API Error: ${errorReason}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Cloudinary native upload exception:", error);
+      throw new Error(`Gagal mengunggah langsung ke Cloudinary: ${error.message || error}`);
     }
   }
 
@@ -124,13 +137,11 @@ export const uploadFile = async (file: File): Promise<string> => {
   throw new Error(
     "Gagal Mengunggah Gambar!\n\n" +
     "Penyebab:\n" +
-    "Website Anda dideploy di hosting STATIS (seperti Cloudflare Pages atau Vercel), sehingga backend Express di 'server.ts' tidak aktif di produksi.\n\n" +
-    "Cara Memperbaiki (Silakan pilih salah satu):\n\n" +
-    "👉 CARA 1: SUPABASE STORAGE (Sangat Mudah & Direkomendasikan)\n" +
-    "Supabase Anda sudah aktif! Sekarang cukup buat bucket baru bernama 'manuscripts' atau 'images' di Tab Storage dashboard Supabase Anda. Pastikan bucket tersebut dibuat PUBLIK dan berikan izin INSERT ke User Anonim.\n\n" +
-    "👉 CARA 2: CLOUDINARY CLIENT-SIDE\n" +
-    "Atur 2 variabel lingkungan (Environment Variables) baru di menu settings hosting Anda:\n" +
-    "  - VITE_CLOUDINARY_CLOUD_NAME: (input nama cloud Anda)\n" +
-    "  - VITE_CLOUDINARY_UPLOAD_PRESET: (input nama Unsigned Upload Preset dari menu Settings -> Upload di Cloudinary Dashboard)"
+    "Website Anda dideploy di hosting STATIS (seperti Cloudflare Pages atau Vercel), sehingga backend Express di 'server.ts' tidak aktif di produksi, dan kredensial untuk unggah langsung ke Cloudinary belum terbaca.\n\n" +
+    "Cara Memperbaiki (Sangat Mudah):\n\n" +
+    "Masuk ke PANEL ADMIN di website Anda, lalu cari bagian \"KOFURASI CLOUDINARY CLIENT-SIDE (UNSIGNED)\" di bagian bawah layar. Masukkan:\n" +
+    "  - Cloud Name (contoh: dzussloo4)\n" +
+    "  - Upload Preset (unsigned preset dari dashboard Cloudinary Anda)\n\n" +
+    "Konfigurasi akan disimpan langsung di browser Anda secara aman dan Anda bisa langsung mengunggah gambar!"
   );
 };
