@@ -32,5 +32,18 @@ export const guestbookService = {
     
     console.warn('Supabase not configured, entry not saved to database');
     return { ...entry, id: Math.random().toString() } as GuestbookEntry;
+  },
+
+  async delete(id: string): Promise<boolean> {
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase
+        .from('guestbook')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return true;
+    }
+    return false;
   }
 };

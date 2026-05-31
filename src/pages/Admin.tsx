@@ -13,6 +13,7 @@ import { Manuscript, BlogPost, GuestbookEntry } from '../types';
 import { isSupabaseConfigured, getSupabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
+import { uploadFile } from '../services/uploadService';
 
 const ADMIN_EMAILS = ['maghfurmunif@gmail.com', 'punkysme@gmail.com'];
 
@@ -199,24 +200,11 @@ function Admin() {
     setIsUploading(fieldId);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Upload failed');
-      }
-
-      const result = await response.json();
-      onComplete(result.url);
-    } catch (error) {
+      const url = await uploadFile(file);
+      onComplete(url);
+    } catch (error: any) {
       console.error('Error uploading:', error);
-      alert('Gagal mengunggah gambar. Pastikan Cloudinary sudah dikonfigurasi.');
+      alert(error instanceof Error ? error.message : 'Gagal mengunggah gambar.');
     } finally {
       setIsUploading(null);
     }
