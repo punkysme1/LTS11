@@ -6,8 +6,11 @@ import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
  * when hosted on static platforms (like Cloudflare Pages or Vercel static).
  */
 export const uploadFile = async (file: File): Promise<string> => {
-  // Method 1: Try the Express Node.js backend API first (best for localhost / server environments)
+  const errors: string[] = [];
+
+  // --- METODE 1: Express Backend API (/api/upload) ---
   try {
+    console.log("Metode 1: Mencoba mengunggah via Express backend (/api/upload)...");
     const formData = new FormData();
     formData.append("file", file);
 
@@ -20,73 +23,20 @@ export const uploadFile = async (file: File): Promise<string> => {
     if (response.ok && contentType && contentType.includes("application/json")) {
       const result = await response.json();
       if (result.url) {
-        console.log("Successfully uploaded via Express backend:", result.url);
+        console.log("Berhasil mengunggah via Express backend:", result.url);
         return result.url;
       }
     }
-    
-    console.warn(`Express API upload returned status ${response.status} or invalid content. Trying client fallbacks...`);
-  } catch (error) {
-    console.warn("Express API upload failed/unavailable. Trying client fallbacks...", error);
+    const errText = !response.ok ? `Status ${response.status}` : "Respon JSON tidak valid";
+    errors.push(`Express Backend API: ${errText}`);
+    console.warn(`Unggahan backend tidak menghasilkan URL (${errText}). Mencoba metode klien...`);
+  } catch (error: any) {
+    errors.push(`Express Backend API error: ${error.message || error}`);
+    console.warn("Unggahan via Express backend gagal/tidak tersedia. Mencoba metode klien...", error);
   }
 
-  // Method 2: Supabase Storage direct client-side upload (extremely robust and works everywhere)
-  if (isSupabaseConfigured()) {
-    const supabase = getSupabase();
-    if (supabase) {
-      console.log("Supabase is active. Direct uploading to Supabase Storage...");
-      const fileExt = file.name.split(".").pop();
-      // Generate clean file name to prevent encoding issues
-      const cleanOriginalName = file.name.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 35);
-      const fileName = `${cleanOriginalName}_${Date.now()}.${fileExt}`;
-      const filePath = `manuscripts/${fileName}`;
-
-      // List of candidate buckets we will try in order
-      const buckets = ["manuscripts", "images", "gallery", "files"];
-      let lastErrorMessage = "";
-
-      for (const bucket of buckets) {
-        try {
-          console.log(`Attempting upload to Supabase bucket: '${bucket}'...`);
-          const { data, error } = await supabase.storage
-            .from(bucket)
-            .upload(filePath, file, {
-              cacheControl: "3600",
-              upsert: true,
-            });
-
-          if (!error && data) {
-            const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(filePath);
-            console.log(`Successfully uploaded directly to Supabase Storage ('${bucket}'):`, publicUrl);
-            return publicUrl;
-          }
-          if (error) {
-            lastErrorMessage = error.message;
-            console.log(`Failed for bucket '${bucket}':`, error.message);
-          }
-        } catch (e: any) {
-          lastErrorMessage = e.message || String(e);
-          console.log(`Exception for bucket '${bucket}':`, e);
-        }
-      }
-
-      // If we failed all buckets, we throw an error with exact instructions
-      throw new Error(
-        `[Supabase Storage Error]: ${lastErrorMessage || "Bucket tidak ditemukan"}\n\n` +
-        `Solusi Hosting Statis:\n` +
-        `Website Anda dideploy di hosting mandiri/statis (Cloudflare Pages), sehingga backend Node.js di server tidak aktif di produksi. Agar unggahan gambar berhasil:\n\n` +
-        `1. Buka Dashboard Supabase Anda (https://supabase.com)\n` +
-        `2. Masuk ke menu "Storage" (di sebelah kiri) -> klik "New Bucket"\n` +
-        `3. Beri nama bucket: "manuscripts" atau "images"\n` +
-        `4. Aktifkan opsi "Public" sehingga siapa saja bisa melihat gambar\n` +
-        `5. Masuk ke "Policies" -> Klik "New Policy" untuk bucket tersebut\n` +
-        `6. Pilih "Get started quickly" -> berikan izin "INSERT" dan "SELECT" untuk "Anon/Authenticated Users" agar browser Anda diizinkan untuk mengunggah.`
-      );
-    }
-  }
-
-  // Method 3: Direct Client-Side Cloudinary Upload (using Unsigned Preset)
-  // Retrieve cloud name and upload preset from localStorage or Vite env
+  // --- METODE 2: Direct Client-Side Cloudinary Upload (Unsigned Preset) ---
+  // Ambil data Cloudinary dari LocalStorage (jika diset lewat panel Admin) atau dari Vite Env
   const cloudNameLocal = typeof window !== 'undefined' ? (localStorage.getItem("cloudinary_cloud_name") || localStorage.getItem("CLOUDINARY_CLOUD_NAME")) : null;
   const uploadPresetLocal = typeof window !== 'undefined' ? (localStorage.getItem("cloudinary_upload_preset") || localStorage.getItem("CLOUDINARY_UPLOAD_PRESET")) : null;
 
@@ -95,16 +45,16 @@ export const uploadFile = async (file: File): Promise<string> => {
 
   const finalCloudName = cloudNameLocal || cloudNameEnv;
   const finalPreset = uploadPresetLocal || uploadPreset;
-  
+
   if (finalCloudName && finalPreset) {
-    console.log("Direct client-side Cloudinary configurations found. Trying direct upload...", { finalCloudName, finalPreset });
+    console.log("Metode 2: Mencoba unggah langsung ke Cloudinary dari browser...", { finalCloudName, finalPreset });
     try {
       const cleanCloudName = finalCloudName.replace("@", "").trim();
       const url = `https://api.cloudinary.com/v1_1/${cleanCloudName}/image/upload`;
       
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("upload_preset", finalPreset);
+      formData.append("upload_preset", finalPreset.trim());
       
       const response = await fetch(url, {
         method: "POST",
@@ -114,7 +64,7 @@ export const uploadFile = async (file: File): Promise<string> => {
       if (response.ok) {
         const result = await response.json();
         if (result.secure_url) {
-          console.log("Successfully uploaded to Cloudinary directly from client:", result.secure_url);
+          console.log("Berhasil mengunggah langsung ke Cloudinary via browser:", result.secure_url);
           return result.secure_url;
         }
       } else {
@@ -125,23 +75,69 @@ export const uploadFile = async (file: File): Promise<string> => {
           const errJson = JSON.parse(errorText);
           errorReason = errJson.error?.message || errorText;
         } catch (_) {}
-        throw new Error(`Cloudinary API Error: ${errorReason}`);
+        errors.push(`Cloudinary Unsigned API: ${errorReason}`);
       }
     } catch (error: any) {
       console.error("Cloudinary native upload exception:", error);
-      throw new Error(`Gagal mengunggah langsung ke Cloudinary: ${error.message || error}`);
+      errors.push(`Cloudinary Unsigned Exception: ${error.message || error}`);
     }
+  } else {
+    console.log("Metode 2 dilewati: Kredensial Cloudinary Unsigned (Cloud Name atau Upload Preset) belum diatur.");
+    errors.push("Cloudinary Unsigned: Kredensial belum diatur (Cloud Name atau Preset kosong).");
   }
 
-  // Global Error fallback if hosting is static and no storage mechanism is set up
+  // --- METODE 3: Direct Supabase Storage Upload ---
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabase();
+    if (supabase) {
+      console.log("Metode 3: Mencoba unggah langsung ke Supabase Storage...");
+      const fileExt = file.name.split(".").pop();
+      // Generate nama file yang bersih untuk mencegah masalah pengodean URL
+      const cleanOriginalName = file.name.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 35);
+      const fileName = `${cleanOriginalName}_${Date.now()}.${fileExt}`;
+      const filePath = `manuscripts/${fileName}`;
+
+      // Daftar bucket kandidat yang akan dicoba secara berurutan
+      const buckets = ["manuscripts", "images", "gallery", "files"];
+      let lastErrorMessage = "";
+
+      for (const bucket of buckets) {
+        try {
+          console.log(`Mencoba mengunggah ke bucket Supabase: '${bucket}'...`);
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .upload(filePath, file, {
+              cacheControl: "3600",
+              upsert: true,
+            });
+
+          if (!error && data) {
+            const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(filePath);
+            console.log(`Berhasil mengunggah langsung ke Supabase Storage ('${bucket}'):`, publicUrl);
+            return publicUrl;
+          }
+          if (error) {
+            lastErrorMessage = error.message;
+            console.log(`Gagal untuk bucket '${bucket}':`, error.message);
+          }
+        } catch (e: any) {
+          lastErrorMessage = e.message || String(e);
+          console.log(`Pengecualian untuk bucket '${bucket}':`, e);
+        }
+      }
+      errors.push(`Supabase Storage Gagal: ${lastErrorMessage || "Bucket tidak ditemukan"}`);
+    }
+  } else {
+    errors.push("Supabase Storage: Supabase tidak dikonfigurasi.");
+  }
+
+  // --- KESALAHAN GLOBAL JIKA SEMUA METODE GAGAL ---
   throw new Error(
-    "Gagal Mengunggah Gambar!\n\n" +
-    "Penyebab:\n" +
-    "Website Anda dideploy di hosting STATIS (seperti Cloudflare Pages atau Vercel), sehingga backend Express di 'server.ts' tidak aktif di produksi, dan kredensial untuk unggah langsung ke Cloudinary belum terbaca.\n\n" +
-    "Cara Memperbaiki (Sangat Mudah):\n\n" +
-    "Masuk ke PANEL ADMIN di website Anda, lalu cari bagian \"KOFURASI CLOUDINARY CLIENT-SIDE (UNSIGNED)\" di bagian bawah layar. Masukkan:\n" +
-    "  - Cloud Name (contoh: dzussloo4)\n" +
-    "  - Upload Preset (unsigned preset dari dashboard Cloudinary Anda)\n\n" +
-    "Konfigurasi akan disimpan langsung di browser Anda secara aman dan Anda bisa langsung mengunggah gambar!"
+    `❌ Gagal Mengunggah Berkas!\n\n` +
+    `Detail status & error dari setiap metode:\n` +
+    errors.map((err, idx) => `  [Metode ${idx + 1}] ${err}`).join("\n") +
+    `\n\n💡 SOLUSI DI CLOUDFLARE PAGES / HOSTING STATIS:\n` +
+    `Karena Anda dideploy di hosting statis (seperti Cloudflare Pages), Node.js server (/api/upload) tidak merespons (menghasilkan status HTTP 405/404).\n\n` +
+    `Sangat disarankan untuk memasukkan Cloud Name & Unsigned Upload Preset Anda pada panel "Konfigurasi Cloudinary Client-Side" di bagian paling bawah halaman Admin di website Anda! Setelah Anda menyimpannya sekali, unggahan gambar akan langsung lancar dari browser ke Cloudinary tanpa server backend.`
   );
 };
