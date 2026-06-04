@@ -1,0 +1,47 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    - cron: '0 9 * * 1,4' # Otomatis berjalan Senin & Kamis jam 16:00 WIB
+  workflow_dispatch: # Tombol manual di UI GitHub
+
+jobs:
+  ping-database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API Directly
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+          if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+            console.error('❌ EROR: Kredensial tidak ditemukan di GitHub Secrets!');
+            process.exit(1);
+          }
+
+          async function ping() {
+            console.log('Mengirim sinyal aktivitas ke REST API Supabase...');
+            
+            // Melakukan fetch langsung ke root endpoint PostgREST Supabase
+            const response = await fetch(\`\${process.env.SUPABASE_URL}/rest/v1/\`, {
+              method: 'GET',
+              headers: {
+                'apikey': process.env.SUPABASE_KEY,
+                'Authorization': \`Bearer \${process.env.SUPABASE_KEY}\`
+              }
+            });
+
+            if (response.ok) {
+              console.log('✅ BERHASIL: Sinyal diterima. Proyek Supabase Anda aman dari auto-pause!');
+            } else {
+              console.error('❌ GAGAL: Server merespons dengan status:', response.status);
+              process.exit(1);
+            }
+          }
+
+          ping().catch(err => {
+            console.error('💥 EROR JARINGAN:', err.message);
+            process.exit(1);
+          });
+          "
