@@ -35,7 +35,7 @@ const metadataToDb = (m: Record<string, string>) => ({ title_latin: m.titleLatin
 const dbToMetadata = (u: AnyRecord) => { const saved=unpackNotesAndProvenance(u.notes); return ({ titleLatin: u.title_latin || '', titleTeam: u.title_from_team || '', scholarly1: u.scholarly_classification_1 || '', scholarly2: u.scholarly_classification_2 || '', scholarly3: u.scholarly_classification_3 || '', categorySecondary: u.category_secondary || '', categoryTertiary: u.category_tertiary || '', description: u.description || '', folioSeparator: u.folio_separator || '', author: u.author || '', scribe: u.scribe || '', yearOriginal: u.year_original || '', yearMasehi: u.year_masehi || '', copyingLocation: u.copying_location || '', manuscriptOrigin: u.manuscript_origin || '', language: u.language || '', script: u.script || '', cover: u.cover || '', coverSize: u.cover_size || '', binding: u.binding || '', paperSize: u.paper_size || '', dimensions: u.dimensions || '', watermark: u.watermark || '', countermark: u.countermark || '', ink: u.ink || '', totalPages: u.total_pages || '', blankPages: u.blank_pages || '', linesPerPage: u.lines_per_page || '', rubrication: u.rubrication || '', illumination: u.illumination || '', illustration: u.illustration || '', marginalNotes: u.marginal_notes || '', meaningNotes: u.meaning_notes || '', colophon: u.colophon || '', marginalNote: u.marginal_note || '', physicalCondition: u.physical_condition || '', readability: u.readability || '', completeness: u.completeness || '', notes: saved.notes, provenance: JSON.stringify(saved.provenance), keywords: u.keywords || '', glossary: u.glossary || '', references: u.references_text || '', relatedManuscripts: u.related_manuscripts || '', relatedPersons: u.related_persons || '', paperType: u.paper_type || '' }); };
 
 export default function AdminV1({path=location.pathname,navigate=(to:string)=>{history.pushState({},'',to);dispatchEvent(new PopStateEvent('popstate'));}}:{path?:string;navigate?:(path:string)=>void}) {
-  const [session, setSession] = useState<any>(null); const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
+  const [session, setSession] = useState<any>(null); const [isAdmin, setIsAdmin] = useState(false); const [adminCheckDone, setAdminCheckDone] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
   const [bundles, setBundles] = useState<Bundle[]>([]); const [adminLoaded,setAdminLoaded]=useState(false); const [input, setInput] = useState('ds-004'); const [manifest, setManifest] = useState(''); const [pages, setPages] = useState<Page[]>([]);
   const [project,setProject]=useState('Dreamsea'); const [collection,setCollection]=useState('Ndalem'); const [editingUnit,setEditingUnit]=useState<any>(null); const [sourceIdentifier,setSourceIdentifier]=useState('');
   const [title, setTitle] = useState(''); const [displayId, setDisplayId] = useState(''); const [category, setCategory] = useState('');
@@ -43,8 +43,29 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
   const computedCode=displayId.trim();
   const changeInventory=(key:string,value:string)=>{if(key==='project')setProject(value);if(key==='collection')setCollection(value);if(key==='id')setDisplayId(value);if(key==='category')setCategory(value);};
   const load = () => listAdminBundles().then(data=>{setBundles(data);setAdminLoaded(true);}).catch((e) => {setMessage(e.message);setAdminLoaded(true);});
-  useEffect(() => { if (!supabase) return; supabase.auth.getSession().then(({ data }) => setSession(data.session)); const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s)); return () => data.subscription.unsubscribe(); }, []);
-  useEffect(() => { if (session) load(); }, [session]);
+  useEffect(() => {
+    if (!supabase) { setAdminCheckDone(true); return; }
+    let active = true;
+    const checkAdmin = async (nextSession: any) => {
+      setSession(nextSession);
+      if (!nextSession) { setIsAdmin(false); setAdminCheckDone(true); return; }
+      setAdminCheckDone(false);
+      const { data, error } = await supabase.from('turots_admins').select('user_id').eq('user_id', nextSession.user.id).maybeSingle();
+      if (!active) return;
+      setIsAdmin(!error && Boolean(data));
+      if (error) setMessage(`Peran admin Turots gagal diperiksa: ${error.message}`);
+      else if (!data) setMessage('Akun ini belum terdaftar sebagai Admin Turots.');
+      setAdminCheckDone(true);
+    };
+    void supabase.auth.getSession().then(({ data }) => checkAdmin(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!nextSession) { void checkAdmin(null); return; }
+      setSession(nextSession); setIsAdmin(false); setAdminCheckDone(false);
+      window.setTimeout(() => { if (active) void checkAdmin(nextSession); }, 0);
+    });
+    return () => { active = false; data.subscription.unsubscribe(); };
+  }, []);
+  useEffect(() => { if (session && isAdmin) load(); }, [session, isAdmin]);
   const login = async () => { if (!supabase) return setMessage('Supabase belum dikonfigurasi.'); const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) setMessage(error.message); };
   const logout = async () => { if(!supabase)return;const {error}=await supabase.auth.signOut();if(error)setMessage(`Logout gagal: ${error.message}`);else{setMessage('Sesi admin berakhir.');navigate('/admin');} };
   const fetchManifest = async () => { try { const url = input.startsWith('http') ? input : `https://iiif.archive.org/iiif/${input}/manifest.json`; const response = await fetch(url); if (!response.ok) throw new Error(`Manifest HTTP ${response.status}`); const data = await response.json(); const parsed = pagesFromManifest(data, url); const identifier = input.startsWith('http') ? (url.match(/iiif\.archive\.org\/iiif\/([^/]+)\/manifest/i)?.[1] || input) : input; const files = await archiveImageFiles(identifier); const resolved = parsed.map((page, index) => ({ ...page, imageUrl: files[index] ? `https://archive.org/download/${identifier}/${encodeURIComponent(files[index])}` : page.imageUrl })); setManifest(url); setPages(resolved); setTitle(''); setDisplayId(''); setSourceIdentifier(''); setMetadata({}); setMessage(`${resolved.length} Canvas ditemukan; ${files.length} file gambar dipetakan.`); } catch (e) { setMessage(e instanceof Error ? e.message : 'Manifest gagal dibaca.'); } };
@@ -67,6 +88,8 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
   const editRoute=path.match(/^\/admin\/manuskrip\/([^/]+)\/edit$/);
   useEffect(()=>{if(!editRoute||!adminLoaded)return;const unitId=decodeURIComponent(editRoute[1]);const bundle=bundles.find(item=>item.turots_text_units?.some((unit:AnyRecord)=>unit.id===unitId));const unit=bundle?.turots_text_units?.find((item:AnyRecord)=>item.id===unitId);if(bundle&&unit&&editingUnit?.id!==unitId)startEdit(bundle,unit);else if(!unit)setMessage(`Manuskrip dengan ID ${unitId} tidak ditemukan.`);},[path,bundles,adminLoaded]);
   if (supabaseConfigured && !session) return <section className="page-section admin-page"><p className="eyebrow">Admin · Supabase Auth</p><h1>Login Admin</h1><div className="admin-form admin-fields"><label>Email<input value={email} onChange={(e) => setEmail(e.target.value)} /></label><label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label><button className="primary-action" onClick={() => void login()}>Login</button><p>{message}</p></div></section>;
+  if (session && !adminCheckDone) return <section className="page-section admin-page"><p role="status">Memeriksa hak admin…</p></section>;
+  if (session && !isAdmin) return <section className="page-section admin-page"><p className="eyebrow">Admin · Supabase Auth</p><h1>Akses admin belum diberikan</h1><p role="alert">{message || 'Akun ini belum terdaftar sebagai Admin Turots.'}</p><button className="admin-logout" onClick={() => void logout()}>Logout</button></section>;
   const editorForm=<div className="admin-form"><label>Archive Identifier<input value={input} onChange={e=>setInput(e.target.value)} /></label><button className="primary-action" onClick={()=>void fetchManifest()}><RefreshCw size={16}/> Ambil Manifest</button>{pages.length>0&&<><label>Judul asli manuskrip<input value={title} onChange={e=>setTitle(e.target.value)}/><small>Judul karya di dalam naskah, bukan nama folder foto.</small></label><InventoryFields project={project} collection={collection} category={category} code={displayId} onChange={changeInventory}/><MetadataEditor value={metadata} onChange={setMetadata} bundles={bundles}/>{path==='/admin/manuskrip/baru'?<button className="primary-action" onClick={()=>void save()}>Simpan Draft ke Supabase</button>:<button className="primary-action" onClick={()=>void edit()}>Simpan perubahan metadata</button>}</>}</div>;
   const routeUnitId=editRoute?decodeURIComponent(editRoute[1]):'';
   const routeUnit=editingUnit?.id===routeUnitId?editingUnit:null;
