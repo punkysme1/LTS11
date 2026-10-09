@@ -1,0 +1,59 @@
+.admin-page { max-width: 1180px; }
+.admin-page h1 { margin-bottom: 8px; }
+.admin-form { padding: clamp(20px, 3vw, 34px); box-shadow: 0 12px 32px rgba(55, 43, 28, .06); }
+.admin-form > label, .admin-form .metadata-grid label { display: flex !important; flex-direction: column; align-items: stretch; gap: 7px; color: #5f584e; font-size: 12px; font-weight: 800; line-height: 1.35; margin: 0; }
+.admin-form > label { max-width: 760px; margin-bottom: 16px; }
+.admin-form input, .admin-form textarea, .admin-form select { width: 100%; min-height: 44px; border: 1px solid #d6cbbc; border-radius: 8px; padding: 10px 12px; color: #303b35; background: #fff; outline: none; transition: border-color .18s, box-shadow .18s; }
+.admin-form textarea { min-height: 112px; resize: vertical; }
+.admin-form input:focus, .admin-form textarea:focus, .admin-form select:focus { border-color: #8b6844; box-shadow: 0 0 0 3px rgba(139, 104, 68, .13); }
+.metadata-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 28px 0; padding-top: 24px; border-top: 1px solid #ebe4d9; }
+.metadata-grid::before { content: 'Metadata filologis dan fisik'; grid-column: 1 / -1; color: #35463d; font: 600 24px Georgia, serif; }
+.metadata-grid label:nth-child(4n), .metadata-grid label:nth-child(4n + 1) { grid-column: span 2; }
+.metadata-grid label:nth-child(4n) input, .metadata-grid label:nth-child(4n + 1) input { max-width: 100%; }
+.admin-form .primary-action { margin-top: 8px; }
+.admin-list { margin-top: 26px; background: #fffdf9; border: 1px solid #ded5c8; border-radius: 16px; padding: 20px 24px; }
+.admin-list h2 { margin: 0 0 12px; color: #35463d; font: 600 25px Georgia, serif; }
+.admin-list-head,.admin-list-item { display:grid; grid-template-columns:minmax(110px, 170px) minmax(0, 1fr) minmax(300px, 360px); align-items:center; gap:16px; }
+.admin-list-head { padding:8px 0 10px; border-bottom:1px solid rgba(35,31,26,.18); color:#766e63; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+.admin-list-item { padding:12px 0; border-bottom:1px solid rgba(35,31,26,.12); }
+.admin-list-item > div { display: grid; gap: 5px; min-width: 0; }
+.admin-list-item strong { color: #35463d; font-size: 15px; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+.admin-list-id { color:#766e63; font-size:12px; overflow-wrap:anywhere; }
+.admin-list-title { min-width:0; }
+.admin-list-item > .admin-list-title { display:block; text-align:start; }
+.admin-list-item small { color: #766e63; }
+.admin-list-item button { border: 1px solid #cdbda8; background: #fff; color: #705538; border-radius: 7px; padding: 8px 12px; font-weight: 800; font-size: 11px; }
+.admin-list-item button:hover { background: #f1e8dc; }
+.card-cover { position: relative; overflow: hidden; }
+.card-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.thumbnail-label { position: absolute; left: 10px; bottom: 10px; padding: 4px 8px; border-radius: 999px; color: #fff; background: rgba(35, 31, 26, .78); font-size: 11px; }
+@media (max-width: 700px) { .metadata-grid { grid-template-columns: 1fr; } .metadata-grid label:nth-child(4n), .metadata-grid label:nth-child(4n + 1) { grid-column: auto; } }
+.admin-form > .category-standalone { display: none; }
+.admin-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; margin: 8px 0 24px; }
+.admin-heading h1 { margin:0; }
+.admin-heading p,.admin-context { max-width:68ch; color:#687261; line-height:1.65; }
+.admin-back { display:inline-flex; align-items:center; min-height:40px; margin:0 0 20px; padding:8px 12px; border:1px solid #d6cbbc; border-radius:8px; background:#fffdf9; color:#46574a; font-weight:700; cursor:pointer; }
+.admin-back:hover { background:#f1e8dc; }
+.admin-edit-context { display:grid; gap:7px; margin:0 0 22px; padding:16px 18px; border:1px solid #d9dfd6; border-left:4px solid #536e5b; border-radius:10px; background:#f5f7f2; color:#4d5c4e; }
+.admin-edit-context strong { color:#304b40; font:600 clamp(20px,2vw,28px)/1.35 Georgia,serif; overflow-wrap:anywhere; }
+.admin-list-item .admin-unit-actions { display:flex; flex-direction:row; flex-wrap:nowrap; align-items:center; justify-content:flex-end; gap:8px; }
+.admin-unit-actions button { max-width:100%; line-height:1.35; }
+.admin-unit-actions .admin-delete { color:#873f36; border-color:#d9b9b2; }
+.admin-unit-actions .admin-delete:hover { background:#f8e9e5; }
+.admin-header-actions,.admin-route-actions { display:flex; align-items:center; gap:10px; }
+.admin-route-actions { justify-content:space-between; }
+.admin-route-actions .admin-back { margin-bottom:20px; }
+.admin-logout { min-height:42px; padding:10px 15px; border:1px solid #cdbda8; border-radius:8px; background:#fffdf9; color:#705538; font:700 13px inherit; cursor:pointer; }
+.admin-logout:hover { background:#f1e8dc; }
+@media(max-width:700px) {
+  .admin-heading { align-items:stretch; flex-direction:column; }
+  .admin-header-actions { width:100%; }
+  .admin-header-actions > button { flex:1; justify-content:center; }
+  .admin-list { padding:16px; }
+  .admin-list-head { display:none; }
+  .admin-list-item { grid-template-columns:minmax(74px,auto) minmax(0,1fr); gap:8px 12px; }
+  .admin-list-item .admin-unit-actions { grid-column:1 / -1; justify-content:flex-start; flex-wrap:wrap; }
+  .admin-unit-actions button { max-width:none; white-space:nowrap; }
+  .admin-route-actions { align-items:flex-start; }
+  .admin-route-actions .admin-back { max-width:calc(100% - 100px); }
+}

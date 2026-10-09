@@ -1,0 +1,65 @@
+/* Constrain portrait scans independently from their intrinsic dimensions. */
+.archive-card > a {
+  display: block;
+  height: 100%;
+}
+.archive-card .archive-cover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 260px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.archive-card .archive-cover img {
+  position: absolute;
+  inset: 18px;
+  display: block;
+  width: calc(100% - 36px);
+  height: calc(100% - 36px);
+  max-width: calc(100% - 36px);
+  max-height: calc(100% - 36px);
+  object-fit: contain;
+  object-position: center;
+}
+.archive-card .archive-copy {
+  position: relative;
+  background: #fffdf8;
+  padding: 22px;
+  border-top: 1px solid #dedbce;
+}
+.archive-card .archive-copy h3 {
+  color: #304b40;
+  font-size: 26px;
+  line-height: 1.45;
+  margin: 12px 0;
+}
+.archive-card .archive-copy p {
+  color: #555e53;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.archive-card .archive-copy small {
+  display: block;
+  color: #735a36;
+  line-height: 1.6;
+  font-size: 12px;
+}
+.archive-card .archive-copy footer {
+  flex-wrap: wrap;
+  align-items: center;
+  color: #54634f;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.archive-card .archive-copy footer span {
+  color: #304b40;
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .archive-card .archive-cover { height: 280px; }
+  .archive-card .archive-copy { padding: 20px; }
+}

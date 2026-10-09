@@ -1,0 +1,23 @@
+{
+  "name": "turots-iiif-concept",
+  "private": true,
+  "version": "1.1.0",
+  "type": "module",
+  "scripts": {
+    "verify:v11": "node scripts/verify-v11.mjs",
+    "dev": "vite --host 127.0.0.1 --port 3005",
+    "build": "vite build",
+    "verify:nawra": "node scripts/verify-nawra-contract.mjs",
+    "verify:v1": "node scripts/verify-v1.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 3005"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "typescript": "~5.8.2",
+    "vite": "^6.4.2"
+  }
+}

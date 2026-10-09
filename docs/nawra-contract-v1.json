@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "source": "turots",
+  "operations": [
+    "catalog.search",
+    "catalog.count",
+    "catalog.detail",
+    "catalog.pages",
+    "catalog.relations",
+    "catalog.research",
+    "catalog.citation"
+  ],
+  "rules": {
+    "public_scope": "publication_status=published",
+    "metadata_is_content": false,
+    "image_url_proves_content_read": false,
+    "unknown_is_not_absence": true,
+    "citation_required_for_substantive_claims": true
+  },
+  "response_fields": [
+    "source", "record_id", "display_id", "title", "bundle_code",
+    "metadata_status", "publication_status", "evidence", "content_locations"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "https://turots.qomaruddin.org/iiif/manifests/DS.001.json",
+  "type": "Manifest",
+  "label": { "id": "https://turots.qomaruddin.org/iiif/manifests/DS.001/label", "type": "Text", "language": ["id"], "value": ["Bendel DS.001 — Shu'bah al-Iman"] },
+  "metadata": [
+    { "label": { "en": ["Collection"] }, "value": { "id": ["Ndalem"] } },
+    { "label": { "en": ["Source"] }, "value": { "id": ["DREAMSEA"] } },
+    { "label": { "en": ["Turots display ID"] }, "value": { "id": ["01.A.04.0001"] } }
+  ],
+  "items": [
+    {
+      "id": "https://turots.qomaruddin.org/iiif/manifests/DS.001/canvas/f001r",
+      "type": "Canvas",
+      "label": { "id": "https://turots.qomaruddin.org/iiif/manifests/DS.001/canvas/f001r/label", "type": "Text", "language": ["id"], "value": ["Folio 1 recto"] },
+      "width": 1200,
+      "height": 1800,
+      "items": []
+    }
+  ]
+}

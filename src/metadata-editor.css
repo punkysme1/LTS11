@@ -1,0 +1,62 @@
+.metadata-editor{display:grid;gap:22px;margin:24px 0}.metadata-section,.metadata-editor fieldset{min-width:0;border:1px solid #ded5c8;border-radius:12px;padding:20px}.metadata-section legend,.metadata-editor legend{font-weight:700;color:#354b3b;padding:0 8px}.metadata-section p{font-size:13px;line-height:1.7;color:#687261}.metadata-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.metadata-editor label,.metadata-section label{display:grid;gap:8px;font-size:13px;margin-bottom:12px}.dimension-inputs,.number-unit{display:flex;gap:10px;align-items:center}.dimension-inputs label{min-width:0;flex:1}.number-unit input{min-width:0}.metadata-editor button{padding:10px 16px;border-radius:8px;background:#e6dfcf;color:#354b3b}.repeat-section{display:grid;gap:12px}.repeat-section h3{font:24px Georgia,serif}.metadata-editor small{overflow-wrap:anywhere}.metadata-editor .tag-row{flex-wrap:wrap}.metadata-editor select{width:100%}@media(max-width:700px){.metadata-controls{grid-template-columns:1fr}.metadata-section,.metadata-editor fieldset{padding:14px}}
+
+/* Physical-description controls: compact choices, content-sized groups, and clear units. */
+.metadata-editor .metadata-section { align-self: start; }
+.metadata-editor .metadata-controls { align-items: start; }
+.metadata-editor .metadata-controls > label,
+.metadata-editor .metadata-controls > fieldset,
+.metadata-editor .metadata-controls > .physical-counts { min-width: 0; align-self: start; }
+.physical-section > p:first-of-type { margin: 0 0 18px; max-width: 76ch; }
+.physical-controls > .dimension-field,
+.physical-controls > fieldset,
+.physical-controls > .physical-counts { height: fit-content; }
+.physical-controls > .dimension-field > p { margin: 0; }
+.dimension-field .field-not-applicable { padding: 7px 0; color: #766e63; font-style: italic; }
+.dimension-inputs { min-width: 0; }
+.dimension-inputs label { font-size: 12px; }
+.dimension-inputs > span { align-self: end; padding: 0 2px 12px; color: #5f665d; }
+.physical-controls > .ink-field { grid-column: 1 / -1; }
+.ink-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+.metadata-editor .ink-options > .check-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 42px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #e4dbce;
+  border-radius: 8px;
+  background: #fffdf9;
+  color: #454b45;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.metadata-editor .ink-options .check-option input[type="checkbox"] {
+  appearance: auto;
+  flex: 0 0 18px;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: #304b40;
+  cursor: pointer;
+}
+.metadata-editor .ink-options .check-option:has(input:checked) { border-color: #718675; background: #f0f4ee; }
+.metadata-editor .ink-options .check-option:focus-within { outline: 3px solid #aa824c; outline-offset: 2px; }
+.metadata-editor .ink-other { margin: 14px 0 0; }
+.physical-counts { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.metadata-editor .physical-counts > label { min-width: 0; margin: 0; }
+@media (max-width: 900px) {
+  .metadata-controls { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+  .physical-counts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 600px) {
+  .metadata-controls,.ink-options,.physical-counts { grid-template-columns: minmax(0,1fr); }
+  .physical-controls > .ink-field,.physical-counts { grid-column: 1; }
+  .dimension-inputs { flex-wrap: wrap; }
+  .dimension-inputs label { flex-basis: calc(50% - 12px); }
+}
