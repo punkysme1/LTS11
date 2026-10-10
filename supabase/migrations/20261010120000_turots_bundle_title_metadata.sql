@@ -1,0 +1,17 @@
+alter table public.turots_bundles
+  add column if not exists affiliation_url text,
+  add column if not exists cover text,
+  add column if not exists cover_size text,
+  add column if not exists binding text,
+  add column if not exists paper_size text,
+  add column if not exists dimensions text,
+  add column if not exists paper_type text,
+  add column if not exists watermark text,
+  add column if not exists countermark text,
+  add column if not exists ink text,
+  add column if not exists blank_pages integer,
+  add column if not exists physical_condition text,
+  add column if not exists completeness text,
+  add column if not exists illumination text,
+  add column if not exists illustration text,
+  add column if not exists bundle_notes text;
