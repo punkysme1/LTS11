@@ -52,11 +52,22 @@ async function attachFolioRange(bundleId:string,unitId:string,start:string,end:s
  return selected.length;
 }
 
-export async function listPublishedCatalog() {
-  if (!supabase) return [];
-  const { data, error } = await supabase.from('turots_bundles').select('*, turots_collections(*), turots_text_units!inner(*), turots_pages(*)').eq('publication_status', 'published').eq('turots_text_units.metadata_status','imported').order('updated_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+let publishedCatalogCache: { expiresAt: number; promise: Promise<any[]> } | null = null;
+export function listPublishedCatalog() {
+  if (!supabase) return Promise.resolve([]);
+  if (publishedCatalogCache && publishedCatalogCache.expiresAt > Date.now()) return publishedCatalogCache.promise;
+  const promise = (async () => {
+    const { data, error } = await supabase.from('turots_bundles')
+      .select('id,bundle_code,display_title,updated_at,turots_collections(name,source_project),turots_text_units!inner(id,sequence_no,display_id,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url)')
+      .eq('publication_status', 'published')
+      .eq('turots_text_units.metadata_status','imported')
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  })();
+  publishedCatalogCache = { expiresAt: Date.now() + 10_000, promise };
+  void promise.catch(() => { if (publishedCatalogCache?.promise === promise) publishedCatalogCache = null; });
+  return promise;
 }
 
 export async function listAdminBundles() {

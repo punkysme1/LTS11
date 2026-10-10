@@ -2,12 +2,21 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { unpackNotesAndProvenance } from './metadataModel';
+import { buildCatalogSlugMap, slugify } from './catalogSlugs';
+import { listPublishedCatalog } from './services/turotsRepository';
 import './detail.css';
 
 const IiifViewer = lazy(() => import('./IiifViewer'));
 
 type AnyRecord = Record<string, any>;
-const slugify = (value: string) => value.toString().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'manuskrip';
+const detailRequestCache = new Map<string, { expiresAt: number; promise: Promise<any> }>();
+function cachedDetailRequest<T>(key: string, load: () => Promise<T>) {
+  const cached = detailRequestCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise as Promise<T>;
+  const promise = load().catch((error) => { detailRequestCache.delete(key); throw error; });
+  detailRequestCache.set(key, { expiresAt: Date.now() + 15_000, promise });
+  return promise;
+}
 const metadataGroups: Array<[string, Array<[string, string]>]> = [
   ['Identitas judul', [['Judul asli', 'title_original'], ['Judul dari tim', 'title_from_team'], ['Kategori utama', 'category_primary'], ['Status metadata', 'metadata_status']]],
   ['Klasifikasi dan isi', [['Klasifikasi 1', 'scholarly_classification_1'], ['Klasifikasi 2', 'scholarly_classification_2'], ['Klasifikasi 3', 'scholarly_classification_3'], ['Deskripsi umum', 'description'], ['Hlm pemisah proyek', 'folio_separator'], ['Kata kunci', 'keywords'], ['Glosarium', 'glossary']]],
@@ -19,22 +28,49 @@ export default function DetailV1({ keyValue }: { keyValue: string; key?: string 
   const [unitId, setUnitId] = useState(new URLSearchParams(location.search).get('unit') || '');
   const [bundle, setBundle] = useState<AnyRecord | null>(null);
   const [selected, setSelected] = useState(0);
+  const [pagesLoading, setPagesLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    setBundle(null); setError(''); setSelected(0);
+    setBundle(null); setError(''); setSelected(0); setPagesLoading(false);
     void (async () => {
       if (!supabase) throw new Error('Koneksi katalog belum dikonfigurasi.');
-      const { data, error: requestError } = await supabase.from('turots_bundles')
-        .select('*,turots_collections(*),turots_text_units(*),turots_pages(*)')
-        .eq('publication_status', 'published');
-      if (requestError) throw requestError;
-      const matchesUnit = (unit: AnyRecord) => unit.title_original === keyValue || unit.title_curatorial === keyValue || slugify(unit.title_original || unit.display_id || unit.id) === keyValue || unit.id === keyValue;
-      const found = (data || []).find((item: AnyRecord) => item.id === keyValue || item.bundle_code === keyValue || item.turots_text_units?.some(matchesUnit) || slugify(item.display_title || item.bundle_code) === keyValue);
-      if (!found) throw new Error('Katalog tidak ditemukan.');
-      const matchedUnit = found.turots_text_units?.find(matchesUnit);
-      if (active) { setUnitId(matchedUnit?.id || new URLSearchParams(location.search).get('unit') || found.turots_text_units?.[0]?.id || ''); setBundle(found); }
+      const params = new URLSearchParams(location.search);
+      const requestedUnit = params.get('unit') || '';
+      let targetBundleId = params.get('bundle') || '';
+      let targetUnitId = requestedUnit;
+
+      if (!targetBundleId) {
+        const catalog = await cachedDetailRequest('published-catalog-slug-map', listPublishedCatalog);
+        const rows = (catalog || []).flatMap((bundle: AnyRecord) => (bundle.turots_text_units || []).map((unit: AnyRecord) => ({ b: bundle, u: unit })));
+        const routeSlugs = buildCatalogSlugMap(rows);
+        const match = rows.find(({ u }) => routeSlugs.get(u.id) === keyValue || u.id === keyValue || u.display_id === keyValue || u.title_original === keyValue || u.title_curatorial === keyValue || slugify(u.title_curatorial || '') === keyValue);
+        const bundleMatch = rows.find(({ b }) => b?.id === keyValue || b?.bundle_code === keyValue || slugify(b?.display_title || b?.bundle_code || '') === keyValue);
+        const requestedUnitMatch = rows.find(({ u }) => u.id === requestedUnit);
+        targetBundleId = match?.b?.id || requestedUnitMatch?.b?.id || bundleMatch?.b?.id || '';
+        targetUnitId = match?.u?.id || requestedUnit;
+      }
+      if (!targetBundleId) throw new Error('Katalog tidak ditemukan.');
+
+      const found = await cachedDetailRequest(`published-bundle-${targetBundleId}-${targetUnitId}`, async () => {
+        let bundleRequest = supabase.from('turots_bundles')
+          .select('*,turots_collections(*),turots_text_units(*),turots_pages(*)')
+          .eq('id', targetBundleId)
+          .eq('publication_status', 'published');
+        if (targetUnitId) bundleRequest = bundleRequest.eq('turots_pages.text_unit_id', targetUnitId);
+        const { data, error: requestError } = await bundleRequest.maybeSingle();
+        if (requestError) throw requestError;
+        return data;
+      });
+      if (!found) throw new Error('Metadata bendel tidak ditemukan.');
+
+      const orderedBundle = {
+        ...found,
+        turots_text_units: [...(found.turots_text_units || [])].sort((left: AnyRecord, right: AnyRecord) => Number(left.sequence_no || 0) - Number(right.sequence_no || 0)),
+        turots_pages: [...(found.turots_pages || [])].sort((left: AnyRecord, right: AnyRecord) => Number(left.page_order || 0) - Number(right.page_order || 0)),
+      };
+      if (active) { setUnitId(targetUnitId || orderedBundle.turots_text_units?.[0]?.id || ''); setBundle(orderedBundle); }
     })().catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Katalog belum dapat dimuat.'); });
     return () => { active = false; };
   }, [keyValue]);
@@ -43,10 +79,25 @@ export default function DetailV1({ keyValue }: { keyValue: string; key?: string 
   const pages = useMemo(() => [...(bundle?.turots_pages || [])].filter((item: AnyRecord) => item.text_unit_id === unit.id).sort((left: AnyRecord, right: AnyRecord) => left.page_order - right.page_order), [bundle, unit.id]);
   const page = pages[selected];
   const provenance = unpackNotesAndProvenance(unit.notes).provenance;
-  const selectUnit = (nextUnitId: string) => {
+  const selectUnit = async (nextUnitId: string) => {
     setUnitId(nextUnitId); setSelected(0);
     const next = new URLSearchParams(location.search); next.set('unit', nextUnitId);
     history.replaceState({}, '', `${location.pathname}?${next.toString()}`);
+    if (!bundle || !supabase) return;
+    setPagesLoading(true);
+    try {
+      const pages = await cachedDetailRequest(`published-pages-${bundle.id}-${nextUnitId}`, async () => {
+        const { data, error: requestError } = await supabase.from('turots_pages')
+          .select('*').eq('bundle_id', bundle.id).eq('text_unit_id', nextUnitId).order('page_order');
+        if (requestError) throw requestError;
+        return data || [];
+      });
+      setBundle((current: AnyRecord | null) => current ? { ...current, turots_pages: pages } : current);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Halaman judul ini belum dapat dimuat.');
+    } finally {
+      setPagesLoading(false);
+    }
   };
 
   if (error) return <section className="archive-content"><div className="content-state" role="alert"><h1>{error}</h1><a className="text-action" href="/katalog">Kembali ke katalog</a></div></section>;
@@ -58,8 +109,8 @@ export default function DetailV1({ keyValue }: { keyValue: string; key?: string 
     <header className="detail-hero"><div><p className="eyebrow">{unit.display_id || bundle.bundle_code} · {bundle.turots_collections?.name || 'Koleksi manuskrip'}</p><h1 dir="auto">{unit.title_original || bundle.display_title}</h1>{unit.title_latin && <p className="latin">{unit.title_latin}</p>}</div><a className="source-button" href={bundle.item_url || `https://archive.org/details/${bundle.archive_identifier}`} target="_blank" rel="noreferrer">Buka sumber digital <span aria-hidden="true">↗</span></a></header>
     <div className="detail-layout">
       <main className="detail-main">
-        {(bundle.turots_text_units || []).length > 1 && <label className="unit-selector">Judul dalam bendel<select value={unit.id || ''} onChange={(event) => selectUnit(event.target.value)}>{bundle.turots_text_units.map((item: AnyRecord) => <option key={item.id} value={item.id}>{item.display_id} · {item.title_original || 'Tanpa judul'}</option>)}</select></label>}
-        <Suspense fallback={<div className="reader-fallback" role="status">Menyiapkan pembaca IIIF…</div>}><IiifViewer imageUrl={page?.image_url} label={page?.folio_label || page?.label || 'Halaman belum tersedia'} /></Suspense>
+        {(bundle.turots_text_units || []).length > 1 && <label className="unit-selector">Judul dalam bendel<select value={unit.id || ''} onChange={(event) => void selectUnit(event.target.value)}>{bundle.turots_text_units.map((item: AnyRecord) => <option key={item.id} value={item.id}>{item.display_id} · {item.title_original || 'Tanpa judul'}</option>)}</select></label>}
+        {pagesLoading ? <div className="reader-fallback" role="status">Memuat halaman judul…</div> : <Suspense fallback={<div className="reader-fallback" role="status">Menyiapkan pembaca IIIF…</div>}><IiifViewer imageUrl={page?.image_url} label={page?.folio_label || page?.label || 'Halaman belum tersedia'} /></Suspense>}
         {pages.length > 0 && <nav className="folio-strip" aria-label="Pilih halaman manuskrip">{pages.map((folio: AnyRecord, index: number) => <button key={folio.id} aria-current={index === selected ? 'page' : undefined} className={index === selected ? 'folio-thumb selected' : 'folio-thumb'} onClick={() => setFromPage(index)}><img loading="lazy" src={folio.thumbnail_url || folio.image_url} alt=""/><span>{folio.folio_label || folio.label || `Halaman ${index + 1}`}</span></button>)}</nav>}
         <section className="metadata-detail"><h2>Metadata judul</h2>{metadataGroups.map(([group, fields]) => <details className="metadata-group" key={group} open={group === 'Identitas judul'}><summary>{group}</summary><div className="metadata-table">{fields.map(([label, key]) => <div className="metadata-detail-row" key={key}><span>{label}</span><strong>{unit[key] || 'Belum diisi'}</strong></div>)}</div></details>)}
           <details className="metadata-group bundle-metadata"><summary>Metadata bendel induk</summary><div className="metadata-table">

@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { BookOpen, Heart, Home, Info, Mail, Menu, Megaphone, Newspaper, User, X, HandHeart } from 'lucide-react';
 import { listPublishedCatalog } from './services/turotsRepository';
 import { supabaseConfigured } from './lib/supabase';
 import { CATALOG_CATEGORIES } from './catalogTaxonomy';
+import { buildCatalogSlugMap } from './catalogSlugs';
 import DetailV1 from './DetailV1';
 import GuestbookPage from './GuestbookPage';
 import { PublicContentPage, StaticLandingPage } from './PublicContentPages';
@@ -46,12 +47,14 @@ export default function AppV11() {
     return () => removeEventListener('popstate', handlePopState);
   }, []);
 
-  const loadCatalog = () => {
+  const loadCatalog = useCallback(() => {
     setLoading(true); setError('');
     if (!supabaseConfigured) { setError('Koneksi katalog belum dikonfigurasi.'); setLoading(false); return; }
     void listPublishedCatalog().then(setItems).catch(() => setError('Katalog belum dapat dimuat. Periksa koneksi lalu coba lagi.')).finally(() => setLoading(false));
-  };
-  useEffect(loadCatalog, []);
+  }, []);
+  useEffect(() => {
+    if (currentPath === '/' || currentPath === '/katalog' || currentPath === '/favorit') loadCatalog();
+  }, [currentPath, loadCatalog]);
 
   const changeFilter = (key: string, value: string) => {
     const next = new URLSearchParams(location.search);
@@ -67,6 +70,7 @@ export default function AppV11() {
   };
 
   const rows: CatalogRow[] = items.flatMap((bundle) => (bundle.turots_text_units || []).map((unit: any) => ({ b: bundle, u: unit, id: unit.id || bundle.id })));
+  const catalogSlugs = buildCatalogSlugMap(rows);
   const searchTerm = (params.get('q') || '').trim().toLocaleLowerCase();
   const splitValues = (value: unknown) => String(value || '').split(/[,;|]/).map((part) => part.trim()).filter(Boolean);
   const visible = rows.filter(({ b, u, id }) =>
@@ -89,7 +93,7 @@ export default function AppV11() {
 
   const cards = (data: CatalogRow[]) => <div className="archive-grid">{data.map(({ b, u, id }) => {
     const thumbnail = [...(b.turots_pages || [])].filter((folio: any) => folio.text_unit_id === u.id).sort((left: any, right: any) => left.page_order - right.page_order)[0]?.thumbnail_url;
-    const target = u.slug ? `/katalog/${encodeURIComponent(u.slug)}` : `/katalog/${encodeURIComponent(u.title_original || b.bundle_code)}?unit=${id}`;
+    const target = `/katalog/${encodeURIComponent(catalogSlugs.get(id) || u.title_original || b.bundle_code)}?unit=${encodeURIComponent(id)}&bundle=${encodeURIComponent(b.id)}`;
     return <article className="archive-card" key={id}>
       <button className="favorite" aria-label={favorites.includes(id) ? 'Hapus favorit' : 'Tambah favorit'} aria-pressed={favorites.includes(id)} onClick={() => toggleFavorite(id)}><Heart size={19} fill={favorites.includes(id) ? 'currentColor' : 'none'}/></button>
       <a href={target} onClick={(event) => { event.preventDefault(); navigate(target); }}><div className="archive-cover">{thumbnail ? <img loading="lazy" src={thumbnail} alt={`Folio ${u.folio_start || ''}`}/> : <BookOpen size={58}/>}</div>
