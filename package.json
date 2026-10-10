@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.117.3",
     "@vitejs/plugin-react": "^5.0.4",
     "lucide-react": "^0.546.0",
+    "openseadragon": "^6.1.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "typescript": "~5.8.2",
