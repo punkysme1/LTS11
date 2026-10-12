@@ -70,6 +70,13 @@ export function listPublishedCatalog() {
   return promise;
 }
 
+export async function listMonthlyPopularViews() {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc('get_turots_monthly_popular');
+  if (error) throw error;
+  return data || [];
+}
+
 export async function listAdminBundles() {
   if (!supabase) return [];
   const { data, error } = await supabase.from('turots_bundles').select('*, turots_collections(*), turots_text_units(*), turots_pages(*)').order('updated_at', { ascending: false });

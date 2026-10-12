@@ -67,7 +67,7 @@
 .section-heading > a, .text-action { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--archive-forest); font-weight: 700; }
 .archive-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
 .archive-card { position: relative; overflow: hidden; border: 1px solid var(--archive-line); border-radius: 14px; background: var(--archive-card); transition: transform .18s ease, box-shadow .18s ease; }
-.archive-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px #28352b12; }
+  .archive-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px #28352b12; }
 .archive-card > a { display: block; height: 100%; }
 .archive-cover { display: grid; height: 230px; place-items: center; background: #e7dfcf; color: var(--archive-gold); padding: 20px; }
 .archive-cover img { width: 100%; height: 100%; object-fit: contain; }
@@ -339,3 +339,13 @@
 @media (prefers-reduced-motion: reduce) {
   .archive-app *, .archive-app *::before, .archive-app *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.popular-list { display:grid; gap:8px; margin:14px 0 34px; }
+.popular-item { display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:center; gap:13px; min-height:68px; border:1px solid var(--archive-line); border-radius:10px; background:var(--archive-card); padding:10px 15px; color:var(--archive-ink); text-decoration:none; }
+.popular-item:hover { border-color:#9cae9d; background:#f8faf6; }
+.popular-rank { display:grid; width:34px; height:34px; place-items:center; border-radius:50%; background:#edf0e9; color:var(--archive-forest); font-weight:800; }
+.popular-title { display:grid; gap:3px; min-width:0; }
+.popular-title strong { overflow-wrap:anywhere; font-size:16px; }
+.popular-title small { color:var(--archive-muted); }
+.popular-views { display:flex; align-items:center; gap:6px; color:var(--archive-forest); font-size:13px; font-weight:700; }
+.popular-empty { color:var(--archive-muted); }
+@media(max-width:560px) { .popular-item { grid-template-columns:34px minmax(0,1fr); gap:9px; padding:10px; } .popular-views { grid-column:2; } }

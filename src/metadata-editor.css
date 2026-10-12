@@ -17,36 +17,21 @@
 .dimension-inputs > span { align-self: end; padding: 0 2px 12px; color: #5f665d; }
 .physical-controls > .ink-field { grid-column: 1 / -1; }
 .ink-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
-.metadata-editor .ink-options > .check-option {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  min-height: 42px;
-  margin: 0;
-  padding: 8px 10px;
-  border: 1px solid #e4dbce;
-  border-radius: 8px;
-  background: #fffdf9;
-  color: #454b45;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.metadata-editor .ink-options .check-option input[type="checkbox"] {
-  appearance: auto;
-  flex: 0 0 18px;
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
-  min-height: 18px;
-  margin: 0;
-  padding: 0;
-  accent-color: #304b40;
-  cursor: pointer;
-}
-.metadata-editor .ink-options .check-option:has(input:checked) { border-color: #718675; background: #f0f4ee; }
-.metadata-editor .ink-options .check-option:focus-within { outline: 3px solid #aa824c; outline-offset: 2px; }
+.metadata-editor .ink-options { display:flex; flex-wrap:wrap; align-items:center; gap:8px; max-width:900px; }
+.admin-form .metadata-editor .ink-options .ink-choice { display:inline-flex; width:auto; min-width:128px; min-height:38px; align-items:center; justify-content:center; gap:7px; margin:0; border:1px solid #d8d1c4; border-radius:999px; background:#fffefa; padding:8px 13px; color:#46534a; font-size:13px; font-weight:650; cursor:pointer; }
+.admin-form .metadata-editor .ink-options .ink-choice[aria-pressed="true"] { border-color:#536e5b; background:#edf3ec; color:#294333; }
+.admin-form .metadata-editor .ink-options .ink-choice:focus-visible { outline:3px solid #aa824c; outline-offset:2px; }
+.admin-form .metadata-editor .ink-field label { max-width:900px; }
+.admin-form .metadata-editor .ink-field .ink-note { min-height:76px; height:76px; }
+.paired-choice { min-width:0; align-self:start; }
+.paired-choice-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.paired-choice-grid label { min-width:0; }
+.mark-field { min-width:0; align-self:start; }
+.mark-field label { margin-bottom:12px; }
+.admin-save-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(25,31,27,.42); backdrop-filter:blur(2px); }
+.admin-save-dialog { display:grid; justify-items:center; gap:12px; width:min(360px,100%); border:1px solid #ded5c8; border-radius:14px; background:#fffefa; padding:28px; color:#35463d; text-align:center; box-shadow:0 18px 50px #0003; }
+.admin-save-dialog p { margin:0; }
+@media(max-width:600px) { .paired-choice-grid { grid-template-columns:1fr; } }
 .metadata-editor .ink-other { margin: 14px 0 0; }
 .physical-counts { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
 .metadata-editor .physical-counts > label { min-width: 0; margin: 0; }
