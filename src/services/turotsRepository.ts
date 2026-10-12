@@ -58,7 +58,7 @@ export function listPublishedCatalog() {
   if (publishedCatalogCache && publishedCatalogCache.expiresAt > Date.now()) return publishedCatalogCache.promise;
   const promise = (async () => {
     const { data, error } = await supabase.from('turots_bundles')
-      .select('id,bundle_code,display_title,updated_at,turots_collections(name,source_project),turots_text_units!inner(id,sequence_no,display_id,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url)')
+      .select('id,bundle_code,display_title,updated_at,turots_collections(name,source_project),turots_text_units(id,sequence_no,display_id,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url)')
       .eq('publication_status', 'published')
       .eq('turots_text_units.metadata_status','imported')
       .order('updated_at', { ascending: false });
@@ -89,6 +89,52 @@ export async function updateBundle(bundleId: string, values: Record<string, unkn
   const { data, error } = await supabase.from('turots_bundles').update({ ...values, updated_at: new Date().toISOString() }).eq('id', bundleId).select().single();
   if (error) throw error;
   return data;
+}
+
+export async function saveCantaloupePages(bundleId: string, pages: Array<{ canvasId: string; label: string; folioLabel: string; imageUrl: string }>) {
+  if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
+  if (!pages.length) throw new Error('Tidak ada foto Cantaloupe untuk disimpan.');
+
+  const { data: existingPages, error: listError } = await supabase.from('turots_pages')
+    .select('id,canvas_id,page_order,text_unit_id').eq('bundle_id', bundleId).order('page_order');
+  if (listError) throw listError;
+
+  const existingByCanvas = new Map<string, any>((existingPages || []).map((page: any) => [String(page.canvas_id), page] as [string, any]));
+  let nextOrder = Math.max(0, ...(existingPages || []).map((page: any) => Number(page.page_order) || 0));
+  const toInsert: Array<Record<string, unknown>> = [];
+  for (const page of pages) {
+    const existing: any = existingByCanvas.get(page.canvasId);
+    if (existing) {
+      const { error } = await supabase.from('turots_pages').update({ label: page.label, folio_label: page.folioLabel, image_url: page.imageUrl, thumbnail_url: page.imageUrl }).eq('id', existing.id);
+      if (error) throw error;
+      continue;
+    }
+    nextOrder += 1;
+    toInsert.push({ bundle_id: bundleId, text_unit_id: null, canvas_id: page.canvasId, page_order: nextOrder, label: page.label, folio_label: page.folioLabel, side: /v$/i.test(page.folioLabel) ? 'verso' : /r$/i.test(page.folioLabel) ? 'recto' : 'unknown', image_url: page.imageUrl, thumbnail_url: page.imageUrl });
+  }
+  if (toInsert.length) {
+    const { error } = await supabase.from('turots_pages').insert(toInsert);
+    if (error) throw error;
+  }
+  const { error: bundleError } = await supabase.from('turots_bundles').update({ iiif_manifest_url: null, archive_identifier: null, extent_pages: nextOrder, updated_at: new Date().toISOString() }).eq('id', bundleId);
+  if (bundleError) throw bundleError;
+  return { added: toInsert.length, updated: pages.length - toInsert.length, total: nextOrder };
+}
+
+export async function createCantaloupeBundle(input: { bundleCode: string; displayTitle: string; collectionName: string; sourceProject: string; bundleMetadata: Record<string, unknown>; pages: Array<{ canvasId: string; label: string; folioLabel: string; imageUrl: string }> }) {
+  if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
+  const code=input.bundleCode.trim();
+  if(!code)throw new Error('Kode bendel wajib diisi.');
+  const collectionId=await resolveCollection(input.collectionName,input.sourceProject);
+  const {data:bundle,error}=await supabase.from('turots_bundles').insert({collection_id:collectionId,bundle_code:code,display_title:input.displayTitle||code,source_identifier:null,archive_identifier:null,item_url:null,iiif_manifest_url:null,affiliation:input.sourceProject,publication_status:'draft',metadata_status:'imported',...input.bundleMetadata}).select('id').single();
+  if(error)throw error;
+  try {
+    const saved=await saveCantaloupePages(bundle.id,input.pages);
+    return {bundleId:bundle.id,...saved};
+  } catch(error) {
+    await supabase.from('turots_bundles').delete().eq('id',bundle.id);
+    throw error;
+  }
 }
 
 export async function updateTextUnit(unitId: string, values: Record<string, unknown>) {
