@@ -25,6 +25,7 @@ const metadataGroups: Array<[string, Array<[string, string]>]> = [
 ];
 
 export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMode = false }: { keyValue: string; bundleMode?: boolean; bundleReaderMode?: boolean; key?: string }) {
+  const showAllPages = bundleMode || bundleReaderMode;
   const [unitId, setUnitId] = useState(new URLSearchParams(location.search).get('unit') || '');
   const [bundle, setBundle] = useState<AnyRecord | null>(null);
   const [manifestPages, setManifestPages] = useState<AnyRecord[]>([]);
@@ -79,7 +80,7 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
   }, [keyValue, bundleMode]);
 
   useEffect(() => {
-    if (!bundleReaderMode || !bundle || !bundle.iiif_manifest_url) return;
+    if (!showAllPages || !bundle || !bundle.iiif_manifest_url) return;
     let active = true;
     const manifestUrl = bundle.iiif_manifest_url;
     setManifestPages([]); setManifestError(''); setManifestLoading(true);
@@ -109,7 +110,7 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
       if (active) setManifestError(reason instanceof Error ? reason.message : 'Manifest IIIF tidak dapat dimuat.');
     }).finally(() => { if (active) setManifestLoading(false); });
     return () => { active = false; };
-  }, [bundleReaderMode, bundle?.id, bundle?.iiif_manifest_url]);
+  }, [showAllPages, bundle?.id, bundle?.iiif_manifest_url]);
 
   const unit = bundle?.turots_text_units?.find((item: AnyRecord) => item.id === unitId) || bundle?.turots_text_units?.[0] || {};
   useEffect(() => {
@@ -122,8 +123,8 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
   }, [bundleMode, unit.id, bundle?.publication_status]);
   const pages = useMemo(() => {
     const storedPages = [...(bundle?.turots_pages || [])].sort((left: AnyRecord, right: AnyRecord) => left.page_order - right.page_order);
-    return bundleReaderMode ? manifestPages.length ? manifestPages : storedPages : storedPages.filter((item: AnyRecord) => item.text_unit_id === unit.id);
-  }, [bundle, bundleReaderMode, manifestPages, unit.id]);
+    return showAllPages ? manifestPages.length ? manifestPages : storedPages : storedPages.filter((item: AnyRecord) => item.text_unit_id === unit.id);
+  }, [bundle, showAllPages, manifestPages, unit.id]);
   const page = pages[selected];
   const lastFolio = [...pages].reverse().find((item: AnyRecord) => /^\d+[rv]$/i.test(item.folio_label || ''))?.folio_label;
   const activeReaderUnit = bundleReaderMode ? bundle?.turots_text_units?.find((item: AnyRecord) => item.id === page?.text_unit_id) || {} : unit;
@@ -138,12 +139,19 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
   if (!bundle) return <section className="archive-content"><div className="content-state" role="status"><LoaderCircle className="spin"/>Memuat metadata bendel…</div></section>;
   const setFromPage = (index: number) => { setSelected(index); document.querySelector('.reader')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
 
+  const reader = <>
+        {showAllPages && <p className="bundle-reader-note">{bundle.iiif_manifest_url?'Urutan foto mengikuti manifest IIIF.':'Foto mengikuti urutan yang tersimpan di katalog.'} Foto yang belum dipetakan ke judul tetap ditampilkan.{manifestError ? ` ${manifestError} Menampilkan foto yang tersimpan di katalog.` : ''}</p>}
+        {pagesLoading ? <div className="reader-fallback" role="status">Memuat halaman…</div> : <Suspense fallback={<div className="reader-fallback" role="status">Menyiapkan pembaca IIIF…</div>}><IiifViewer imageUrl={page?.image_url} label={page?.folio_label || page?.label || `Foto nomor ${page?.page_order || selected + 1}`} /></Suspense>}
+        {pages.length > 0 && <nav className="folio-strip" aria-label="Pilih halaman manuskrip">{pages.map((folio: AnyRecord, index: number) => <button key={folio.id || folio.canvas_id || index} aria-current={index === selected ? 'page' : undefined} className={index === selected ? 'folio-thumb selected' : 'folio-thumb'} onClick={() => setFromPage(index)}><img loading="lazy" src={folio.thumbnail_url || folio.image_url} alt=""/><span>{folio.folio_label || folio.label || `Foto nomor ${folio.page_order || index + 1}`}</span></button>)}</nav>}
+  </>;
+
   return <section className="detail-page detail-v1">
     <div className="detail-breadcrumb"><a href="/katalog">Katalog</a><span aria-hidden="true">/</span>{bundleMode ? 'Bendel' : unit.category_primary || 'Manuskrip'}<span aria-hidden="true">/</span>{bundle.bundle_code}</div>
     <header className="detail-hero"><div><p className="eyebrow">{bundleMode ? bundle.bundle_code : unit.display_id || bundle.bundle_code} · {bundle.turots_collections?.name || 'Koleksi manuskrip'}</p><h1 dir="auto">{bundleMode ? bundle.display_title || `Bendel ${bundle.bundle_code}` : unit.title_original || bundle.display_title}</h1>{bundleReaderMode ? <p className="latin">{manifestLoading ? 'Menghitung foto dari manifest IIIF…' : `${pages.length} foto digital tersimpan`}{lastFolio ? ` · folio terakhir ${lastFolio}` : ''}</p> : !bundleMode && unit.title_latin && <p className="latin">{unit.title_latin}</p>}</div></header>
-    <div className={`detail-layout${bundleMode && !bundleReaderMode ? ' bundle-landing-layout' : ''}`}>
+    <div className={`detail-layout${bundleMode ? ' bundle-landing-layout' : ''}`}>
       <main className="detail-main">
-        {bundleMode && !bundleReaderMode ? <section className="bundle-landing">
+        {bundleMode ? <section className="bundle-landing">
+          {reader}
           <section className="metadata-detail"><h2>Metadata bendel</h2><div className="metadata-table">
             <div className="metadata-detail-row"><span>Nomor DREAMSEA</span><strong>{bundle.dreamsea_identifier || 'Belum diisi'}</strong></div>
             <div className="metadata-detail-row"><span>Institusi</span><strong>{bundle.institution || 'Belum diisi'}</strong></div>
@@ -172,16 +180,14 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
             <div className="metadata-detail-row"><span>Kolofon</span><strong>{bundle.colophon || 'Belum diisi'}</strong></div>
             {(bundle.item_url||bundle.archive_identifier)&&<div className="metadata-detail-row"><span>Sumber digital</span><strong><a href={bundle.item_url || `https://archive.org/details/${bundle.archive_identifier}`} target="_blank" rel="noreferrer">Buka sumber</a></strong></div>}
             {bundle.affiliation_url && <div className="metadata-detail-row"><span>Sumber afiliasi</span><strong><a href={bundle.affiliation_url} target="_blank" rel="noreferrer">Buka sumber cadangan</a></strong></div>}
-          </div><a className="source-button bundle-open-reader" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}/baca`}>Buka seluruh foto bendel <span aria-hidden="true">→</span></a></section>
+          </div></section>
           <section className="metadata-detail bundle-items"><h2>Judul di dalam bendel</h2><p>{(bundle.turots_text_units || []).length} item judul terdaftar dalam bendel ini.</p><div className="bundle-title-list">{(bundle.turots_text_units || []).map((item: AnyRecord) => {
             const slug = buildCatalogSlugMap((bundle.turots_text_units || []).map((textUnit: AnyRecord) => ({ b: bundle, u: textUnit }))).get(item.id) || item.display_id;
             const target = `/katalog/${encodeURIComponent(slug)}?unit=${encodeURIComponent(item.id)}&bundle=${encodeURIComponent(bundle.id)}`;
             return <a className="bundle-title-item" key={item.id} href={target}><span className="bundle-title-sequence">Item {item.sequence_no}</span><strong dir="auto">{item.title_original || item.display_id}</strong>{item.title_latin && <em>{item.title_latin}</em>}<span>{item.category_primary || 'Belum dikategorikan'} · {item.folio_start || 'Folio belum diisi'}{item.folio_end && item.folio_end !== item.folio_start ? `–${item.folio_end}` : ''}</span><b>Buka fokus judul →</b></a>;
           })}</div></section>
         </section> : <>
-        {bundleReaderMode && <p className="bundle-reader-note">{bundle.iiif_manifest_url?'Urutan foto mengikuti manifest IIIF.':'Foto mengikuti urutan yang tersimpan di katalog.'} Foto yang belum dipetakan ke judul tetap ditampilkan.{manifestError ? ` ${manifestError} Menampilkan foto yang tersimpan di katalog.` : ''}</p>}
-        {pagesLoading ? <div className="reader-fallback" role="status">Memuat halaman…</div> : <Suspense fallback={<div className="reader-fallback" role="status">Menyiapkan pembaca IIIF…</div>}><IiifViewer imageUrl={page?.image_url} label={page?.folio_label || page?.label || `Foto nomor ${page?.page_order || selected + 1}`} /></Suspense>}
-        {pages.length > 0 && <nav className="folio-strip" aria-label="Pilih halaman manuskrip">{pages.map((folio: AnyRecord, index: number) => <button key={folio.id} aria-current={index === selected ? 'page' : undefined} className={index === selected ? 'folio-thumb selected' : 'folio-thumb'} onClick={() => setFromPage(index)}><img loading="lazy" src={folio.thumbnail_url || folio.image_url} alt=""/><span>{folio.folio_label || folio.label || `Foto nomor ${folio.page_order || index + 1}`}</span></button>)}</nav>}
+        {reader}
         <section className="metadata-detail"><h2>Metadata judul</h2>{metadataGroups.map(([group, fields]) => <details className="metadata-group" key={group} open={group === 'Identitas judul'}><summary>{group}</summary><div className="metadata-table">{fields.map(([label, key]) => <div className="metadata-detail-row" key={key}><span>{label}</span><strong>{unit[key] || 'Belum diisi'}</strong></div>)}</div></details>)}
           <details className="metadata-group bundle-metadata"><summary>Metadata bendel induk</summary><div className="metadata-table">
             {bundle.archive_identifier&&<div className="metadata-detail-row"><span>Identifier Archive</span><strong>{bundle.archive_identifier}</strong></div>}
