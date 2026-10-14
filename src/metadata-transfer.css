@@ -1,0 +1,23 @@
+.metadata-transfer { padding:24px; margin:20px 0; background:#fffdf9; border:1px solid #cbd4c8; border-radius:12px; color:#304b40; }
+.metadata-transfer-heading { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; }
+.metadata-transfer h2 { margin:0 0 8px; font-size:22px; }
+.metadata-transfer p { line-height:1.6; }
+.metadata-transfer label { display:flex; flex-direction:column; gap:8px; font-size:14px; }
+.metadata-transfer select { min-height:44px; padding:8px; border:1px solid #718675; border-radius:6px; background:white; max-width:100%; }
+.metadata-transfer-actions { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
+.metadata-transfer-actions button { display:inline-flex; align-items:center; gap:8px; min-height:44px; }
+.metadata-transfer button:disabled { opacity:.5; cursor:not-allowed; }
+.metadata-target { padding:12px; background:#f1e8dc; border-radius:6px; overflow-wrap:anywhere; }
+.metadata-help { font-size:14px; color:#505d53; }
+.metadata-error { background:#fff1ee; border-left:3px solid #a33124; padding:12px; color:#84251c; overflow-wrap:anywhere; }
+.metadata-table-scroll { overflow:auto; max-height:440px; margin:16px 0; }
+.metadata-transfer table { width:100%; border-collapse:collapse; font-size:14px; }
+.metadata-transfer th,.metadata-transfer td { text-align:left; padding:12px; border-bottom:1px solid #d7dfd2; vertical-align:top; min-width:100px; }
+.metadata-transfer th { background:#edf2e9; position:sticky; top:0; }
+.metadata-transfer summary { cursor:pointer; padding:8px 0; }
+.metadata-transfer dd { margin:4px 0 12px; overflow-wrap:anywhere; max-width:540px; }
+.metadata-transfer dt { font-weight:600; }
+.metadata-transfer .metadata-confirm { flex-direction:row; align-items:center; padding:12px 0; line-height:1.5; }
+.metadata-confirm input { width:20px; height:20px; flex-shrink:0; }
+.metadata-transfer :focus-visible { outline:3px solid #536e5b; outline-offset:3px; }
+@media(max-width:700px) { .metadata-transfer { padding:16px; } .metadata-transfer-heading { flex-direction:column; } .metadata-transfer-actions button { width:100%; justify-content:center; } }

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { resolveCatalogCollection } from './collectionResolver';
 
 export type DraftInput = {
   bundleTitle?: string; bundleMetadata?: Record<string, unknown>; bundleCode: string; sourceIdentifier: string; archiveIdentifier: string; itemUrl: string;
@@ -10,12 +11,7 @@ export type DraftInput = {
 
 export async function resolveCollection(name: string, sourceProject: string) {
  if(!supabase)throw new Error('Supabase belum dikonfigurasi.');
- const {data,error}=await supabase.from('turots_collections').select('id').eq('name',name).eq('source_project',sourceProject).maybeSingle();
- if(error)throw error;
- if(data)return data.id;
- const result=await supabase.from('turots_collections').insert({code:sourceProject.toUpperCase()+'-'+name.toUpperCase().replace(/\s+/g,'-'),name,source_project:sourceProject}).select('id').single();
- if(result.error)throw result.error;
- return result.data.id;
+ return resolveCatalogCollection(supabase, name, sourceProject);
 }
 
 export async function saveCatalogDraft(input: DraftInput) {

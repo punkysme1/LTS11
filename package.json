@@ -4,6 +4,8 @@
   "version": "2.0.0",
   "type": "module",
   "scripts": {
+    "test:metadata": "node scripts/verify-metadata.mjs",
+    "test:metadata-browser": "node scripts/verify-metadata-browser.cjs",
     "verify:v11": "node scripts/verify-v11.mjs",
     "test:upload-service": "node deploy/upload-service/test.mjs",
     "dev": "vite --host 127.0.0.1 --port 3005",
