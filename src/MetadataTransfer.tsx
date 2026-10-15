@@ -13,7 +13,6 @@ export default function MetadataTransfer({ bundles, onSaved }: { bundles: Catalo
   const [failure, setFailure] = useState('');
   const [filename, setFilename] = useState('');
   const [confirmed, setConfirmed] = useState(false);
-  const [origin, setOrigin] = useState('https://turots.qomaruddin.com');
   const summary = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const pending = plan?.actions.filter(action => action.kind !== 'skip') || [];
@@ -25,7 +24,7 @@ export default function MetadataTransfer({ bundles, onSaved }: { bundles: Catalo
     try {
       const workbook = await readMetadataXlsx(file);
       const current = await listAdminBundles();
-      const next = planMetadataImport(workbook.bundles, workbook.titles, current);
+      const next = planMetadataImport(workbook.bundles, workbook.titles, current, workbook.photos);
       setPlan(next); setMessage('Pratinjau siap. Belum ada perubahan yang disimpan.');
     } catch (error) { setFailure((error as Error).message); setMessage(''); }
     finally { setBusy(false); requestAnimationFrame(() => summary.current?.focus()); }
@@ -43,11 +42,10 @@ export default function MetadataTransfer({ bundles, onSaved }: { bundles: Catalo
   }
   return <section className="metadata-transfer" aria-labelledby="excel-heading" aria-busy={busy}>
     <div className="metadata-transfer-heading"><div><h2 id="excel-heading">Metadata Excel</h2><p>Isi bendel dan judul melalui Excel. Foto tetap dikelola di editor bendel.</p></div>
-      <label>Tujuan tautan Excel<select value={origin} disabled={busy} onChange={event => setOrigin(event.target.value)}><option value="https://turots.qomaruddin.com">Situs publik</option><option value={location.origin}>Situs ini ({location.host})</option></select></label>
     </div>
     <div className="metadata-transfer-actions">
-      <button type="button" className="secondary-action" disabled={busy} onClick={() => downloadMetadataXlsx([], true, origin)}><Download size={16} aria-hidden="true"/>Unduh template Excel</button>
-      <button type="button" className="secondary-action" disabled={busy} onClick={() => downloadMetadataXlsx(bundles, false, origin)}><Download size={16} aria-hidden="true"/>Ekspor metadata + URL</button>
+      <button type="button" className="secondary-action" disabled={busy} onClick={() => downloadMetadataXlsx([], true)}><Download size={16} aria-hidden="true"/>Unduh template Excel</button>
+      <button type="button" className="secondary-action" disabled={busy} onClick={() => downloadMetadataXlsx(bundles, false)}><Download size={16} aria-hidden="true"/>Ekspor metadata + URL</button>
       <button type="button" className="primary-action" disabled={busy} onClick={() => fileInput.current?.click()}><Upload size={16} aria-hidden="true"/>Pilih Excel untuk pratinjau</button>
       <input ref={fileInput} type="file" hidden accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void preview(file); }}/>
     </div>
@@ -59,7 +57,7 @@ export default function MetadataTransfer({ bundles, onSaved }: { bundles: Catalo
         <h3>Pratinjau: {filename}</h3>
         <p>{plan.actions.filter(a => a.kind === 'create').length} baru · {plan.actions.filter(a => a.kind === 'update').length} diperbarui · {plan.actions.filter(a => a.kind === 'skip').length} tanpa perubahan</p>
         {plan.errors.length > 0 && <div role="alert" className="metadata-error"><strong>{plan.errors.length} kesalahan — perbaiki Excel lalu pilih ulang.</strong><ul>{plan.errors.map((error, i) => <li key={i}>{error}</li>)}</ul></div>}
-        {plan.warnings.length > 0 && <details><summary>{plan.warnings.length} catatan pemetaan foto</summary><ul>{plan.warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul></details>}
+        {plan.warnings.length > 0 && <details><summary>{plan.warnings.length} catatan impor</summary><ul>{plan.warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul></details>}
         <div className="metadata-table-scroll" tabIndex={0} role="region" aria-label="Perubahan metadata"><table><thead><tr><th>Lembar / baris</th><th>Kode / ID</th><th>Tindakan</th><th>Perubahan</th></tr></thead><tbody>{plan.actions.map((action, i) => <tr key={i}><td>{action.sheet} / {action.row}</td><td>{action.key}</td><td>{action.kind === 'create' ? 'Tambah' : action.kind === 'update' ? 'Perbarui' : 'Tetap'}</td><td>{action.changes.length ? <details><summary>{action.changes.length} field</summary><dl>{action.changes.map(change => <div key={change.field}><dt>{change.field}</dt><dd><span>{String(change.before ?? '(kosong)')}</span> → <strong dir="auto">{String(change.after ?? '(dihapus)')}</strong></dd></div>)}</dl></details> : '—'}</td></tr>)}</tbody></table></div>
         {!plan.errors.length && pending.length > 0 && <><label className="metadata-confirm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)}/>Saya sudah memeriksa perubahan dan akan menyimpan {pending.length} baris ke database di atas.</label><p className="metadata-help">Penyimpanan berjalan per baris. Jika koneksi terputus, hasil sebagian akan dilaporkan. Bendel baru tetap draf.</p></>}
         <div className="metadata-transfer-actions"><button type="button" className="primary-action" disabled={busy || !confirmed || !!plan.errors.length || !pending.length} onClick={() => void save()}>Simpan {pending.length} perubahan ke database</button><button type="button" className="secondary-action" disabled={busy} onClick={() => { setPlan(null); setConfirmed(false); setMessage('Pratinjau dibatalkan.'); }}>Batalkan</button></div>

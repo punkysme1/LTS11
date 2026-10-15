@@ -65,3 +65,14 @@ await assert.rejects(() => resolveCatalogCollection(collectionClient, 'A B', 'Dr
 collectionRows = []; race = true;
 assert.equal(await resolveCatalogCollection(collectionClient, 'Ndalem', 'Dreamsea'), 'race');
 console.log('PASS: collection case/space normalization, new collection, semantic collision, concurrent insert recovery.');
+
+const ntBundle = [{bundle_bundle_code:'NT 018',bundle_collection_name:'Ndalem',bundle_source_project:'Nahdlatut Turots'}];
+const ntPhotos = Array.from({length:14},(_,i)=>({bundle_bundle_code:'NT 018',photo_order:String(i+1),photo_image_url:`https://cloud.naracode.id/iiif/3/NT_018_${String(i+1).padStart(4,'0')}.JPG/full/max/0/default.jpg`}));
+const ntTitles = ['1-5','5-12','12-14'].map((range,i)=>({bundle_bundle_code:'NT 018',title_display_id:`NT18-${i}`,title_title_original:`Judul ${i}`,title_category_primary:'Akidah',title_folio_start:range}));
+const ntPlan=planMetadataImport(ntBundle,ntTitles,[],ntPhotos);
+assert.deepEqual(ntPlan.errors,[]);
+assert.equal(ntPlan.actions[0].photos?.length,14);
+assert(ntPlan.actions.some(a=>a.folios),'Shared numeric ranges must create photo mapping instructions');
+assert(planMetadataImport(ntBundle,ntTitles,[],[...ntPhotos,ntPhotos[0]]).errors.length);
+assert(planMetadataImport(ntBundle,[{...ntTitles[0],title_folio_start:'1-99'}],[],ntPhotos).errors.length);
+console.log('PASS: numeric shared image ranges, bulk photo registration, duplicate URLs and range bounds.');

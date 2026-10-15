@@ -1,9 +1,10 @@
+import { imageRanges } from './imageRanges';
 import { supabase } from '../lib/supabase';
 import { resolveCatalogCollection } from './collectionResolver';
 
 export type DraftInput = {
-  bundleTitle?: string; bundleMetadata?: Record<string, unknown>; bundleCode: string; sourceIdentifier: string; archiveIdentifier: string; itemUrl: string;
-  manifestUrl: string; title: string; collectionName: string; sourceProject: string;
+  bundleTitle?: string; bundleMetadata?: Record<string, unknown>; bundleCode: string; sourceIdentifier?: string; archiveIdentifier?: string; itemUrl?: string;
+  manifestUrl?: string; title: string; collectionName: string; sourceProject: string;
   provenance?: Array<{ field: string; value: string; source: string; locator?: string; method?: string; confidence?: string; note?: string }>;
   textUnit: { displayId: string; titleOriginal?: string; titleLatin?: string; titleCuratorial?: string; titleFromTeam?: string; categoryPrimary?: string; categorySecondary?: string; categoryTertiary?: string; description?: string; folioStart?: string; folioEnd?: string; author?: string; scribe?: string; language?: string; script?: string; yearOriginal?: string; keywords?: string; glossary?: string; references?: string; notes?: string; [key: string]: any };
   pages: Array<{ canvasId: string; pageOrder: number; label: string; imageUrl?: string; folioLabel?: string; side?: 'recto'|'verso'|'unknown' }>;
@@ -23,7 +24,7 @@ export async function saveCatalogDraft(input: DraftInput) {
   if(existing&&(!input.textUnit.folioStart||!input.textUnit.folioEnd))throw new Error('Bendel sudah ada. Isi folio awal dan akhir judul agar halaman tidak tertaut ke judul yang keliru.');
   let bundleId=existing?.id;
   const bundleMetadata=input.bundleMetadata||{};
-  if(!bundleId){const {data:bundle,error:bundleError}=await supabase.from('turots_bundles').insert({collection_id:collectionId,bundle_code:input.bundleCode,display_title:input.bundleTitle||input.bundleCode,source_identifier:input.sourceIdentifier||null,archive_identifier:input.archiveIdentifier,item_url:input.itemUrl,iiif_manifest_url:input.manifestUrl,affiliation:input.sourceProject,publication_status:'draft',metadata_status:'imported',...bundleMetadata}).select('id').single();if(bundleError)throw bundleError;bundleId=bundle.id;} else if(Object.keys(bundleMetadata).length){const {error}=await supabase.from('turots_bundles').update(bundleMetadata).eq('id',bundleId);if(error)throw error;}
+  if(!bundleId){const {data:bundle,error:bundleError}=await supabase.from('turots_bundles').insert({collection_id:collectionId,bundle_code:input.bundleCode,display_title:input.bundleTitle||input.bundleCode,affiliation:input.sourceProject,publication_status:'draft',metadata_status:'imported',...bundleMetadata}).select('id').single();if(bundleError)throw bundleError;bundleId=bundle.id;} else if(Object.keys(bundleMetadata).length){const {error}=await supabase.from('turots_bundles').update(bundleMetadata).eq('id',bundleId);if(error)throw error;}
   const metadataColumns = ['scholarly_classification_1','scholarly_classification_2','scholarly_classification_3','folio_separator','year_masehi','copying_location','manuscript_origin','ink','lines_per_page','rubrication','marginal_notes','meaning_notes','colophon','marginal_note','readability','related_manuscripts','paper_type_other'];
   const metadata = Object.fromEntries(metadataColumns.map((column) => [column, input.textUnit[column]]));
   const {data:sequenceRows,error:sequenceError}=await supabase.from('turots_text_units').select('sequence_no').eq('bundle_id',bundleId).order('sequence_no',{ascending:false}).limit(1);if(sequenceError)throw sequenceError;
@@ -38,6 +39,7 @@ export async function saveCatalogDraft(input: DraftInput) {
 
 function folioOrdinal(value:string){const match=value.trim().match(/^(\d+)\s*([rv])$/i);return match?Number(match[1])*2+(match[2].toLowerCase()==='v'?1:0):null;}
 async function attachFolioRange(bundleId:string,unitId:string,start:string,end:string){
+ if(imageRanges(start,end)) return 0;
  if(!supabase)throw new Error('Supabase belum dikonfigurasi.');const first=folioOrdinal(start),last=folioOrdinal(end);if(first===null||last===null||last<first)throw new Error('Folio harus memakai format seperti 2r atau 3v–93r.');
  const {data:pages,error}=await supabase.from('turots_pages').select('id,folio_label,text_unit_id').eq('bundle_id',bundleId);if(error)throw error;
  const selected=(pages||[]).filter(page=>{const ordinal=typeof page.folio_label==='string'?folioOrdinal(page.folio_label):null;return ordinal!==null&&ordinal>=first&&ordinal<=last;});
@@ -112,7 +114,7 @@ export async function saveCantaloupePages(bundleId: string, pages: Array<{ canva
     const { error } = await supabase.from('turots_pages').insert(toInsert);
     if (error) throw error;
   }
-  const { error: bundleError } = await supabase.from('turots_bundles').update({ iiif_manifest_url: null, archive_identifier: null, extent_pages: nextOrder, updated_at: new Date().toISOString() }).eq('id', bundleId);
+  const { error: bundleError } = await supabase.from('turots_bundles').update({ extent_pages: nextOrder, updated_at: new Date().toISOString() }).eq('id', bundleId);
   if (bundleError) throw bundleError;
   return { added: toInsert.length, updated: pages.length - toInsert.length, total: nextOrder };
 }
@@ -122,7 +124,7 @@ export async function createCantaloupeBundle(input: { bundleCode: string; displa
   const code=input.bundleCode.trim();
   if(!code)throw new Error('Kode bendel wajib diisi.');
   const collectionId=await resolveCollection(input.collectionName,input.sourceProject);
-  const {data:bundle,error}=await supabase.from('turots_bundles').insert({collection_id:collectionId,bundle_code:code,display_title:input.displayTitle||code,source_identifier:null,archive_identifier:null,item_url:null,iiif_manifest_url:null,affiliation:input.sourceProject,publication_status:'draft',metadata_status:'imported',...input.bundleMetadata}).select('id').single();
+  const {data:bundle,error}=await supabase.from('turots_bundles').insert({collection_id:collectionId,bundle_code:code,display_title:input.displayTitle||code,affiliation:input.sourceProject,publication_status:'draft',metadata_status:'imported',...input.bundleMetadata}).select('id').single();
   if(error)throw error;
   try {
     const saved=await saveCantaloupePages(bundle.id,input.pages);
@@ -140,4 +142,17 @@ export async function updateTextUnit(unitId: string, values: Record<string, unkn
   return data;
 }
 
-export async function updateTextUnitFolioRange(bundleId:string,unitId:string,start:string,end:string){await attachFolioRange(bundleId,unitId,start,end);}
+export async function updateTextUnitFolioRange(bundleId:string,unitId:string,start:string,end:string){
+  const ranges = imageRanges(start,end);
+  if (ranges) {
+    if(!supabase) throw new Error('Supabase belum dikonfigurasi.');
+    const {data:pages,error} = await supabase.from('turots_pages').select('id,page_order').eq('bundle_id',bundleId);
+    if(error) throw error;
+    const selected = (pages||[]).filter(page => ranges.some(([a,b]) => Number(page.page_order)>=a && Number(page.page_order)<=b));
+    if(!selected.length) return;
+    const {error:updateError}=await supabase.from('turots_pages').update({text_unit_id:unitId}).in('id',selected.map(page=>page.id));
+    if(updateError) throw updateError;
+    return;
+  }
+  await attachFolioRange(bundleId,unitId,start,end);
+}

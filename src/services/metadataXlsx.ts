@@ -1,10 +1,10 @@
-import { CATALOG_CATEGORIES } from '../catalogTaxonomy';
-import { bundleFields, titleFields } from './metadataFields';
+import { excelOptions } from './metadataOptions';
+import { retiredBundleHeaders, bundleFields, titleFields } from './metadataFields';
 import type { CatalogRow, ExcelRow } from './metadataImport';
 const xmlEscape = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 const colName = (index: number) => { let n = index + 1; let out = ''; while (n) { const r = (n - 1) % 26; out = String.fromCharCode(65 + r) + out; n = Math.floor((n - 1) / 26); } return out; };
 
-function sheetXml(rows: unknown[][], links: Array<{ cell: string; url: string }> = []) {
+function sheetXml(rows: unknown[][], links: Array<{ cell: string; url: string }> = [], dropdowns = '') {
   const content = rows.map((row, r) => `<row r="${r + 1}">${row.map((value, c) => {
     const address = `${colName(c)}${r + 1}`;
     const style = r === 0 ? 1 : links.some(link => link.cell === address) ? 2 : 0;
@@ -12,7 +12,7 @@ function sheetXml(rows: unknown[][], links: Array<{ cell: string; url: string }>
     return `<c r="${address}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
   }).join('')}</row>`).join('');
   const hyperlinks = links.length ? `<hyperlinks>${links.map((link, i) => `<hyperlink ref="${link.cell}" r:id="rId${i + 1}"/>`).join('')}</hyperlinks>` : '';
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="${rows[0]?.length || 1}" width="28" customWidth="1"/></cols><sheetData>${content}</sheetData>${hyperlinks}</worksheet>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="${rows[0]?.length || 1}" width="28" customWidth="1"/></cols><sheetData>${content}</sheetData>${dropdowns}${hyperlinks}</worksheet>`;
 }
 
 const utf8 = (value: string) => new TextEncoder().encode(value);
@@ -34,6 +34,7 @@ function zipStore(entries: Array<[string, string]>) {
 
 export const bundleHeaders = ['bundle_bundle_code', 'bundle_collection_name', 'bundle_source_project', ...bundleFields.filter(field => field !== 'bundle_code').map(field => `bundle_${field}`), 'bundle_id', 'bundle_url', 'bundle_admin_url'];
 export const titleHeaders = ['bundle_bundle_code', ...titleFields.map(field => `title_${field}`), 'title_id', 'title_url', 'title_admin_url'];
+export const photoHeaders = ['bundle_bundle_code', 'photo_order', 'photo_label', 'photo_image_url'];
 const publicOrigin = 'https://turots.qomaruddin.com';
 export function catalogLinks(bundle: CatalogRow, unit?: CatalogRow, origin = publicOrigin) {
   const base = origin.replace(/\/+$/, '');
@@ -56,7 +57,8 @@ const instructions = [
   ['Identitas', 'Jangan ubah kode bendel, ID inventaris, bundle_id, atau title_id pada hasil ekspor. Untuk baris baru, kosongkan UUID dan URL.'],
   ['Folio', 'Gunakan 1r, 1v, 2r, dan seterusnya. Isi folio awal dan akhir setelah foto terdaftar. Rentang tidak boleh bertabrakan dengan judul lain.'],
   ['URL', 'URL adalah tautan klik, bukan sinkronisasi langsung. URL dan UUID dibaca saja. Tautan publik memerlukan bendel published; tautan admin memerlukan login. Ekspor ulang setelah impor untuk memperoleh URL baru.'],
-  ['Foto / manifest', 'source_identifier, archive_identifier, item_url, iiif_manifest_url adalah informasi sumber yang tidak diubah melalui impor. Kelola foto di editor bendel.'],
+  ['Foto', 'Kelola foto di editor bendel. Kolom lama sumber/Archive, nomor DREAMSEA, writing_support, dan institution diabaikan saat impor.'],
+  ['Pilihan isian', 'Dropdown tersedia sampai baris 10001. Pilihan mengikuti admin; isian khusus tetap boleh diketik. Bahasa/aksara ganda dipisahkan titik koma; watermark atau kolofon dapat berupa Ada: keterangan. #HAPUS tetap berlaku.'],
   ['Tipe data', 'Simpan kode, ID, tahun, tanggal, dan folio sebagai teks. Gunakan nilai biasa, bukan formula. Teks Arab didukung. right_to_left: Ya/Tidak.'],
   ['Penyimpanan', 'Pratinjau tidak menulis database. Simpan menulis per baris. Jika jaringan gagal, sebagian baris mungkin sudah tersimpan; baca laporan dan pratinjau ulang sebelum mencoba lagi.'],
 ];
@@ -70,17 +72,24 @@ export function metadataWorkbook(bundles: CatalogRow[], template = false, origin
     ...Object.fromEntries(titleFields.map(field => [`title_${field}`, unit[field]])),
     bundle_bundle_code: bundle.bundle_code, title_id: unit.id, ...catalogLinks(bundle, unit, origin),
   })));
+  const photoRecords = template ? [] : bundles.flatMap(bundle => (bundle.turots_pages || []).map((page: CatalogRow) => ({
+    bundle_bundle_code: bundle.bundle_code,
+    photo_order: page.page_order,
+    photo_label: page.folio_label || page.label || page.page_order,
+    photo_image_url: page.image_url,
+  })));
   const sheets: Array<{ name: string; rows: unknown[][] }> = [
     { name: 'Bendel', rows: asRows(bundleHeaders, bundleRecords) },
     { name: 'Judul', rows: asRows(titleHeaders, titleRecords) },
+    { name: 'Foto', rows: asRows(photoHeaders, photoRecords) },
     { name: 'Petunjuk', rows: instructions },
-    { name: 'Referensi', rows: [['Kategori judul', 'Status metadata'], ...CATALOG_CATEGORIES.map((category, i) => [category, ['imported', 'curated', 'verified', 'provisional', 'conflicting', 'unknown'][i] || ''])] },
+    { name: 'Referensi', rows: [Object.keys(excelOptions), ...Array.from({length: Math.max(...Object.values(excelOptions).map(values=>values.length))}, (_, i)=>Object.values(excelOptions).map(values=>values[i]||''))] },
   ];
   const entries: Array<[string, string]> = [];
   const ns = 'http://schemas.openxmlformats.org';
   entries.push(['[Content_Types].xml', `<Types xmlns="${ns}/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`]);
   entries.push(['_rels/.rels', `<Relationships xmlns="${ns}/package/2006/relationships"><Relationship Id="rId1" Type="${ns}/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`]);
-  entries.push(['xl/workbook.xml', `<workbook xmlns="${ns}/spreadsheetml/2006/main" xmlns:r="${ns}/officeDocument/2006/relationships"><sheets>${sheets.map((sheet, i) => `<sheet name="${sheet.name}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`]);
+  entries.push(['xl/workbook.xml', `<workbook xmlns="${ns}/spreadsheetml/2006/main" xmlns:r="${ns}/officeDocument/2006/relationships"><sheets>${sheets.map((sheet, i) => `<sheet name="${sheet.name}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets><definedNames>${Object.entries(excelOptions).map(([key, values], i)=>`<definedName name="options_${key}">'Referensi'!$${colName(i)}$2:$${colName(i)}$${values.length+1}</definedName>`).join('')}</definedNames></workbook>`]);
   entries.push(['xl/_rels/workbook.xml.rels', `<Relationships xmlns="${ns}/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${ns}/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="styles" Type="${ns}/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`]);
   entries.push(['xl/styles.xml', `<styleSheet xmlns="${ns}/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font><font><u/><color rgb="FF0563C1"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF304B40"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="3"><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0"/><xf fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1"/><xf fontId="2" fillId="0" borderId="0" xfId="0"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`]);
   sheets.forEach((sheet, index) => {
@@ -88,7 +97,9 @@ export function metadataWorkbook(bundles: CatalogRow[], template = false, origin
     sheet.rows.slice(1).forEach((row, r) => row.forEach((value, c) => {
       if (String(sheet.rows[0][c]).endsWith('_url') && /^https?:\/\//.test(String(value))) links.push({ cell: `${colName(c)}${r + 2}`, url: String(value) });
     }));
-    entries.push([`xl/worksheets/sheet${index + 1}.xml`, sheetXml(sheet.rows, links)]);
+    const validations = index < 2 ? sheet.rows[0].flatMap((header, column) => excelOptions[String(header)] ? [`<dataValidation type="list" allowBlank="1" showDropDown="0" showErrorMessage="0" sqref="${colName(column)}2:${colName(column)}10001"><formula1>options_${xmlEscape(header)}</formula1></dataValidation>`] : []) : [];
+    const dropdowns = validations.length ? `<dataValidations count="${validations.length}">${validations.join('')}</dataValidations>` : '';
+    entries.push([`xl/worksheets/sheet${index + 1}.xml`, sheetXml(sheet.rows, links, dropdowns)]);
     if (links.length) entries.push([`xl/worksheets/_rels/sheet${index + 1}.xml.rels`, `<Relationships xmlns="${ns}/package/2006/relationships">${links.map((link, i) => `<Relationship Id="rId${i + 1}" Type="${ns}/officeDocument/2006/relationships/hyperlink" Target="${xmlEscape(link.url)}" TargetMode="External"/>`).join('')}</Relationships>`]);
   });
   return zipStore(entries);
@@ -179,7 +190,7 @@ export async function readMetadataXlsx(file: File) {
   const found = new Map<string, string[][]>();
   for (const sheet of Array.from(parseXml(workbook).getElementsByTagName('sheet'))) {
     const name = sheet.getAttribute('name') || '';
-    if (!['Bendel', 'Judul'].includes(name)) continue;
+    if (!['Bendel', 'Judul', 'Foto'].includes(name)) continue;
     const target = targets.get(sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id'));
     const path = target?.startsWith('/') ? target.slice(1) : `xl/${target}`;
     const xml = files.get(path);
@@ -189,7 +200,8 @@ export async function readMetadataXlsx(file: File) {
   if (!found.size) throw new Error('Workbook harus memiliki lembar Bendel atau Judul.');
   // Keep blank rows so validation reports the real Excel row number.
   return {
-    bundles: records(found.get('Bendel') || [], bundleHeaders, ['bundle_bundle_code']),
+    photos: records(found.get('Foto') || [], ['bundle_bundle_code','photo_order','photo_label','photo_image_url'], ['bundle_bundle_code','photo_order','photo_image_url']),
+    bundles: records(found.get('Bendel') || [], [...bundleHeaders, ...retiredBundleHeaders], ['bundle_bundle_code']),
     titles: records(found.get('Judul') || [], [...titleHeaders, 'title_access_level'], ['bundle_bundle_code', 'title_display_id']),
   };
 }

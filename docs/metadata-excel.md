@@ -13,7 +13,7 @@ Buka `/admin/manuskrip` dan login sebagai admin Turots. Koneksi database mengiku
 
 ## Lembar dan kolom
 
-`Bendel`: satu baris per bendel. Untuk bendel baru, wajib `bundle_bundle_code`, `bundle_collection_name`, `bundle_source_project`. Contoh kode folder Dreamsea: `DS 0097 00057`. Judul bendel menggunakan `bundle_display_title`; kode Dreamsea dapat dicatat pada `bundle_dreamsea_identifier`.
+`Bendel`: satu baris per bendel. Untuk bendel baru, wajib `bundle_bundle_code`, `bundle_collection_name`, `bundle_source_project`. Contoh kode folder Dreamsea: `DS 0097 00057`. Judul bendel menggunakan `bundle_display_title`; kode Dreamsea menggunakan `bundle_bundle_code`.
 
 `Judul`: satu baris per judul. Untuk judul baru, wajib `bundle_bundle_code`, `title_display_id`, `title_title_original`, dan `title_category_primary`. ID judul harus unik di seluruh katalog. `title_sequence_no` boleh dikosongkan untuk nomor urut otomatis. `title_folio_start` dan `title_folio_end` memakai bentuk seperti `1r` dan `10v`.
 
@@ -28,7 +28,7 @@ Header teknis harus dipertahankan. Kolom boleh diurutkan ulang atau kolom opsion
 - Kode/ID yang sudah ada akan diperbarui; yang baru akan dibuat. UUID hasil ekspor dipakai untuk menolak perubahan identitas yang tidak sengaja.
 - Sel kosong atau kolom tidak disertakan: mempertahankan metadata lama.
 - `#HAPUS`: mengosongkan field opsional; tidak berlaku untuk identitas, judul wajib, kategori, status, urutan, atau rentang folio.
-- URL, UUID, identifier sumber, URL manifest dan item sumber adalah kolom baca-saja. Foto dan manifest tetap dikelola melalui editor bendel.
+- URL bendel/judul dan UUID adalah kolom baca-saja. Foto dikelola melalui editor bendel dan disajikan oleh Cantaloupe.
 - Rentang folio diperiksa terhadap halaman yang sudah terdaftar. Folio awal/akhir harus ada; halaman yang sudah dimiliki judul lain tidak diambil alih. Foto di dalam rentang ditautkan ke judul dan tautan halaman lama di luar rentang dilepas.
 - Judul tanpa rentang boleh dibuat untuk penyiapan metadata, dengan catatan bahwa foto belum ditautkan. Untuk mengisi rentang, unggah dan simpan foto terlebih dahulu.
 - Bendel baru selalu `draft`. Tautan publik berfungsi setelah publikasi. Tautan admin memerlukan login.
@@ -41,3 +41,13 @@ Sebelum menulis, aplikasi membaca ulang katalog; perubahan server sejak pratinja
 `npm run test:metadata` menguji validasi, pelestarian sel kosong, ID, folio, data baru, pratinjau kedaluwarsa, dan kegagalan sebagian dengan writer simulasi.
 
 `npm run test:metadata-browser` memerlukan server Vite pada port 3005, Edge, serta Playwright (lokasi modul dapat diatur melalui `PLAYWRIGHT_MODULE_PATH`). Semua permintaan ke API produksi dimock; pengujian tidak menulis ke server. Hasilnya berada di `test-results/metadata`.
+
+## Format tanpa Archive.org
+
+Template dan ekspor tidak lagi menyertakan `bundle_source_identifier`, `bundle_archive_identifier`, `bundle_item_url`, `bundle_iiif_manifest_url`, `bundle_dreamsea_identifier`, atau `bundle_writing_support`. Excel lama tetap diterima; enam kolom ini diabaikan dengan pemberitahuan. Gunakan `bundle_paper_type` untuk jenis kertas.
+
+Tambah manuskrip sekarang memilih bendel yang sudah ada, lalu mengisi metadata judul dan rentang folio. Pembaca hanya memakai foto yang tersimpan di katalog. Kolom database lama dipertahankan untuk kompatibilitas; pembaruan ini tidak menghapus data produksi.
+
+## Pilihan isian Excel
+
+Template dan ekspor menyediakan dropdown hingga baris 10001 untuk pilihan metadata bendel dan judul. Lembar Referensi berisi nilai setiap kolom. Nilai khusus tetap dapat diketik (misalnya aksara `Arab; Pegon` atau `Ada: keterangan`). Kolom `bundle_institution` dihapus dari format aktif dan diabaikan pada impor lama; gunakan `bundle_affiliation`. Tautan unduhan dari admin selalu memakai situs publik Turots.

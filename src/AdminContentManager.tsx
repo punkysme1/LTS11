@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Check, Eye, FilePlus2, Save, X } from 'lucide-react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { Check, Eye, FilePlus2, Save, Upload, X } from 'lucide-react';
 import { listAdminContent, listGuestbook, moderateGuestbookEntry, saveEditorialEntry, type EditorialEntry, type EditorialType, type GuestbookEntry, type PublicationState } from './services/editorialContent';
 import { supabase } from './lib/supabase';
 
@@ -39,38 +39,84 @@ export function AdminOverview({ navigate }: { navigate: (path: string) => void }
   </section>;
 }
 
-export function AdminEditorialManager({ type }: { type: EditorialType }) {
+const emptyEditorialDraft = (type: EditorialType): Partial<EditorialEntry> => ({ content_type: type, title: '', slug: '', excerpt: '', body: '', cover_image_url: '', status: 'draft', featured: false });
+
+export function AdminEditorialManager({ type, userId }: { type: EditorialType; userId: string; key?: string }) {
+  const storageKey = `turots-editorial-draft:${userId}:${type}`;
+  const initialDraft = () => {
+    try { const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null'); if (saved?.content_type === type) return saved as Partial<EditorialEntry>; } catch { /* Use a blank draft if browser storage is unavailable. */ }
+    return emptyEditorialDraft(type);
+  };
   const [entries, setEntries] = useState<EditorialEntry[]>([]);
-  const [draft, setDraft] = useState<Partial<EditorialEntry>>({ content_type: type, title: '', slug: '', excerpt: '', body: '', cover_image_url: '', status: 'draft', featured: false });
+  const [draft, setDraftState] = useState<Partial<EditorialEntry>>(initialDraft);
+  const currentDraft = useRef(draft);
+  const [uploading, setUploading] = useState(false);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const draftVersion = useRef(0);
+  const uploadController = useRef<AbortController | null>(null);
+  useEffect(() => () => { draftVersion.current += 1; uploadController.current?.abort(); }, []);
+  const setDraft = (next: Partial<EditorialEntry>) => {
+    currentDraft.current = next;
+    setDraftState(next);
+    try { sessionStorage.setItem(storageKey, JSON.stringify(next)); }
+    catch { setError('Browser tidak dapat menyimpan cadangan isian. Simpan konten sebelum meninggalkan halaman.'); }
+  };
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
   const load = () => { setLoading(true); void listAdminContent(type).then(setEntries).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Daftar konten gagal dimuat.')).finally(() => setLoading(false)); };
-  useEffect(() => { setDraft({ content_type: type, title: '', slug: '', excerpt: '', body: '', cover_image_url: '', status: 'draft', featured: false }); setNotice(''); setError(''); load(); }, [type]);
-  const update = (key: string, value: string | boolean) => setDraft((current) => ({ ...current, [key]: value, ...(key === 'title' && !current.id ? { slug: makeSlug(String(value)) } : {}) }));
-  const reset = () => setDraft({ content_type: type, title: '', slug: '', excerpt: '', body: '', cover_image_url: '', status: 'draft', featured: false });
+  useEffect(() => { load(); }, [type]);
+  const update = (key: string, value: string | boolean) => { const current = currentDraft.current; setDraft({ ...current, [key]: value, ...(key === 'title' && !current.id ? { slug: makeSlug(String(value)) } : {}) }); };
+  const reset = () => { draftVersion.current += 1; setDraft(emptyEditorialDraft(type)); };
+  async function uploadImage(file?: File) {
+    if (!file || uploading) return;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!extension || !['jpg','jpeg','png'].includes(extension)) return setError('Pilih gambar JPG atau PNG.');
+    if (!file.size || file.size > 10 * 1024 * 1024) return setError('Ukuran gambar harus antara 1 byte dan 10 MiB.');
+    const version = draftVersion.current;
+    const controller = new AbortController(); uploadController.current = controller;
+    const timeout = window.setTimeout(()=>controller.abort(),120000);
+    setUploading(true); setError(''); setNotice('Mengunggah gambar…');
+    try {
+      const { data, error: sessionError } = await supabase!.auth.getSession();
+      if (sessionError || !data.session) throw new Error('Sesi berakhir. Silakan masuk kembali.');
+      const filename = `editorial-${crypto.randomUUID()}.${extension}`;
+      const response = await fetch(`https://cloud.naracode.id/admin-upload/${filename}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': file.type || 'application/octet-stream' }, body: file,
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Unggah gambar gagal (HTTP ${response.status}). Silakan coba lagi.`);
+      if (version === draftVersion.current) {
+        update('cover_image_url', `https://cloud.naracode.id/iiif/3/${filename}/full/max/0/default.jpg`);
+        setNotice('Gambar berhasil diunggah. Simpan konten untuk menerapkan gambar sampul.');
+      }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Gambar belum dapat diunggah.'); }
+    finally { clearTimeout(timeout); setUploading(false); }
+  }
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setSaving(true); setNotice(''); setError('');
+    event.preventDefault(); if (uploading || saving) return; setSaving(true); setNotice(''); setError('');
     try {
       await saveEditorialEntry({ ...draft, content_type: type, slug: makeSlug(draft.slug || draft.title || ''), title: draft.title?.trim() || '', body: draft.body?.trim() || '', status: (draft.status || 'draft') as PublicationState });
       setNotice('Perubahan konten tersimpan.'); reset(); load();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Konten belum dapat disimpan.'); }
     finally { setSaving(false); }
   }
-  return <section className="admin-page-content"><div className="admin-content-heading"><div><p className="eyebrow">Kelola publikasi</p><h1>{pageLabels[type]}</h1><p>Konten berbentuk teks biasa; setiap baris dan tautan aman ditampilkan sebagai teks.</p></div><button className="secondary-action" onClick={reset}><FilePlus2 size={17}/> Konten baru</button></div>
-    <form className="editorial-editor" onSubmit={save}><h2>{draft.id ? 'Edit konten' : `Tulis ${pageLabels[type].toLocaleLowerCase()}`}</h2>
+  return <section className="admin-page-content"><div className="admin-content-heading"><div><p className="eyebrow">Kelola publikasi</p><h1>{pageLabels[type]}</h1><p>Konten berbentuk teks biasa; setiap baris dan tautan aman ditampilkan sebagai teks.</p></div><button className="secondary-action" disabled={saving||uploading} onClick={reset}><FilePlus2 size={17}/> Konten baru</button></div>
+    <form className="editorial-editor" onSubmit={save}><p className="metadata-help">Isian dicadangkan di tab browser ini saat Anda berpindah halaman. Klik Simpan konten untuk menyimpannya ke server.</p><fieldset disabled={saving} style={{border:0,padding:0,margin:0,minWidth:0,display:'grid',gap:16}}><h2>{draft.id ? 'Edit konten' : `Tulis ${pageLabels[type].toLocaleLowerCase()}`}</h2>
       <label>Judul<input required maxLength={240} value={draft.title || ''} onChange={(event) => update('title', event.target.value)}/></label>
       <label>Alamat halaman (slug)<input required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxLength={180} value={draft.slug || ''} onChange={(event) => update('slug', event.target.value)}/><small>Contoh: kajian-manuskrip-nusantara</small></label>
-      <label>Ringkasan<textarea maxLength={600} rows={3} value={draft.excerpt || ''} onChange={(event) => update('excerpt', event.target.value)}/></label>
-      <label>Isi<textarea required maxLength={100000} rows={12} value={draft.body || ''} onChange={(event) => update('body', event.target.value)}/></label>
+      <label>Ringkasan<textarea aria-label="Ringkasan" maxLength={600} rows={3} value={draft.excerpt || ''} onChange={(event) => update('excerpt', event.target.value)}/></label>
+      <label>Isi<textarea aria-label="Isi" required maxLength={100000} rows={12} value={draft.body || ''} onChange={(event) => update('body', event.target.value)}/></label>
       <label>URL gambar sampul <span className="optional-label">(opsional)</span><input type="url" value={draft.cover_image_url || ''} onChange={(event) => update('cover_image_url', event.target.value)}/></label>
+      <div className="form-actions"><button type="button" className="secondary-action" disabled={uploading||saving} onClick={()=>imageInput.current?.click()}><Upload size={17}/>{uploading?'Mengunggah gambar…':'Unggah gambar'}</button><small>JPG atau PNG, maksimum 10 MiB. URL akan terisi otomatis.</small><input ref={imageInput} type="file" hidden accept=".jpg,.jpeg,.png" onChange={event=>{const file=event.currentTarget.files?.[0];event.currentTarget.value='';void uploadImage(file);}}/></div>
+      {draft.cover_image_url&&<img src={draft.cover_image_url} alt="Pratinjau gambar sampul" style={{maxWidth:'100%',width:320,maxHeight:220,objectFit:'contain'}}/>}
       <div className="editorial-editor-options"><label>Status<select value={draft.status || 'draft'} onChange={(event) => update('status', event.target.value)}><option value="draft">Draf</option><option value="published">Terbitkan</option><option value="archived">Arsip</option></select></label><label className="checkbox-row"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => update('featured', event.target.checked)}/> Utamakan di daftar</label></div>
       {notice && <p role="status" className="form-notice">{notice}</p>}{error && <p role="alert" className="form-error">{error}</p>}
-      <div className="form-actions"><button className="primary-action" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan konten'} <Save size={17}/></button>{draft.id && <button type="button" className="secondary-action" onClick={reset}>Batalkan edit</button>}</div>
-    </form>
-    <section className="admin-content-list"><h2>Konten tersimpan <span>{entries.length}</span></h2>{loading ? <p role="status">Memuat konten…</p> : entries.length ? entries.map((entry) => <article key={entry.id}><div><span className={`status-pill status-${entry.status}`}>{entry.status === 'published' ? 'Terbit' : entry.status === 'archived' ? 'Arsip' : 'Draf'}</span><h3 dir="auto">{entry.title}</h3><small>/{type === 'article' ? 'artikel' : type === 'information' ? 'informasi' : 'pengumuman'}/{entry.slug}</small></div><button className="secondary-action" onClick={() => { setDraft(entry); setNotice(''); setError(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button></article>) : <p>Belum ada konten. Mulai dari formulir di atas.</p>}</section>
+      <div className="form-actions"><button className="primary-action" disabled={saving||uploading}>{saving ? 'Menyimpan…' : 'Simpan konten'} <Save size={17}/></button>{draft.id && <button type="button" className="secondary-action" disabled={uploading||saving} onClick={reset}>Batalkan edit</button>}</div>
+    </fieldset></form>
+    <section className="admin-content-list"><h2>Konten tersimpan <span>{entries.length}</span></h2>{loading ? <p role="status">Memuat konten…</p> : entries.length ? entries.map((entry) => <article key={entry.id}><div><span className={`status-pill status-${entry.status}`}>{entry.status === 'published' ? 'Terbit' : entry.status === 'archived' ? 'Arsip' : 'Draf'}</span><h3 dir="auto">{entry.title}</h3><small>/{type === 'article' ? 'artikel' : type === 'information' ? 'informasi' : 'pengumuman'}/{entry.slug}</small></div><button className="secondary-action" disabled={saving||uploading} onClick={() => { draftVersion.current += 1; setDraft(entry); setNotice(''); setError(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button></article>) : <p>Belum ada konten. Mulai dari formulir di atas.</p>}</section>
   </section>;
 }
 

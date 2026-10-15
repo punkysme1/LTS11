@@ -29,6 +29,16 @@ async function saveAction(action: ImportAction, bundleIds: Map<string, string>, 
     if (!action.id) Object.assign(values, { bundle_code: action.code, publication_status: 'draft' });
     const saved = await writer.write('turots_bundles', values, action.id);
     bundleIds.set(action.code, saved.id);
+    for(const photo of action.photos||[]) await writer.write('turots_pages',{
+      bundle_id: saved.id,
+      canvas_id: photo.canvas_id || photo.image_url,
+      page_order: photo.page_order,
+      label: photo.label || photo.folio_label || String(photo.page_order),
+      folio_label: photo.folio_label || photo.label || String(photo.page_order),
+      side: 'unknown',
+      image_url: photo.image_url,
+      thumbnail_url: photo.thumbnail_url || photo.image_url,
+    });
     return;
   }
   const bundleId = bundleIds.get(action.code);
