@@ -1,5 +1,6 @@
 import { excelOptions } from './metadataOptions';
 import { retiredBundleHeaders, bundleFields, titleFields } from './metadataFields';
+import { formatPhotoPageRanges } from './pageRanges';
 import type { CatalogRow, ExcelRow } from './metadataImport';
 const xmlEscape = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 const colName = (index: number) => { let n = index + 1; let out = ''; while (n) { const r = (n - 1) % 26; out = String.fromCharCode(65 + r) + out; n = Math.floor((n - 1) / 26); } return out; };
@@ -33,7 +34,7 @@ function zipStore(entries: Array<[string, string]>) {
 }
 
 export const bundleHeaders = ['bundle_bundle_code', 'bundle_collection_name', 'bundle_source_project', ...bundleFields.filter(field => field !== 'bundle_code').map(field => `bundle_${field}`), 'bundle_id', 'bundle_url', 'bundle_admin_url'];
-export const titleHeaders = ['bundle_bundle_code', ...titleFields.map(field => `title_${field}`), 'title_id', 'title_url', 'title_admin_url'];
+export const titleHeaders = ['bundle_bundle_code', ...titleFields.map(field => `title_${field}`), 'title_page_ranges', 'title_id', 'title_url', 'title_admin_url'];
 export const photoHeaders = ['bundle_bundle_code', 'photo_order', 'photo_label', 'photo_image_url'];
 const publicOrigin = 'https://turots.qomaruddin.com';
 export function catalogLinks(bundle: CatalogRow, unit?: CatalogRow, origin = publicOrigin) {
@@ -55,12 +56,13 @@ const instructions = [
   ['Tambah atau perbarui', 'Kode/ID yang sudah ada diperbarui. Kode/ID baru ditambahkan. Bendel baru disimpan sebagai draft. Tidak ada publikasi otomatis.'],
   ['Sel kosong', 'Kosong berarti pertahankan data lama. Tulis #HAPUS untuk mengosongkan field opsional. Kolom yang tidak disertakan tidak diubah.'],
   ['Identitas', 'Jangan ubah kode bendel, ID inventaris, bundle_id, atau title_id pada hasil ekspor. Untuk baris baru, kosongkan UUID dan URL.'],
-  ['Folio', 'Gunakan 1r, 1v, 2r, dan seterusnya. Isi folio awal dan akhir setelah foto terdaftar. Rentang tidak boleh bertabrakan dengan judul lain.'],
+  ['Folio dan halaman foto', 'title_folio_start/end untuk nomor folio yang tertulis pada naskah (mis. 1r–10v). title_page_ranges untuk urutan foto dalam bendel (mis. 1-100;101-174). Gunakan rentang tidak bertumpang tindih. #HAPUS pada title_page_ranges melepas foto dari judul; sel kosong mempertahankan pemetaan lama.'],
   ['URL', 'URL adalah tautan klik, bukan sinkronisasi langsung. URL dan UUID dibaca saja. Tautan publik memerlukan bendel published; tautan admin memerlukan login. Ekspor ulang setelah impor untuk memperoleh URL baru.'],
+  ['Contoh pemecahan bendel', '174 foto, 1 judul: title_page_ranges=1-174. 174 foto, 2 judul: judul A=1-100; judul B=101-174. Foto nomor 100 hanya boleh masuk satu judul.'],
   ['Foto', 'Kelola foto di editor bendel. Kolom lama sumber/Archive, nomor DREAMSEA, writing_support, dan institution diabaikan saat impor.'],
   ['Pilihan isian', 'Dropdown tersedia sampai baris 10001. Pilihan mengikuti admin; isian khusus tetap boleh diketik. Bahasa/aksara ganda dipisahkan titik koma; watermark atau kolofon dapat berupa Ada: keterangan. #HAPUS tetap berlaku.'],
   ['Tipe data', 'Simpan kode, ID, tahun, tanggal, dan folio sebagai teks. Gunakan nilai biasa, bukan formula. Teks Arab didukung. right_to_left: Ya/Tidak.'],
-  ['Penyimpanan', 'Pratinjau tidak menulis database. Simpan menulis per baris. Jika jaringan gagal, sebagian baris mungkin sudah tersimpan; baca laporan dan pratinjau ulang sebelum mencoba lagi.'],
+  ['Penyimpanan', 'Pratinjau tidak menulis database. Simpan mengirim seluruh perubahan sebagai satu transaksi. Jika satu perubahan gagal, semua perubahan dibatalkan.'],
 ];
 export function metadataWorkbook(bundles: CatalogRow[], template = false, origin = publicOrigin) {
   const bundleRecords = template ? [] : bundles.map(bundle => ({
@@ -70,6 +72,7 @@ export function metadataWorkbook(bundles: CatalogRow[], template = false, origin
   }));
   const titleRecords = template ? [] : bundles.flatMap(bundle => (bundle.turots_text_units || []).map((unit: CatalogRow) => ({
     ...Object.fromEntries(titleFields.map(field => [`title_${field}`, unit[field]])),
+    title_page_ranges: formatPhotoPageRanges((bundle.turots_pages||[]).filter((page:CatalogRow)=>page.text_unit_id===unit.id).map((page:CatalogRow)=>page.page_order)),
     bundle_bundle_code: bundle.bundle_code, title_id: unit.id, ...catalogLinks(bundle, unit, origin),
   })));
   const photoRecords = template ? [] : bundles.flatMap(bundle => (bundle.turots_pages || []).map((page: CatalogRow) => ({
@@ -114,8 +117,20 @@ export function downloadMetadataXlsx(bundles: CatalogRow[], template = false, or
 function parseXml(xml: string) {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error('Deklarasi XML eksternal tidak didukung.');
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
-  if (doc.querySelector('parsererror')) throw new Error('XML Excel tidak valid.');
+  if (elementsByLocalName(doc, 'parsererror').length) throw new Error('XML Excel tidak valid.');
   return doc;
+}
+function elementsByLocalName(node: ParentNode, localName: string) {
+  return Array.from(node.querySelectorAll('*')).filter(element => element.localName === localName);
+}
+function resolveWorkbookTarget(target: string) {
+  const segments: string[] = [];
+  for (const segment of (target.startsWith('/') ? target.slice(1) : `xl/${target}`).split('/')) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') { if (!segments.length) throw new Error('Jalur lembar Excel tidak valid.'); segments.pop(); }
+    else segments.push(segment);
+  }
+  return segments.join('/');
 }
 async function unzipXlsx(file: File) {
   if (file.size > 20 * 1024 * 1024) throw new Error('Excel metadata maksimal 20 MB. Foto diunggah terpisah.');
@@ -128,12 +143,15 @@ async function unzipXlsx(file: File) {
   if (count > 1000) throw new Error('Terlalu banyak bagian dalam workbook.');
   for (let i = 0; i < count; i++) {
     if (view.getUint32(offset, true) !== 0x02014b50) throw new Error('Daftar berkas XLSX rusak.');
+    if (offset + 46 > bytes.length) throw new Error('Daftar berkas XLSX terpotong.');
     const method = view.getUint16(offset + 10, true); const size = view.getUint32(offset + 20, true); const unpacked = view.getUint32(offset + 24, true);
     const nameLength = view.getUint16(offset + 28, true); const extra = view.getUint16(offset + 30, true); const comment = view.getUint16(offset + 32, true); const local = view.getUint32(offset + 42, true);
+    if (offset + 46 + nameLength + extra + comment > bytes.length || local + 30 > bytes.length || view.getUint32(local, true) !== 0x04034b50) throw new Error('Daftar berkas XLSX rusak.');
     const name = new TextDecoder().decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
     total += unpacked;
     if (total > 50 * 1024 * 1024) throw new Error('Isi workbook terlalu besar (maksimal 50 MB setelah diekstrak).');
     const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+    if (start + size > bytes.length) throw new Error('Isi bagian XLSX terpotong.');
     let content: Uint8Array = bytes.subarray(start, start + size);
     if (method === 8) {
       const reader = new Blob([content]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
@@ -149,29 +167,33 @@ async function unzipXlsx(file: File) {
 }
 export function xmlRows(xml: string, shared: string[], sheet: string) {
   const rows: string[][] = [];
-  for (const node of Array.from(parseXml(xml).getElementsByTagName('row'))) {
+  for (const node of elementsByLocalName(parseXml(xml), 'row')) {
     const rowNumber = Number(node.getAttribute('r') || rows.length + 1);
     if (!Number.isInteger(rowNumber) || rowNumber < 1 || rowNumber > 10001) throw new Error(`${sheet}: maksimal 10.000 baris metadata.`);
     while (rows.length < rowNumber) rows.push([]);
     const row = rows[rowNumber - 1];
-    for (const cell of Array.from(node.getElementsByTagName('c'))) {
+    for (const cell of elementsByLocalName(node, 'c')) {
       const reference = cell.getAttribute('r') || '';
       const column = reference.match(/^([A-Z]+)\d+$/)?.[1];
       if (!column) throw new Error(`${sheet}: alamat sel tidak valid.`);
       const index = [...column].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
       if (index > 199) throw new Error(`${sheet}: maksimal 200 kolom.`);
       const type = cell.getAttribute('t');
-      if (cell.getElementsByTagName('f').length) throw new Error(`${sheet}!${reference}: ubah formula menjadi nilai sebelum impor.`);
+      if (elementsByLocalName(cell, 'f').length) throw new Error(`${sheet}!${reference}: ubah formula menjadi nilai sebelum impor.`);
       if (type === 'e') throw new Error(`${sheet}!${reference}: sel mengandung error Excel.`);
-      const value = cell.getElementsByTagName('v')[0]?.textContent || '';
-      row[index] = type === 'inlineStr' ? Array.from(cell.getElementsByTagName('t')).map(t => t.textContent || '').join('') : type === 's' ? shared[Number(value)] ?? '' : value;
+      const value = elementsByLocalName(cell, 'v')[0]?.textContent || '';
+      row[index] = type === 'inlineStr' ? elementsByLocalName(cell, 't').map(t => t.textContent || '').join('') : type === 's' ? shared[Number(value)] ?? '' : value;
     }
   }
   return rows;
 }
 function records(rows: string[][], headers: string[], required: string[]) {
   if (!rows.length) return [];
-  const names = Array.from(rows[0], value => (value || '').trim());
+  const canonicalHeaders = new Map(headers.map(header => [header.toLocaleLowerCase(), header]));
+  const names = Array.from(rows[0], value => {
+    const trimmed = (value || '').trim();
+    return canonicalHeaders.get(trimmed.toLocaleLowerCase()) || trimmed;
+  });
   const active = names.filter(Boolean);
   if (new Set(active).size !== active.length) throw new Error('Nama kolom berulang.');
   for (const name of active) if (!headers.includes(name)) throw new Error(`Kolom ${name} tidak dikenal. Gunakan header dari template.`);
@@ -184,15 +206,18 @@ function records(rows: string[][], headers: string[], required: string[]) {
 export async function readMetadataXlsx(file: File) {
   const files = await unzipXlsx(file); const workbook = files.get('xl/workbook.xml');
   if (!workbook) throw new Error('Workbook Excel tidak ditemukan.');
-  const shared = files.has('xl/sharedStrings.xml') ? Array.from(parseXml(files.get('xl/sharedStrings.xml')!).getElementsByTagName('si')).map(si => Array.from(si.getElementsByTagName('t')).map(t => t.textContent || '').join('')) : [];
+  const shared = files.has('xl/sharedStrings.xml') ? elementsByLocalName(parseXml(files.get('xl/sharedStrings.xml')!), 'si').map(si => elementsByLocalName(si, 't').map(t => t.textContent || '').join('')) : [];
   const rels = parseXml(files.get('xl/_rels/workbook.xml.rels') || '<Relationships/>');
-  const targets = new Map(Array.from(rels.getElementsByTagName('Relationship')).map(rel => [rel.getAttribute('Id'), rel.getAttribute('Target') || '']));
+  const targets = new Map(elementsByLocalName(rels, 'Relationship').map(rel => [rel.getAttribute('Id'), rel.getAttribute('Target') || '']));
   const found = new Map<string, string[][]>();
-  for (const sheet of Array.from(parseXml(workbook).getElementsByTagName('sheet'))) {
-    const name = sheet.getAttribute('name') || '';
-    if (!['Bendel', 'Judul', 'Foto'].includes(name)) continue;
+  const sheetNames = new Map(['Bendel', 'Judul', 'Foto'].map(name => [name.toLocaleLowerCase(), name]));
+  for (const sheet of elementsByLocalName(parseXml(workbook), 'sheet')) {
+    const rawName = sheet.getAttribute('name') || '';
+    const name = sheetNames.get(rawName.toLocaleLowerCase());
+    if (!name) continue;
     const target = targets.get(sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id'));
-    const path = target?.startsWith('/') ? target.slice(1) : `xl/${target}`;
+    if (!target) throw new Error(`Relasi lembar ${name} tidak ditemukan.`);
+    const path = resolveWorkbookTarget(target);
     const xml = files.get(path);
     if (!xml) throw new Error(`Lembar ${name} tidak dapat dibaca.`);
     found.set(name, xmlRows(xml, shared, name));

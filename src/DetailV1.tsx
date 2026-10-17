@@ -3,18 +3,35 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { unpackNotesAndProvenance } from './metadataModel';
-import { buildCatalogSlugMap, slugify } from './catalogSlugs';
-import { listPublishedCatalog } from './services/turotsRepository';
+import { buildCatalogSlugMap } from './catalogSlugs';
+import { getPublishedBundleByCode, getPublishedTitleById } from './services/turotsRepository';
 import './detail.css';
 
 const IiifViewer = lazy(() => import('./IiifViewer'));
 
 type AnyRecord = Record<string, any>;
 const detailRequestCache = new Map<string, { expiresAt: number; promise: Promise<any> }>();
+export function invalidateDetailRequestCache() {
+  detailRequestCache.clear();
+}
+async function fetchAllRows(query: (from: number, to: number) => any) {
+  const rows: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await query(from, from + 999);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if ((data || []).length < 1000) return rows;
+  }
+}
 function cachedDetailRequest<T>(key: string, load: () => Promise<T>) {
   const cached = detailRequestCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.promise as Promise<T>;
-  const promise = load().catch((error) => { detailRequestCache.delete(key); throw error; });
+  const promise = load().then((value) => {
+    // A bendel may become public after an admin publishes it. Do not retain a
+    // negative lookup, or the new public page stays hidden until the TTL ends.
+    if (value == null && detailRequestCache.get(key)?.promise === promise) detailRequestCache.delete(key);
+    return value;
+  }).catch((error) => { detailRequestCache.delete(key); throw error; });
   detailRequestCache.set(key, { expiresAt: Date.now() + 15_000, promise });
   return promise;
 }
@@ -44,26 +61,39 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
       let targetUnitId = requestedUnit;
 
       if (!targetBundleId) {
-        const catalog = await cachedDetailRequest('published-catalog-slug-map', listPublishedCatalog);
-        const bundles = (catalog || []) as AnyRecord[];
-        const rows = bundles.flatMap((bundle: AnyRecord) => (bundle.turots_text_units || []).map((unit: AnyRecord) => ({ b: bundle, u: unit })));
-        const routeSlugs = buildCatalogSlugMap(rows);
-        const match = rows.find(({ u }) => routeSlugs.get(u.id) === keyValue || u.id === keyValue || u.display_id === keyValue || u.title_original === keyValue || u.title_curatorial === keyValue || slugify(u.title_curatorial || '') === keyValue);
-        const bundleMatch = bundles.find((bundle) => bundle?.id === keyValue || bundle?.bundle_code === keyValue || slugify(bundle?.display_title || bundle?.bundle_code || '') === keyValue);
-        const requestedUnitMatch = rows.find(({ u }) => u.id === requestedUnit);
-        targetBundleId = match?.b?.id || requestedUnitMatch?.b?.id || bundleMatch?.id || '';
-        targetUnitId = match?.u?.id || requestedUnit;
+        if (requestedUnit) {
+          const unitRow = await cachedDetailRequest(`published-unit-${requestedUnit}`, () => getPublishedTitleById(requestedUnit));
+          if (unitRow) { targetBundleId = unitRow.bundle_id; targetUnitId = unitRow.id; }
+        }
+        if (!targetBundleId && !bundleMode) {
+          const { data: unitRow, error: unitError } = await supabase.from('turots_text_units')
+            .select('id,bundle_id')
+            .eq('slug', keyValue)
+            .is('archived_at', null)
+            .maybeSingle();
+          if (unitError) throw unitError;
+          if (unitRow) { targetBundleId = unitRow.bundle_id; targetUnitId = unitRow.id; }
+        }
+        if (!targetBundleId && bundleMode) {
+          const bundleRow = await cachedDetailRequest(`published-code-${keyValue}`, () => getPublishedBundleByCode(keyValue));
+          targetBundleId = bundleRow?.id || '';
+        }
       }
       if (!targetBundleId) throw new Error('Katalog tidak ditemukan.');
 
       const found = await cachedDetailRequest(`published-bundle-${targetBundleId}-${targetUnitId}`, async () => {
         let bundleRequest = supabase.from('turots_bundles')
-          .select('*,turots_collections(*),turots_text_units(*),turots_pages(*)')
+          .select('*,turots_collections(*)')
           .eq('id', targetBundleId)
           .eq('publication_status', 'published');
         const { data, error: requestError } = await bundleRequest.maybeSingle();
         if (requestError) throw requestError;
-        return data;
+        if (!data) return null;
+        const [units, pages] = await Promise.all([
+          fetchAllRows((from, to) => supabase.from('turots_text_units').select('*').eq('bundle_id', targetBundleId).is('archived_at', null).order('sequence_no').range(from, to)),
+          fetchAllRows((from, to) => supabase.from('turots_pages').select('*').eq('bundle_id', targetBundleId).in('access_level', ['public_preview', 'public_full']).order('page_order').range(from, to)),
+        ]);
+        return { ...data, turots_text_units: units, turots_pages: pages };
       });
       if (!found) throw new Error('Metadata bendel tidak ditemukan.');
 
@@ -88,9 +118,14 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
   }, [bundleMode, unit.id, bundle?.publication_status]);
   const pages = useMemo(() => {
     const storedPages = [...(bundle?.turots_pages || [])].sort((left: AnyRecord, right: AnyRecord) => left.page_order - right.page_order);
+    const linkedPages = storedPages.filter((item: AnyRecord) => item.text_unit_id === unit.id);
+    const anyExplicitMapping = storedPages.some((item: AnyRecord) => item.text_unit_id);
     let ranges: Array<[number,number]> | null = null;
     try { ranges = imageRanges(unit.folio_start,unit.folio_end); } catch { /* Invalid historical ranges show only explicitly linked pages. */ }
-    return showAllPages ? storedPages : storedPages.filter((item: AnyRecord) => ranges ? matchesImageRange(item as { page_order?: number },ranges) : item.text_unit_id === unit.id);
+    if (showAllPages) return storedPages;
+    if (linkedPages.length) return linkedPages;
+    if (anyExplicitMapping) return [];
+    return storedPages.filter((item: AnyRecord) => ranges ? matchesImageRange(item as { page_order?: number },ranges) : false);
   }, [bundle, showAllPages, unit.id]);
   const page = pages[selected];
   const lastFolio = [...pages].reverse().find((item: AnyRecord) => /^\d+[rv]$/i.test(item.folio_label || ''))?.folio_label;

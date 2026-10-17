@@ -19,5 +19,13 @@
 .metadata-transfer dt { font-weight:600; }
 .metadata-transfer .metadata-confirm { flex-direction:row; align-items:center; padding:12px 0; line-height:1.5; }
 .metadata-confirm input { width:20px; height:20px; flex-shrink:0; }
+.metadata-import-progress,.metadata-import-success { display:flex; align-items:flex-start; gap:12px; margin:16px 0; padding:16px; border-radius:8px; }
+.metadata-import-progress { background:#eef3f8; border:1px solid #a9bfd4; color:#244563; }
+.metadata-import-success { background:#edf6ed; border:1px solid #a8c9a6; color:#24522b; }
+.metadata-import-progress p,.metadata-import-success p { margin:6px 0; }
+.metadata-import-spinner { flex:0 0 auto; animation:metadata-import-spin 1s linear infinite; }
+.metadata-load-more { margin:12px; }
+@keyframes metadata-import-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .metadata-import-spinner { animation:none; } }
 .metadata-transfer :focus-visible { outline:3px solid #536e5b; outline-offset:3px; }
 @media(max-width:700px) { .metadata-transfer { padding:16px; } .metadata-transfer-heading { flex-direction:column; } .metadata-transfer-actions button { width:100%; justify-content:center; } }

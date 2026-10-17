@@ -37,6 +37,12 @@
 .admin-edit-context { display:grid; gap:7px; margin:0 0 22px; padding:16px 18px; border:1px solid #d9dfd6; border-left:4px solid #536e5b; border-radius:10px; background:#f5f7f2; color:#4d5c4e; }
 .admin-edit-context strong { color:#304b40; font:600 clamp(20px,2vw,28px)/1.35 Georgia,serif; overflow-wrap:anywhere; }
 .admin-list-item .admin-unit-actions { display:flex; flex-direction:row; flex-wrap:nowrap; align-items:center; justify-content:flex-end; gap:8px; }
+.admin-list-tools { display:flex; align-items:end; justify-content:space-between; flex-wrap:wrap; gap:12px 20px; margin:14px 0 18px; }
+.admin-list-search { display:grid; gap:6px; width:min(100%,520px); color:#536052; font-size:13px; font-weight:700; }
+.admin-list-search input { min-height:44px; width:100%; border:1px solid #cfc7bb; border-radius:8px; padding:9px 12px; background:#fffdf9; color:#292c28; font:inherit; font-weight:400; }
+.admin-list-tools p { margin:0 0 4px; color:#687261; font-size:13px; }
+.admin-pagination { display:flex; flex-wrap:wrap; gap:6px; margin-top:18px; }
+.admin-pagination button { min-width:40px; min-height:40px; }
 .admin-unit-actions button { max-width:100%; line-height:1.35; }
 .admin-unit-actions .admin-delete { color:#873f36; border-color:#d9b9b2; }
 .admin-unit-actions .admin-delete:hover { background:#f8e9e5; }
@@ -62,6 +68,49 @@
 .import-csv-action { position:relative; overflow:hidden; cursor:pointer; }
 .import-csv-action input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
 .import-help { border-left:3px solid #718675; background:#f3f6f1; margin:12px 0; padding:12px 14px; color:#505d53; font-size:13px; line-height:1.55; }
+.bulk-photo-page { max-width: 1240px; }
+.bulk-photo-steps { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:18px 0; }
+.bulk-photo-steps span { min-height:44px; display:flex; align-items:center; padding:10px 12px; border:1px solid #d9d2c7; border-radius:9px; background:#f7f5f1; color:#69665f; font-size:13px; font-weight:700; }
+.bulk-photo-steps .is-current { border-color:#9a7650; background:#f3eadf; color:#593f25; }
+.bulk-photo-panel { padding:clamp(18px,3vw,30px); border:1px solid #ded5c8; border-radius:14px; background:#fffdf9; box-shadow:0 12px 32px rgba(55,43,28,.06); }
+.bulk-photo-hidden-input { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+.bulk-photo-panel > p { max-width:84ch; color:#596257; font-size:14px; line-height:1.6; }
+.bulk-photo-status { margin:16px 0; padding:12px 14px; border-left:3px solid #536e5b; background:#f3f6f1; color:#35463d !important; }
+.bulk-photo-stats { display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:10px; margin:18px 0; }
+.bulk-photo-stats > div { display:grid; gap:4px; padding:14px; border:1px solid #e0dbd2; border-radius:9px; background:#faf9f6; }
+.bulk-photo-stats strong { color:#304b40; font-size:22px; }
+.bulk-photo-stats span { color:#666960; font-size:12px; }
+.bulk-photo-stats .has-errors strong,.has-errors { color:#9a4339 !important; }
+.bulk-photo-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0; }
+.bulk-photo-actions button,.bulk-photo-save button { min-height:44px; }
+.bulk-photo-progress { display:flex; align-items:center; gap:10px; min-height:48px; margin:14px 0; padding:12px 14px; border:1px solid #bfd0bd; border-radius:9px; background:#f2f6f0; color:#304b40; font-size:13px; font-weight:700; }
+.bulk-photo-consent { display:flex !important; align-items:flex-start; gap:12px; max-width:900px; margin:18px 0; padding:14px; border:1px solid #dfc698; border-radius:9px; background:#fff8e8; color:#453d2f; cursor:pointer; }
+.bulk-photo-consent input { width:20px !important; min-width:20px; height:20px; min-height:20px !important; margin:1px 0 0; accent-color:#536e5b; }
+.bulk-photo-consent span { display:grid; gap:5px; }
+.bulk-photo-consent strong { font-size:13px; line-height:1.4; }
+.bulk-photo-consent small { color:#6c6251; font-size:12px; font-weight:400; line-height:1.5; }
+.bulk-photo-groups { margin-top:26px; }
+.bulk-photo-groups h2 { color:#35463d; font:600 22px Georgia,serif; }
+.bulk-photo-group { border-top:1px solid #e3ddd3; }
+.bulk-photo-group summary { display:grid; grid-template-columns:minmax(100px,150px) minmax(140px,1fr) minmax(120px,auto); align-items:center; gap:12px; min-height:48px; cursor:pointer; color:#35463d; }
+.bulk-photo-group summary strong { color:#304b40; }
+.bulk-photo-group summary span,.bulk-photo-group summary small { color:#666960; font-size:12px; }
+.bulk-photo-group ul { margin:0 0 12px; padding:0 0 0 22px; }
+.bulk-photo-group li { display:grid; grid-template-columns:minmax(180px,1fr) minmax(90px,130px); gap:4px 12px; padding:8px 0; border-bottom:1px solid #eee9e0; font-size:12px; }
+.bulk-photo-group li code { overflow-wrap:anywhere; }
+.bulk-photo-group li small { grid-column:1 / -1; color:#6a675f; font-size:11px; }
+.bulk-photo-alert { display:flex; align-items:flex-start; gap:9px; margin:14px 0; padding:12px 14px; border:1px solid #debcb6; border-radius:8px; background:#fff3f0; color:#7c3830; font-size:13px; line-height:1.5; }
+.bulk-photo-save { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:22px 0 10px; padding:16px; border:1px solid #bfd0bd; border-radius:10px; background:#f2f6f0; }
+.bulk-photo-save > div { display:flex; align-items:flex-start; gap:9px; color:#304b40; font-size:13px; line-height:1.5; }
+.bulk-photo-note { display:flex; align-items:flex-start; gap:8px; margin-top:22px; padding-top:15px; border-top:1px solid #e5ded3; color:#6d685f !important; font-size:12px !important; }
+@media(max-width:700px) {
+  .bulk-photo-steps { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .bulk-photo-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .bulk-photo-group summary { grid-template-columns:minmax(72px,auto) minmax(0,1fr); gap:5px 10px; padding:8px 0; }
+  .bulk-photo-group summary small { grid-column:2; }
+  .bulk-photo-group li { grid-template-columns:1fr; }
+  .bulk-photo-save { align-items:stretch; flex-direction:column; }
+}
 .cantaloupe-preview { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:6px 20px; padding-left:24px; color:#4f574f; font-size:13px; }
 .cantaloupe-preview li { padding:4px 0; }
 .cantaloupe-preview code { margin-left:10px; color:#827663; overflow-wrap:anywhere; }

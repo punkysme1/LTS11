@@ -11,6 +11,7 @@ export default function IiifViewer({ imageUrl, label }: { imageUrl?: string; lab
   const [fullscreen, setFullscreen] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
 
   const updateZoom = useCallback(() => {
     const instance = viewer.current;
@@ -45,7 +46,7 @@ export default function IiifViewer({ imageUrl, label }: { imageUrl?: string; lab
     instance.addHandler('open-failed', () => { setError('Gambar halaman gagal dimuat. Periksa koneksi sumber IIIF lalu coba lagi.'); setReady(false); });
     instance.addHandler('animation-finish', updateZoom);
     return () => { instance.destroy(); viewer.current = null; setReady(false); setFullscreen(false); };
-  }, [imageUrl, updateZoom]);
+  }, [imageUrl, updateZoom, retry]);
 
   useEffect(() => {
     const syncFullscreen = () => setFullscreen(document.fullscreenElement === readerElement.current);
@@ -82,7 +83,7 @@ export default function IiifViewer({ imageUrl, label }: { imageUrl?: string; lab
     <div className="iiif-stage" aria-label={label}>
       {imageUrl ? <div className="iiif-canvas" ref={element} role="img" aria-label={`Viewer halaman ${label}. Gunakan tombol zoom, roda tetikus, atau gestur cubit untuk memperbesar; seret untuk menggeser.`}/> : <div className="reader-empty">Halaman ini belum memiliki gambar.</div>}
       {imageUrl && !ready && !error && <div className="reader-loading" role="status">Memuat halaman…</div>}
-      {error && <div className="reader-error" role="alert">{error}</div>}
+      {error && <div className="reader-error" role="alert">{error}<button type="button" onClick={() => { setError(''); setReady(false); setRetry(value => value + 1); }}>Coba lagi</button></div>}
     </div>
     <p className="reader-help">Gulir atau cubit untuk memperbesar · Seret untuk menggeser · Tekan Esc untuk keluar dari layar penuh</p>
   </section>;

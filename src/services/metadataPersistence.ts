@@ -1,67 +1,79 @@
 import { supabase } from '../lib/supabase';
-import { listAdminBundles, resolveCollection, updateTextUnitFolioRange } from './turotsRepository';
+import { formatCatalogRpcError, listAdminBundles } from './turotsRepository';
 import { catalogSnapshot, type ImportAction, type ImportPlan, type CatalogRow } from './metadataImport';
+import { parsePhotoPageRanges } from './pageRanges';
 
 export type ImportResult = { completed: string[]; failed?: string };
-export interface ImportWriter {
-  list(): Promise<CatalogRow[]>;
-  collection(name: string, project: string): Promise<string>;
-  write(table: string, values: CatalogRow, id?: string): Promise<CatalogRow>;
-  folios(bundle: string, unit: string, start: string, end: string): Promise<void>;
-}
-const serverWriter: ImportWriter = {
-  list: listAdminBundles,
-  collection: resolveCollection,
-  async write(table, values, id) {
-    if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
-    const request = id ? supabase.from(table).update({ ...values, updated_at: new Date().toISOString() }).eq('id', id) : supabase.from(table).insert(values);
-    const { data, error } = await request.select().single();
-    if (error) throw error;
-    return data;
-  },
-  folios: updateTextUnitFolioRange,
-};
 
-async function saveAction(action: ImportAction, bundleIds: Map<string, string>, writer: ImportWriter) {
-  if (action.sheet === 'Bendel') {
-    const values = { ...action.values };
-    if (action.collection) values.collection_id = await writer.collection(action.collection.name, action.collection.project);
-    if (!action.id) Object.assign(values, { bundle_code: action.code, publication_status: 'draft' });
-    const saved = await writer.write('turots_bundles', values, action.id);
-    bundleIds.set(action.code, saved.id);
-    for(const photo of action.photos||[]) await writer.write('turots_pages',{
-      bundle_id: saved.id,
-      canvas_id: photo.canvas_id || photo.image_url,
-      page_order: photo.page_order,
-      label: photo.label || photo.folio_label || String(photo.page_order),
-      folio_label: photo.folio_label || photo.label || String(photo.page_order),
-      side: 'unknown',
-      image_url: photo.image_url,
-      thumbnail_url: photo.thumbnail_url || photo.image_url,
-    });
-    return;
-  }
-  const bundleId = bundleIds.get(action.code);
-  if (!bundleId) throw new Error(`Bendel ${action.code} tidak ditemukan.`);
-  const values = action.id ? action.values : { ...action.values, bundle_id: bundleId, display_id: action.key };
-  const saved = await writer.write('turots_text_units', values, action.id);
-  if (action.folios) {
-    try { await writer.folios(bundleId, saved.id, action.folios.start, action.folios.end); }
-    catch (error) { throw new Error(`Metadata judul tersimpan, tetapi pemetaan foto gagal: ${(error as Error).message}. Periksa rentang folio di editor judul.`); }
+export class ImportOutcomeUnknownError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImportOutcomeUnknownError';
   }
 }
 
-export async function applyMetadataImport(plan: ImportPlan, writer: ImportWriter = serverWriter, progress?: (message: string) => void): Promise<ImportResult> {
+export async function applyMetadataImport(plan: ImportPlan, _unused?: unknown, progress?: (message: string) => void): Promise<ImportResult> {
+  if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
   if (plan.errors.length) throw new Error('Perbaiki semua kesalahan Excel sebelum menyimpan.');
-  const current = await writer.list();
+
+  const current = await listAdminBundles() as CatalogRow[];
   if (catalogSnapshot(current) !== plan.snapshot) throw new Error('Data server berubah sejak pratinjau. Pilih Excel lagi untuk memeriksa perubahan terbaru.');
-  const ids = new Map(current.map(bundle => [bundle.bundle_code, bundle.id]));
-  const result: ImportResult = { completed: [] };
-  for (const action of plan.actions.filter(action => action.kind !== 'skip')) {
-    const label = `${action.sheet} baris ${action.row} (${action.key})`;
-    progress?.(`Menyimpan ${label}…`);
-    try { await saveAction(action, ids, writer); result.completed.push(label); }
-    catch (error) { result.failed = `${label}: ${(error as Error).message || String(error)}`; break; }
+
+  const operations = plan.actions.filter(action => action.kind !== 'skip');
+  if (!operations.length) return { completed: [] };
+  progress?.(`Mengirim ${operations.length} perubahan sebagai satu transaksi…`);
+
+  let response: Awaited<ReturnType<typeof supabase.rpc>>;
+  try {
+    response = await supabase.rpc('apply_turots_catalog_import', {
+      p_operations: operations.map(toOperation),
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new ImportOutcomeUnknownError(`Koneksi terputus saat menunggu jawaban server: ${reason}`);
   }
-  return result;
+  const { data, error } = response;
+  if (error) {
+    throw new Error(formatCatalogRpcError(error, 'Impor dibatalkan tanpa menyimpan perubahan'));
+  }
+
+  if (!Array.isArray(data?.completed) || data.completed.length !== operations.length) {
+    throw new ImportOutcomeUnknownError(`Jawaban server tidak memberikan tanda selesai yang lengkap (${Array.isArray(data?.completed) ? data.completed.length : 0} dari ${operations.length}). Periksa status data sebelum mencoba impor ulang.`);
+  }
+
+  return {
+    completed: data.completed,
+  };
+}
+
+function toOperation(action: ImportAction) {
+  const folios = normalizePhotoMapping(action.folios as (ImportAction['folios'] & { start?: string; end?: string }) | null | undefined);
+  return {
+    sheet: action.sheet,
+    row: action.row,
+    code: action.code,
+    key: action.key,
+    id: action.id || null,
+    values: action.values,
+    collection: action.collection || null,
+    photos: action.photos || [],
+    folios,
+    changes: action.changes,
+  };
+}
+
+function normalizePhotoMapping(value: (ImportAction['folios'] & { start?: string; end?: string }) | null | undefined) {
+  if (!value) return null;
+  if (value.clear) return { clear: true };
+  if (Array.isArray(value.ranges)) return value.ranges.length ? { ranges: value.ranges } : null;
+
+  const start = String(value.start || '').trim();
+  const end = String(value.end || '').trim();
+  if (!start && !end) return null;
+  const expression = /^\d+\s*-\s*\d+(?:\s*[;,]\s*\d+(?:\s*-\s*\d+)?)*$/.test(start)
+    ? start
+    : /^\d+$/.test(start) && /^\d+$/.test(end) ? `${start}-${end}` : '';
+  if (!expression) return null;
+  const ranges = parsePhotoPageRanges(expression);
+  return ranges.length ? { ranges } : null;
 }

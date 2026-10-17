@@ -1,6 +1,6 @@
 # Layanan unggah Turots untuk Cantaloupe
 
-Layanan ini menerima unggahan admin yang sudah diverifikasi melalui Supabase, lalu menaruh berkas sumber di `/opt/turots-iiif/images` agar Cantaloupe dapat membacanya. PDF tetap disimpan sebagai PDF; Cantaloupe memproses halaman PDF saat diminta.
+Layanan ini menerima unggahan admin yang sudah diverifikasi melalui Supabase, lalu menaruh berkas sumber di `/opt/turots-iiif/images` agar Cantaloupe dapat membacanya. PDF tetap disimpan sebagai PDF; Cantaloupe memproses halaman PDF saat diminta. Layanan menerima unggahan langsung sampai 95 MiB dan unggahan potongan yang dapat dilanjutkan untuk berkas sampai 1 GiB. Potongan 32 MiB menjaga setiap permintaan tetap kecil melewati proxy.
 
 Salin folder ini ke host, simpan env-file rahasia di `/opt/turots-iiif/upload.env`, lalu build image dari folder tersebut:
 
@@ -24,7 +24,7 @@ sudo docker run -d \
   turots-image-upload:1
 ```
 
-Sesuaikan UID:GID jika pemilik folder gambar di host berbeda. Jangan commit `upload.env` atau kunci service-role.
+Sesuaikan UID:GID jika pemilik folder gambar di host berbeda. `upload.env` hanya perlu URL dan anon key Supabase serta daftar origin yang diizinkan. Jangan commit `upload.env`. Layanan memeriksa token pengguna melalui PostgREST dan kebijakan RLS pada tabel admin; layanan tidak memerlukan kunci service-role.
 
 Tes lokal:
 
@@ -32,4 +32,6 @@ Tes lokal:
 npm run test:upload-service
 ```
 
-Admin mengunggah satu PDF per proses dan memasukkan jumlah halaman. Identifier IIIF halaman dibentuk sebagai `nama.pdf;1`, `nama.pdf;2`, dan seterusnya.
+Layanan memasang `poppler-utils` dan menyediakan endpoint admin massal memakai path `/admin-upload/{filename}` yang sudah diteruskan reverse proxy. Operasi dibedakan dengan query `action=status`, `action=chunk`, `action=complete`, atau `action=pdf-info`. Jumlah halaman dihitung dari PDF di disk. Admin dapat memilih seluruh folder NT/EAP. Berkas yang sudah tersedia di IIIF dilewati, berkas besar dilanjutkan dari potongan terakhir, dan halaman disimpan per bendel setelah pratinjau sumber berhasil.
+
+Chunk tersimpan di `.turots-upload-chunks` di dalam direktori gambar. Sesi unggah dibatasi ke admin pemiliknya dan dibersihkan otomatis setelah tujuh hari. Jangan menghapus direktori itu saat ada unggahan yang sedang berjalan.

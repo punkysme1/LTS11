@@ -8,14 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 
 const mock = createServer(async (request, response) => {
-  if (request.url === '/auth/v1/user') {
-    if (request.headers.authorization === 'Bearer invalid') { response.writeHead(401).end(); return; }
-    const id = request.headers.authorization === 'Bearer nonadmin' ? 'not-an-admin' : 'admin-user';
-    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id }));
-    return;
-  }
   if (request.url.startsWith('/rest/v1/turots_admins')) {
-    response.writeHead(200, { 'content-type': 'application/json' }).end(request.url.includes('not-an-admin') ? '[]' : '[{"user_id":"admin-user"}]');
+    const token = request.headers.authorization;
+    if (token === 'Bearer invalid') { response.writeHead(401).end(); return; }
+    response.writeHead(200, { 'content-type': 'application/json' }).end(token === 'Bearer nonadmin' ? '[]' : '[{"user_id":"admin-user"}]');
     return;
   }
   response.writeHead(404).end();
@@ -30,7 +26,7 @@ const servicePort = portFinder.address().port;
 await new Promise(resolve => portFinder.close(resolve));
 const images = await mkdtemp(join(tmpdir(), 'turots-upload-test-'));
 const child = spawn(process.execPath, [fileURLToPath(new URL('./server.mjs', import.meta.url))], {
-  env: { ...process.env, PORT: String(servicePort), IMAGE_DIRECTORY: images, SUPABASE_URL: `http://127.0.0.1:${mockPort}`, SUPABASE_ANON_KEY: 'test-anon', SUPABASE_SERVICE_ROLE_KEY: 'test-service', ALLOWED_ORIGINS: 'https://turots.qomaruddin.com' },
+  env: { ...process.env, PORT: String(servicePort), IMAGE_DIRECTORY: images, SUPABASE_URL: `http://127.0.0.1:${mockPort}`, SUPABASE_ANON_KEY: 'test-anon', ALLOWED_ORIGINS: 'https://turots.qomaruddin.com' },
   stdio: 'inherit',
 });
 

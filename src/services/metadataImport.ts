@@ -1,4 +1,5 @@
 import { imageRanges } from './imageRanges';
+import { formatPhotoPageRanges, parsePhotoPageRanges } from './pageRanges';
 import { CATALOG_CATEGORIES } from '../catalogTaxonomy';
 import { bundleFields, titleFields, retiredBundleHeaders } from './metadataFields';
 
@@ -8,17 +9,13 @@ export type ImportAction = {
   sheet: 'Bendel' | 'Judul'; row: number; code: string; key: string;
   kind: 'create' | 'update' | 'skip'; id?: string; values: CatalogRow;
   changes: Array<{ field: string; before: unknown; after: unknown }>;
-  collection?: { name: string; project: string }; folios?: { start: string; end: string }; photos?: CatalogRow[];
+  collection?: { name: string; project: string }; folios?: { ranges?: Array<[number, number]>; clear?: boolean }; photos?: CatalogRow[];
 };
 export type ImportPlan = { actions: ImportAction[]; errors: string[]; warnings: string[]; snapshot: string };
 const numeric = new Set(['extent_pages', 'blank_pages', 'sequence_no', 'lines_per_page']);
 const protectedFields = new Set(['bundle_code', 'display_id']);
 const requiredFields = new Set(['sequence_no', 'metadata_status', 'access_level', 'title_original', 'category_primary']);
 const statuses = ['imported', 'curated', 'verified', 'provisional', 'conflicting', 'unknown'];
-export const folioOrdinal = (value: string) => {
-  const match = String(value || '').trim().match(/^(\d+)\s*([rv])$/i);
-  return match ? Number(match[1]) * 2 + (match[2].toLowerCase() === 'v' ? 1 : 0) : null;
-};
 function stableValue(value: any): any {
   if (Array.isArray(value)) return [...value].sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || ''))).map(stableValue);
   if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]));
@@ -64,6 +61,15 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
   const units = bundles.flatMap(bundle => (bundle.turots_text_units || []).map((unit: CatalogRow) => ({ ...unit, bundle_code: bundle.bundle_code })));
   const seenBundles = new Set<string>(); const seenTitles = new Set<string>();
   const claimedPages = new Map<string, string>();
+  const titleRowsById = new Map(titleRows.map(row=>[row.title_display_id?.trim(),row]));
+  const pageWillBeReleased = (page: CatalogRow, code: string) => {
+    const owner=units.find(unit=>unit.id===page.text_unit_id&&unit.bundle_code===code);
+    const ownerRow=owner?titleRowsById.get(owner.display_id):undefined;
+    if(!ownerRow||!Object.hasOwn(ownerRow,'title_page_ranges'))return false;
+    const requested=ownerRow.title_page_ranges?.trim();
+    if(!requested||requested==='#HAPUS')return true;
+    return !parsePhotoPageRanges(requested).some(([first,last])=>Number(page.page_order)>=first&&Number(page.page_order)<=last);
+  };
   const sequences = new Map<string, number>();
   for (const unit of units) sequences.set(unit.bundle_code, Math.max(sequences.get(unit.bundle_code) || 0, Number(unit.sequence_no) || 0));
   bundleRows.forEach((row, index) => {
@@ -109,6 +115,7 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
     const additions=photos.filter(photo=>{
       const prior=stored.find(p=>p.page_order===photo.page_order);
       if(prior && prior.image_url!==photo.image_url) plan.errors.push(`Foto ${code} nomor ${photo.page_order}: sudah ada gambar berbeda; tidak ditimpa.`);
+      if (stored.some(page => page.image_url === photo.image_url && page.page_order !== photo.page_order)) plan.errors.push(`Foto ${code}: URL gambar yang sama sudah digunakan pada urutan lain.`);
       return !prior;
     });
     bundle.turots_pages=[...stored,...additions];
@@ -140,32 +147,62 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
       const merged = { ...existing, ...action.values };
       sequences.set(code, Math.max(sequences.get(code) || 0, Number(merged.sequence_no) || 0));
       const start = merged.folio_start; const end = merged.folio_end;
-      const rangeChanged = !existing || 'folio_start' in action.values || 'folio_end' in action.values || !!row.title_folio_start?.trim() || !!row.title_folio_end?.trim();
       const pages: CatalogRow[] = bundle.turots_pages || [];
-      const numericRanges = imageRanges(start,end);
-      if (numericRanges) {
-        if(pages.length && numericRanges.some(([,last])=>!pages.some(p=>p.page_order===last))) throw new Error('Rentang foto melebihi daftar foto bendel.');
-        if(!pages.length) plan.warnings.push(`Judul baris ${index+2}: metadata judul disimpan, tetapi foto belum terdaftar di katalog. Impor ulang lembar Foto setelah URL foto tersedia.`);
-        action.folios = { start, end: end || start };
-        action.changes.push({ field: 'pemetaan foto', before: existing ? 'Pemetaan lama' : null, after: `${numericRanges.map(([a,b]) => `${a}-${b}`).join('; ')} foto` });
-        if (existing) action.kind = 'update';
-      } else if (rangeChanged && (start || end)) {
-        const first = folioOrdinal(start); const last = folioOrdinal(end);
-        if (first === null || last === null || first > last) throw new Error('isi kedua folio dengan urutan valid, misalnya 1r sampai 10v.');
-        if (!pages.length) throw new Error('unggah dan simpan foto ke bendel dahulu sebelum mengisi rentang folio.');
-        const selected = pages.filter(page => { const n = folioOrdinal(page.folio_label); return n !== null && n >= first && n <= last; });
-        if (!selected.some(page => folioOrdinal(page.folio_label) === first) || !selected.some(page => folioOrdinal(page.folio_label) === last)) throw new Error('foto folio awal/akhir tidak ditemukan dalam bendel.');
-        for (const page of selected) {
-          if ((page.text_unit_id && page.text_unit_id !== existing?.id) || (claimedPages.has(page.id) && claimedPages.get(page.id) !== key)) throw new Error(`folio ${page.folio_label} sudah dipakai judul lain atau bertabrakan dalam Excel.`);
+      const hasPageRangeColumn = Object.hasOwn(row, 'title_page_ranges');
+      const explicitPageRanges = hasPageRangeColumn && Boolean(row.title_page_ranges?.trim()) && row.title_page_ranges?.trim() !== '#HAPUS';
+      const clearPageRanges = hasPageRangeColumn && row.title_page_ranges?.trim() === '#HAPUS';
+      const legacyRangeChanged = !hasPageRangeColumn && (!existing || 'folio_start' in action.values || 'folio_end' in action.values || !!row.title_folio_start?.trim() || !!row.title_folio_end?.trim());
+      const currentPageOrders = pages.filter(page=>page.text_unit_id===existing?.id).map(page=>Number(page.page_order));
+      if (clearPageRanges) {
+        if (currentPageOrders.length || existing) {
+          action.folios = { clear: true };
+          action.changes.push({ field: 'pemetaan foto', before: formatPhotoPageRanges(currentPageOrders), after: 'kosong' });
+          action.kind = existing ? 'update' : action.kind;
         }
-        for (const page of selected) claimedPages.set(page.id, key);
-        const needsMapping = !existing || selected.some(page => page.text_unit_id !== existing.id) || pages.some(page => page.text_unit_id === existing.id && !selected.some(target => target.id === page.id));
-        if (needsMapping) {
-          action.folios = { start, end };
-          action.changes.push({ field: 'pemetaan foto', before: existing ? 'Pemetaan lama' : null, after: `${selected.length} foto (${start}–${end})` });
+      } else if (explicitPageRanges) {
+        const numericRanges = parsePhotoPageRanges(row.title_page_ranges);
+        if (!numericRanges.length) throw new Error('Isi rentang halaman foto, misalnya 1-100;101-174.');
+        if (!pages.length) throw new Error('Rentang halaman foto belum bisa dipetakan karena bendel belum memiliki foto tersimpan. Simpan foto dahulu atau kosongkan kolom rentang.');
+        for (let rangeIndex = 0; rangeIndex < numericRanges.length; rangeIndex += 1) {
+          const [first, last] = numericRanges[rangeIndex];
+          if (numericRanges.slice(0, rangeIndex).some(([priorFirst, priorLast]) => first <= priorLast && last >= priorFirst)) throw new Error('Rentang foto saling bertumpang tindih.');
+          if (!pages.some(p => Number(p.page_order) === first) || !pages.some(p => Number(p.page_order) === last)) throw new Error('Rentang foto melebihi daftar foto bendel atau batas awal/akhirnya tidak ditemukan.');
+          const selected = pages.filter(page => Number(page.page_order) >= first && Number(page.page_order) <= last);
+          for (const page of selected) {
+            const pageKey = page.id || `${code}:${page.page_order}`;
+            const pageOwner=units.find(unit=>unit.id===page.text_unit_id)?.display_id;
+            if ((page.text_unit_id && page.text_unit_id !== existing?.id && !pageWillBeReleased(page,code)) || (claimedPages.has(pageKey) && claimedPages.get(pageKey) !== key)) throw new Error(`Foto urutan ${page.page_order} sudah dipakai judul ${pageOwner||'lain'} atau bertabrakan dalam Excel.`);
+            claimedPages.set(pageKey, key);
+          }
+        }
+        const selectedOrders=pages.filter(page=>numericRanges.some(([first,last])=>Number(page.page_order)>=first&&Number(page.page_order)<=last)).map(page=>Number(page.page_order));
+        if (formatPhotoPageRanges(selectedOrders)!==formatPhotoPageRanges(currentPageOrders)) {
+          action.folios = { ranges: numericRanges };
+          action.changes.push({ field: 'pemetaan foto', before: formatPhotoPageRanges(currentPageOrders) || (existing ? 'kosong' : null), after: formatPhotoPageRanges(selectedOrders) });
           if (existing) action.kind = 'update';
         }
-      } else if (!existing) plan.warnings.push(`Judul baris ${index + 2}: belum dipetakan ke foto; isi folio setelah foto terdaftar.`);
+      } else if (legacyRangeChanged && (start || end)) {
+        const numericRanges = imageRanges(start,end);
+        if (numericRanges) {
+          for (let rangeIndex = 0; rangeIndex < numericRanges.length; rangeIndex += 1) {
+            const [first, last] = numericRanges[rangeIndex];
+            if (numericRanges.slice(0, rangeIndex).some(([priorFirst, priorLast]) => first <= priorLast && last >= priorFirst)) throw new Error('Rentang foto saling bertumpang tindih.');
+            if (pages.length && (!pages.some(p => Number(p.page_order) === first) || !pages.some(p => Number(p.page_order) === last))) throw new Error('Rentang foto melebihi daftar foto bendel atau batas awal/akhirnya tidak ditemukan.');
+            const selected = pages.filter(page => Number(page.page_order) >= first && Number(page.page_order) <= last);
+            for (const page of selected) {
+              const pageKey = page.id || `${code}:${page.page_order}`;
+              if ((page.text_unit_id && page.text_unit_id !== existing?.id) || (claimedPages.has(pageKey) && claimedPages.get(pageKey) !== key)) throw new Error(`Foto urutan ${page.page_order} sudah dipakai judul lain atau bertabrakan dalam Excel.`);
+              claimedPages.set(pageKey, key);
+            }
+          }
+          if(!pages.length) plan.warnings.push(`Judul baris ${index+2}: metadata judul disimpan, tetapi foto belum terdaftar di katalog. Impor ulang lembar Foto setelah URL foto tersedia.`);
+          action.folios = { ranges: numericRanges };
+          action.changes.push({ field: 'pemetaan foto', before: existing ? 'Pemetaan lama' : null, after: `${numericRanges.map(([a,b]) => `${a}-${b}`).join('; ')} foto` });
+          if (existing) action.kind = 'update';
+        } else if (start || end) {
+          plan.warnings.push(`Judul baris ${index + 2}: folio naskah ${start || '—'}–${end || '—'} disimpan sebagai metadata. Pemetaan foto hanya memakai nomor urutan pada title_page_ranges, misalnya 1-174.`);
+        }
+      } else if (!existing) plan.warnings.push(`Judul baris ${index + 2}: belum dipetakan ke foto; isi title_page_ranges setelah foto terdaftar.`);
       plan.actions.push(action);
     } catch (error) { plan.errors.push(`Judul baris ${index + 2}: ${(error as Error).message}`); }
   });
@@ -179,6 +216,6 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
     const sequence = projectedUnits.find(unit => unit.display_id === action.key)?.sequence_no;
     if (projectedUnits.some(unit => unit.bundle_code === action.code && unit.display_id !== action.key && unit.sequence_no === sequence)) plan.errors.push(`Judul baris ${action.row}: urutan ${sequence} sudah dipakai judul lain pada bendel ${action.code}.`);
   }
-  if (!plan.actions.length && !plan.errors.length) plan.errors.push('Tidak ada baris metadata. Isi lembar Bendel atau Judul terlebih dahulu.');
+  if (!plan.actions.some(action=>action.kind!=='skip') && !plan.errors.length) plan.errors.push('Tidak ada baris metadata. Isi lembar Bendel atau Judul terlebih dahulu.');
   return plan;
 }
