@@ -4,6 +4,26 @@ import { resolveCatalogCollection } from './collectionResolver';
 
 type CatalogRow = { b: any; u: any; id: string; kind: 'bundle' | 'title' };
 
+function canonicalCatalogTerm(value: unknown) {
+  const normalized = String(value || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  if (normalized === 'arabic') return 'arab';
+  if (normalized === 'javanese') return 'jawa';
+  if (normalized === 'pego') return 'pegon';
+  return normalized;
+}
+
+function uniqueCatalogTerms(values: unknown[]) {
+  const display = new Map<string, string>();
+  for (const raw of values) {
+    const value = String(raw || '').trim();
+    if (!value) continue;
+    const key = canonicalCatalogTerm(value);
+    const preferred = key === 'arab' ? 'Arab' : key === 'jawa' ? 'Jawa' : key === 'pegon' ? 'Pegon' : value;
+    if (!display.has(key) || value === preferred) display.set(key, preferred);
+  }
+  return [...display.values()].sort((left, right) => left.localeCompare(right));
+}
+
 async function fetchAllRows<T>(buildQuery: (from: number, to: number) => any, pageSize = 1000): Promise<T[]> {
   const rows: T[] = [];
   for (let from = 0; ; from += pageSize) {
@@ -53,7 +73,7 @@ export async function saveCatalogDraft(input: DraftInput) {
     const {data:activeUnits,error:unitsError}=await supabase.from('turots_text_units').select('id').eq('bundle_id',existing.id).is('archived_at',null);
     if(unitsError)throw unitsError;
     (activeUnits||[]).forEach(unit=>activeTitleIds.add(unit.id));
-    existing.turots_pages=await fetchAllRows<any>((from,to)=>supabase.from('turots_pages').select('id,page_order,folio_label,text_unit_id').eq('bundle_id',existing.id).order('page_order').range(from,to));
+    existing.turots_pages=await fetchAllRows<any>((from,to)=>supabase.from('turots_pages').select('id,page_order,folio_label,text_unit_id').eq('bundle_id',existing.id).order('page_order').order('id').range(from,to));
   }
   const bundleMetadata=input.bundleMetadata||{};
   const metadataColumns = ['scholarly_classification_1','scholarly_classification_2','scholarly_classification_3','folio_separator','year_masehi','copying_location','manuscript_origin','ink','lines_per_page','rubrication','marginal_notes','meaning_notes','colophon','marginal_note','readability','related_manuscripts','paper_type_other'];
@@ -152,33 +172,42 @@ export function listPublishedCatalog() {
 }
 
 export async function listPublicCatalogFilterOptions() {
-  if (!supabase) return { collections: [], languages: [], scripts: [], completeness: [], persons: [] };
+  if (!supabase) return { collections: [], affiliations: [], languages: [], scripts: [], completeness: [], persons: [] };
   const { data, error } = await supabase.rpc('get_turots_catalog_filter_options');
   if (error) {
     const rows = await listPublishedCatalog();
     const units = rows.flatMap(bundle => (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && unit.metadata_status === 'imported'));
-    const values = (items: Array<unknown>) => [...new Set(items.map(value => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const values = (items: Array<unknown>) => uniqueCatalogTerms(items);
     return {
       collections: values(rows.map(bundle => bundle.turots_collections?.name)),
+      affiliations: values(rows.map(bundle => bundle.affiliation || bundle.turots_collections?.source_project)),
       languages: values(units.flatMap((unit: any) => String(unit.language || '').split(/[,;|]/))),
       scripts: values(units.flatMap((unit: any) => String(unit.script || '').split(/[,;|]/))),
       completeness: values(units.map((unit: any) => unit.completeness)),
-      persons: values(units.flatMap((unit: any) => [unit.author, unit.scribe])),
+      persons: [...new Set(units.flatMap((unit: any) => [unit.author, unit.scribe]).map((value: unknown) => String(value || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b)),
     };
   }
-  return data || { collections: [], languages: [], scripts: [], completeness: [], persons: [] };
+  return data ? {
+    ...data,
+    collections: Array.isArray(data.collections) ? data.collections : [],
+    affiliations: Array.isArray(data.affiliations) ? data.affiliations : [],
+    completeness: Array.isArray(data.completeness) ? data.completeness : [],
+    languages: uniqueCatalogTerms(data.languages || []),
+    scripts: uniqueCatalogTerms(data.scripts || []),
+    persons: [...new Set((Array.isArray(data.persons) ? data.persons : []).map((value: unknown) => String(value || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b)),
+  } : { collections: [], affiliations: [], languages: [], scripts: [], completeness: [], persons: [] };
 }
 
 export async function searchPublishedCatalog(filters: {
-  query?: string; category?: string; collection?: string; language?: string;
+  query?: string; category?: string; collection?: string; affiliation?: string; language?: string;
   script?: string; completeness?: string; person?: string; status?: string;
-  sort?: string; offset?: number; limit?: number;
+  kind?: string; sort?: string; offset?: number; limit?: number;
 } = {}) {
   if (!supabase) return { rows: [], total: 0 };
   const { data, error } = await supabase.rpc('search_turots_catalog', {
-    p_query: filters.query || '', p_category: filters.category || '', p_collection: filters.collection || '',
+    p_query: filters.query || '', p_category: filters.category || '', p_collection: filters.collection || '', p_affiliation: filters.affiliation || '',
     p_language: filters.language || '', p_script: filters.script || '', p_completeness: filters.completeness || '',
-    p_person: filters.person || '', p_status: filters.status || '', p_sort: filters.sort || 'newest',
+    p_person: filters.person || '', p_status: filters.status || '', p_kind: filters.kind || '', p_sort: filters.sort || 'newest',
     p_offset: filters.offset || 0, p_limit: filters.limit || 12,
   });
   if (error) {
@@ -187,22 +216,27 @@ export async function searchPublishedCatalog(filters: {
     const bundles = (await listPublishedCatalog()).filter(bundle => ['public_preview', 'public_full'].includes(bundle.access_level));
     const query = (filters.query || '').trim().toLocaleLowerCase();
     const text = (value: unknown) => String(value || '').toLocaleLowerCase();
-    const split = (value: unknown) => String(value || '').split(/[,;|]/).map(item => item.trim().toLocaleLowerCase());
+    const split = (value: unknown) => String(value || '').split(/[,;|]/).map(canonicalCatalogTerm);
     const rows: CatalogRow[] = [];
     for (const bundle of bundles) {
       const activeUnits = (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && unit.metadata_status === 'imported');
       const collection = bundle.turots_collections?.name || '';
+      const affiliation = bundle.affiliation || bundle.turots_collections?.source_project || '';
       const bundleText = [bundle.display_title, bundle.bundle_code, bundle.source_identifier, collection].map(text).join(' ');
-      const bundleMatches = (!query || bundleText.includes(query) || activeUnits.some((unit: any) => [unit.title_original, unit.title_latin, unit.title_curatorial, unit.display_id, unit.author, unit.scribe, unit.related_persons].map(text).join(' ').includes(query)))
+      const bundleMatches = (!filters.kind || filters.kind === 'bundle')
+        && (!query || bundleText.includes(query) || activeUnits.some((unit: any) => [unit.title_original, unit.title_latin, unit.title_curatorial, unit.display_id, unit.author, unit.scribe, unit.related_persons].map(text).join(' ').includes(query)))
         && (!filters.category || filters.category === 'Bendel')
         && (!filters.collection || collection === filters.collection);
-      if (bundleMatches) rows.push({ b: bundle, u: {}, id: `bundle-${bundle.id}`, kind: 'bundle' });
+      const affiliationMatches = !filters.affiliation || affiliation === filters.affiliation;
+      if (bundleMatches && affiliationMatches) rows.push({ b: bundle, u: {}, id: `bundle-${bundle.id}`, kind: 'bundle' });
       for (const unit of activeUnits) {
-        const matches = (!query || [unit.title_original, unit.title_latin, unit.title_curatorial, unit.description, unit.author, unit.scribe, unit.related_persons, unit.display_id, bundle.bundle_code].map(text).join(' ').includes(query))
+        const matches = (!filters.kind || filters.kind === 'title')
+          && (!query || [unit.title_original, unit.title_latin, unit.title_curatorial, unit.description, unit.author, unit.scribe, unit.related_persons, unit.display_id, bundle.bundle_code].map(text).join(' ').includes(query))
           && (!filters.category || unit.category_primary === filters.category)
           && (!filters.collection || collection === filters.collection)
-          && (!filters.language || split(unit.language).includes(filters.language.toLocaleLowerCase()))
-          && (!filters.script || split(unit.script).includes(filters.script.toLocaleLowerCase()))
+          && affiliationMatches
+          && (!filters.language || split(unit.language).includes(canonicalCatalogTerm(filters.language)))
+          && (!filters.script || split(unit.script).includes(canonicalCatalogTerm(filters.script)))
           && (!filters.completeness || unit.completeness === filters.completeness)
           && (!filters.person || [unit.author, unit.scribe, unit.related_persons].map(text).join(' ').includes(filters.person.toLocaleLowerCase()))
           && (!filters.status || unit.metadata_status === filters.status);
@@ -231,7 +265,9 @@ export async function listAdminBundles() {
   if (!supabase) return [];
   const bundles: any[] = [];
   for (let offset = 0; ; offset += 500) {
-    const { data, error } = await supabase.from('turots_bundles').select('*, turots_collections(*)').order('updated_at', { ascending: false }).range(offset, offset + 499);
+    const { data, error } = await supabase.from('turots_bundles').select('*, turots_collections(*)')
+      .order('updated_at', { ascending: false }).order('id', { ascending: true })
+      .range(offset, offset + 499);
     if (error) throw error;
     bundles.push(...(data || []));
     if ((data || []).length < 500) break;
@@ -245,8 +281,10 @@ export async function listAdminBundles() {
   for (let offset = 0; offset < ids.length; offset += 100) {
     const chunk = ids.slice(offset, offset + 100);
     const [units, pages] = await Promise.all([
-      fetchAllRows<any>((from, to) => supabase.from('turots_text_units').select('*').in('bundle_id', chunk).order('sequence_no').range(from, to)),
-      fetchAllRows<any>((from, to) => supabase.from('turots_pages').select('*').in('bundle_id', chunk).order('page_order').range(from, to)),
+      fetchAllRows<any>((from, to) => supabase.from('turots_text_units').select('*').in('bundle_id', chunk)
+        .order('bundle_id').order('sequence_no').order('id').range(from, to)),
+      fetchAllRows<any>((from, to) => supabase.from('turots_pages').select('*').in('bundle_id', chunk)
+        .order('bundle_id').order('page_order').order('id').range(from, to)),
     ]);
     for (const unit of units) byId.get(unit.bundle_id)?.turots_text_units.push(unit);
     for (const page of pages) byId.get(page.bundle_id)?.turots_pages.push(page);

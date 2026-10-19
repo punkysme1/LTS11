@@ -11,24 +11,25 @@ export default function GuestbookPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [listError, setListError] = useState('');
+  const [submitError, setSubmitError] = useState('');
 
   const loadEntries = () => {
-    setLoading(true);
-    void listGuestbook('accepted').then(setEntries).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Buku Tamu belum dapat dimuat.')).finally(() => setLoading(false));
+    setLoading(true); setListError('');
+    void listGuestbook('accepted').then(setEntries).catch((reason: unknown) => setListError(reason instanceof Error ? reason.message : 'Daftar pesan belum dapat dimuat.')).finally(() => setLoading(false));
   };
   useEffect(loadEntries, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setNotice(''); setError('');
+    setNotice(''); setSubmitError('');
     if (website) { setNotice('Terima kasih sudah mengisi Buku Tamu.'); return; }
     setSaving(true);
     try {
       await submitGuestbookEntry({ name: name.trim(), affiliation: affiliation.trim() || null, message: message.trim() });
       setName(''); setAffiliation(''); setMessage('');
       setNotice('Terima kasih. Pesan Anda sudah dikirim dan akan ditampilkan setelah ditinjau pengelola.');
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Pesan belum dapat dikirim. Silakan coba lagi.'); }
+    } catch (reason) { setSubmitError(reason instanceof Error ? reason.message : 'Pesan belum dapat dikirim. Silakan coba lagi.'); }
     finally { setSaving(false); }
   }
 
@@ -38,8 +39,8 @@ export default function GuestbookPage() {
       <label>Institusi atau asal <span className="optional-label">(opsional)</span><input maxLength={160} autoComplete="organization" value={affiliation} onChange={(event) => setAffiliation(event.target.value)} placeholder="Contoh: Pondok Pesantren…"/></label>
       <label>Pesan<textarea required minLength={4} maxLength={2000} rows={5} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Tuliskan pesan Anda"/></label>
       <label className="honeypot" aria-hidden="true" tabIndex={-1}>Website<input autoComplete="off" tabIndex={-1} value={website} onChange={(event) => setWebsite(event.target.value)}/></label>
-      {notice && <p className="form-notice" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}<button type="button" className="text-action" onClick={loadEntries}>Coba muat ulang daftar pesan</button></p>}
+      {notice && <p className="form-notice" role="status">{notice}</p>}{submitError && <p className="form-error" role="alert">{submitError} Silakan periksa isian lalu kirim kembali.</p>}
       <button className="primary-action" type="submit" disabled={saving}>{saving ? 'Mengirim…' : 'Kirim pesan'} <Send size={17}/></button>
-    </form><section className="guestbook-list" aria-label="Pesan yang sudah diterima"><h2><BookHeart size={23}/> Pesan pengunjung</h2>{loading ? <p role="status">Memuat pesan…</p> : entries.length ? entries.map((entry) => <blockquote key={entry.id}><p>{entry.message}</p><footer><strong>{entry.name}</strong>{entry.affiliation && <span>{entry.affiliation}</span>}</footer></blockquote>) : <div className="content-state"><p>Belum ada pesan yang ditampilkan.</p></div>}</section></div>
+    </form><section className="guestbook-list" aria-label="Pesan yang sudah diterima"><h2><BookHeart size={23}/> Pesan pengunjung</h2>{loading ? <p role="status">Memuat pesan…</p> : listError ? <div className="form-error" role="alert">{listError}<button type="button" className="text-action" onClick={loadEntries}>Coba muat ulang daftar pesan</button></div> : entries.length ? entries.map((entry) => <blockquote key={entry.id}><p>{entry.message}</p><footer><strong>{entry.name}</strong>{entry.affiliation && <span>{entry.affiliation}</span>}<time dateTime={entry.created_at}>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.created_at))}</time></footer></blockquote>) : <div className="content-state"><p>Belum ada pesan yang ditampilkan.</p></div>}</section></div>
   </main>;
 }

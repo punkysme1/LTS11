@@ -42,13 +42,22 @@ const metadataGroups: Array<[string, Array<[string, string]>]> = [
   ['Kondisi dan catatan', [['Catatan pinggir / marginal', 'marginal_notes'], ['Catatan makna', 'meaning_notes'], ['Kolofon', 'colophon'], ['Kondisi bagian teks', 'physical_condition'], ['Keterbacaan', 'readability'], ['Kelengkapan teks', 'completeness'], ['Catatan', 'notes'], ['Manuskrip terkait', 'related_manuscripts'], ['Tokoh terkait', 'related_persons']]],
 ];
 
-export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMode = false }: { keyValue: string; bundleMode?: boolean; bundleReaderMode?: boolean; key?: string }) {
+function displayMetadataValue(key: string, value: unknown) {
+  if (value == null || String(value).trim() === '') return '';
+  if (key === 'metadata_status' && value === 'imported') return 'Diimpor';
+  return String(value);
+}
+
+export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMode = false, navigate }: { keyValue: string; bundleMode?: boolean; bundleReaderMode?: boolean; navigate?: (path: string) => void; key?: string }) {
   const showAllPages = bundleMode || bundleReaderMode;
   const [unitId, setUnitId] = useState(new URLSearchParams(location.search).get('unit') || '');
   const [bundle, setBundle] = useState<AnyRecord | null>(null);
   const [selected, setSelected] = useState(0);
   const [pagesLoading, setPagesLoading] = useState(false);
   const [error, setError] = useState('');
+  const [jumpPage, setJumpPage] = useState('');
+  const returnToParam = new URLSearchParams(location.search).get('returnTo') || '';
+  const catalogReturn = returnToParam.startsWith('/katalog') && !returnToParam.startsWith('//') ? returnToParam : '/katalog';
 
   useEffect(() => {
     let active = true;
@@ -90,8 +99,8 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
         if (requestError) throw requestError;
         if (!data) return null;
         const [units, pages] = await Promise.all([
-          fetchAllRows((from, to) => supabase.from('turots_text_units').select('*').eq('bundle_id', targetBundleId).is('archived_at', null).order('sequence_no').range(from, to)),
-          fetchAllRows((from, to) => supabase.from('turots_pages').select('*').eq('bundle_id', targetBundleId).in('access_level', ['public_preview', 'public_full']).order('page_order').range(from, to)),
+          fetchAllRows((from, to) => supabase.from('turots_text_units').select('*').eq('bundle_id', targetBundleId).is('archived_at', null).order('sequence_no').order('id').range(from, to)),
+          fetchAllRows((from, to) => supabase.from('turots_pages').select('*').eq('bundle_id', targetBundleId).in('access_level', ['public_preview', 'public_full']).order('page_order').order('id').range(from, to)),
         ]);
         return { ...data, turots_text_units: units, turots_pages: pages };
       });
@@ -102,7 +111,7 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
         turots_text_units: [...(found.turots_text_units || [])].sort((left: AnyRecord, right: AnyRecord) => Number(left.sequence_no || 0) - Number(right.sequence_no || 0)),
         turots_pages: [...(found.turots_pages || [])].sort((left: AnyRecord, right: AnyRecord) => Number(left.page_order || 0) - Number(right.page_order || 0)),
       };
-      if (active) { setUnitId(targetUnitId || orderedBundle.turots_text_units?.[0]?.id || ''); setBundle(orderedBundle); }
+    if (active) { setUnitId(targetUnitId || orderedBundle.turots_text_units?.[0]?.id || ''); setBundle(orderedBundle); }
     })().catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Katalog belum dapat dimuat.'); });
     return () => { active = false; };
   }, [keyValue, bundleMode]);
@@ -128,79 +137,79 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
     return storedPages.filter((item: AnyRecord) => ranges ? matchesImageRange(item as { page_order?: number },ranges) : false);
   }, [bundle, showAllPages, unit.id]);
   const page = pages[selected];
+  useEffect(() => {
+    if (!pages.length) { setSelected(0); return; }
+    const pageId = new URLSearchParams(location.search).get('page');
+    const initialIndex = pageId ? pages.findIndex((item: AnyRecord) => String(item.id || item.canvas_id || item.page_order) === pageId) : -1;
+    setSelected(initialIndex >= 0 ? initialIndex : 0);
+  }, [pages, keyValue]);
   const lastFolio = [...pages].reverse().find((item: AnyRecord) => /^\d+[rv]$/i.test(item.folio_label || ''))?.folio_label;
   const activeReaderUnit = bundleReaderMode ? bundle?.turots_text_units?.find((item: AnyRecord) => item.id === page?.text_unit_id) || {} : unit;
   const provenance = unpackNotesAndProvenance(unit.notes).provenance;
   const selectUnit = async (nextUnitId: string) => {
     setUnitId(nextUnitId); setSelected(0);
-    const next = new URLSearchParams(location.search); next.set('unit', nextUnitId);
+    const next = new URLSearchParams(location.search); next.set('unit', nextUnitId); next.delete('page');
     history.replaceState({}, '', `${location.pathname}?${next.toString()}`);
   };
 
+  useEffect(() => {
+    if (!bundle) return;
+    const title = bundleMode ? bundle.display_title || `Bendel ${bundle.bundle_code}` : unit.title_original || bundle.display_title;
+    document.title = `${title} · Turots Qomaruddin`;
+  }, [bundle, bundleMode, unit.title_original]);
+
   if (error) return <section className="archive-content"><div className="content-state" role="alert"><h1>{error}</h1><a className="text-action" href="/katalog">Kembali ke katalog</a></div></section>;
   if (!bundle) return <section className="archive-content"><div className="content-state" role="status"><LoaderCircle className="spin"/>Memuat metadata bendel…</div></section>;
-  const setFromPage = (index: number) => { setSelected(index); document.querySelector('.reader')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+  const setFromPage = (index: number) => {
+    setSelected(index);
+    const next = new URLSearchParams(location.search);
+    const selectedPage = pages[index];
+    if (selectedPage) next.set('page', String(selectedPage.id || selectedPage.canvas_id || selectedPage.page_order || index + 1));
+    history.replaceState({}, '', `${location.pathname}?${next.toString()}`);
+    document.querySelector('.reader')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+  const pageNav = (index: number) => { if (index >= 0 && index < pages.length) setFromPage(index); };
+  const row = (label: string, value: unknown) => value == null || typeof value === 'string' && !value.trim() ? null : <div className="metadata-detail-row" key={label}><span>{label}</span><strong>{value as any}</strong></div>;
+  const combined = (...values: unknown[]) => values.filter(value => value != null && String(value).trim() !== '').join(' · ');
 
   const reader = <>
         {showAllPages && <p className="bundle-reader-note">Foto mengikuti urutan yang tersimpan di katalog. Foto yang belum dipetakan ke judul tetap ditampilkan.</p>}
-        {pagesLoading ? <div className="reader-fallback" role="status">Memuat halaman…</div> : <Suspense fallback={<div className="reader-fallback" role="status">Menyiapkan pembaca IIIF…</div>}><IiifViewer imageUrl={page?.image_url} label={page?.folio_label || page?.label || `Foto nomor ${page?.page_order || selected + 1}`} /></Suspense>}
+        {pagesLoading ? <div className="reader-fallback" role="status">Memuat halaman…</div> : <Suspense fallback={<div className="reader-fallback" role="status">Menyiapkan pembaca IIIF…</div>}><IiifViewer imageUrl={page?.image_url} label={page?.folio_label || page?.label || `Foto nomor ${page?.page_order || selected + 1}`} currentPage={selected + 1} totalPages={pages.length} onNavigatePage={pageNav} onJumpPage={index => { pageNav(index); setJumpPage(''); }} jumpPage={jumpPage} setJumpPage={setJumpPage}/></Suspense>}
         {pages.length > 0 && <nav className="folio-strip" aria-label="Pilih halaman manuskrip">{pages.map((folio: AnyRecord, index: number) => <button key={folio.id || folio.canvas_id || index} aria-current={index === selected ? 'page' : undefined} className={index === selected ? 'folio-thumb selected' : 'folio-thumb'} onClick={() => setFromPage(index)}><img loading="lazy" src={folio.thumbnail_url || folio.image_url} alt=""/><span>{folio.folio_label || folio.label || `Foto nomor ${folio.page_order || index + 1}`}</span></button>)}</nav>}
   </>;
 
   return <section className="detail-page detail-v1">
-    <div className="detail-breadcrumb"><a href="/katalog">Katalog</a><span aria-hidden="true">/</span>{bundleMode ? 'Bendel' : unit.category_primary || 'Manuskrip'}<span aria-hidden="true">/</span>{bundle.bundle_code}</div>
+    <nav className="detail-breadcrumb" aria-label="Breadcrumb"><a href={catalogReturn} onClick={event => { if (!navigate || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); navigate(catalogReturn); }}>Kembali ke hasil katalog</a><span aria-hidden="true">/</span>{bundleMode ? 'Bendel' : unit.category_primary || 'Manuskrip'}<span aria-hidden="true">/</span>{bundle.bundle_code}</nav>
     <header className="detail-hero"><div><p className="eyebrow">{bundleMode ? bundle.bundle_code : unit.display_id || bundle.bundle_code} · {bundle.turots_collections?.name || 'Koleksi manuskrip'}</p><h1 dir="auto">{bundleMode ? bundle.display_title || `Bendel ${bundle.bundle_code}` : unit.title_original || bundle.display_title}</h1>{bundleReaderMode ? <p className="latin">{`${pages.length} foto digital tersimpan`}{lastFolio ? ` · folio terakhir ${lastFolio}` : ''}</p> : !bundleMode && unit.title_latin && <p className="latin">{unit.title_latin}</p>}</div></header>
     <div className={`detail-layout${bundleMode ? ' bundle-landing-layout' : ''}`}>
       <main className="detail-main">
         {bundleMode ? <section className="bundle-landing">
           {reader}
           <section className="metadata-detail"><h2>Metadata bendel</h2><div className="metadata-table">
-            <div className="metadata-detail-row"><span>Afiliasi</span><strong>{bundle.affiliation || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Format digital</span><strong>{bundle.surrogate_format || 'Digital'}</strong></div>
-            <div className="metadata-detail-row"><span>Negara</span><strong>{bundle.country || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Kota / provinsi</span><strong>{bundle.city_province || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Koleksi</span><strong>{bundle.turots_collections?.name || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Arah baca kanan ke kiri</span><strong>{bundle.right_to_left == null ? 'Belum diisi' : bundle.right_to_left ? 'Ya' : 'Tidak'}</strong></div>
-            <div className="metadata-detail-row"><span>Pokok bahasan</span><strong>{bundle.subject_matter || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Penyalin</span><strong>{bundle.copyist || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Tanggal penyalinan</span><strong>{bundle.copying_date_native || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Tempat penyalinan</span><strong>{bundle.copying_place || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Aksara</span><strong>{bundle.bundle_script || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Jenis kertas</span><strong>{bundle.paper_type || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Watermark / countermark</span><strong>{[bundle.watermark, bundle.countermark].filter(Boolean).join(' / ') || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Sampul / jilid</span><strong>{[bundle.cover, bundle.binding].filter(Boolean).join(' / ') || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Ukuran sampul</span><strong>{bundle.cover_size || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Ukuran kertas / blok teks</span><strong>{[bundle.paper_size, bundle.dimensions].filter(Boolean).join(' / ') || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Jumlah foto / halaman bendel</span><strong>{bundle.extent_pages || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Halaman kosong</span><strong>{bundle.blank_pages ?? 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Rubrikasi</span><strong>{bundle.rubrication || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Iluminasi / ilustrasi</span><strong>{[bundle.illumination, bundle.illustration].filter(Boolean).join(' / ') || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Kondisi fisik</span><strong>{bundle.physical_condition || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Deskripsi isi bendel</span><strong>{bundle.bundle_description || 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Kolofon</span><strong>{bundle.colophon || 'Belum diisi'}</strong></div>
+            {row('Afiliasi', bundle.affiliation)}{row('Format digital', bundle.surrogate_format || 'Digital')}{row('Negara', bundle.country)}{row('Kota / provinsi', bundle.city_province)}{row('Koleksi', bundle.turots_collections?.name)}{row('Arah baca kanan ke kiri', bundle.right_to_left == null ? '' : bundle.right_to_left ? 'Ya' : 'Tidak')}{row('Pokok bahasan', bundle.subject_matter)}{row('Penyalin', bundle.copyist)}{row('Tanggal penyalinan', bundle.copying_date_native)}{row('Tempat penyalinan', bundle.copying_place)}{row('Aksara', bundle.bundle_script)}{row('Jenis kertas', bundle.paper_type)}{row('Watermark / countermark', combined(bundle.watermark, bundle.countermark))}{row('Sampul / jilid', combined(bundle.cover, bundle.binding))}{row('Ukuran sampul', bundle.cover_size)}{row('Ukuran kertas / blok teks', combined(bundle.paper_size, bundle.dimensions))}{row('Jumlah foto / halaman bendel', bundle.extent_pages)}{row('Halaman kosong', bundle.blank_pages)}{row('Rubrikasi', bundle.rubrication)}{row('Iluminasi / ilustrasi', combined(bundle.illumination, bundle.illustration))}{row('Kondisi fisik', bundle.physical_condition)}{row('Deskripsi isi bendel', bundle.bundle_description)}{row('Kolofon', bundle.colophon)}
             {bundle.affiliation_url && <div className="metadata-detail-row"><span>Sumber afiliasi</span><strong><a href={bundle.affiliation_url} target="_blank" rel="noreferrer">Buka sumber cadangan</a></strong></div>}
+            {!Object.values(bundle).some(value => value != null && typeof value !== 'object' && String(value).trim() !== '') && <p>Informasi metadata bendel belum tersedia.</p>}
           </div></section>
           <section className="metadata-detail bundle-items"><h2>Judul di dalam bendel</h2><p>{(bundle.turots_text_units || []).length} item judul terdaftar dalam bendel ini.</p><div className="bundle-title-list">{(bundle.turots_text_units || []).map((item: AnyRecord) => {
             const slug = buildCatalogSlugMap((bundle.turots_text_units || []).map((textUnit: AnyRecord) => ({ b: bundle, u: textUnit }))).get(item.id) || item.display_id;
-            const target = `/katalog/${encodeURIComponent(slug)}?unit=${encodeURIComponent(item.id)}&bundle=${encodeURIComponent(bundle.id)}`;
+            const target = `/katalog/${encodeURIComponent(slug)}?unit=${encodeURIComponent(item.id)}&bundle=${encodeURIComponent(bundle.id)}&returnTo=${encodeURIComponent(catalogReturn)}`;
             return <a className="bundle-title-item" key={item.id} href={target}><span className="bundle-title-sequence">Item {item.sequence_no}</span><strong dir="auto">{item.title_original || item.display_id}</strong>{item.title_latin && <em>{item.title_latin}</em>}<span>{item.category_primary || 'Belum dikategorikan'} · {item.folio_start || 'Folio belum diisi'}{item.folio_end && item.folio_end !== item.folio_start ? `–${item.folio_end}` : ''}</span><b>Buka fokus judul →</b></a>;
           })}</div></section>
         </section> : <>
         {reader}
-        <section className="metadata-detail"><h2>Metadata judul</h2>{metadataGroups.map(([group, fields]) => <details className="metadata-group" key={group} open={group === 'Identitas judul'}><summary>{group}</summary><div className="metadata-table">{fields.map(([label, key]) => <div className="metadata-detail-row" key={key}><span>{label}</span><strong>{unit[key] || 'Belum diisi'}</strong></div>)}</div></details>)}
+        <section className="metadata-detail"><h2>Metadata judul</h2>{metadataGroups.map(([group, fields]) => { const values = fields.map(([label,key]) => ({label,key,value:displayMetadataValue(key,unit[key])})).filter(field => field.value); return values.length ? <details className="metadata-group" key={group} open={group === 'Identitas judul'}><summary>{group}</summary><div className="metadata-table">{values.map(({label,key,value}) => <div className="metadata-detail-row" key={key}><span>{label}</span><strong>{value}</strong></div>)}</div></details> : null; })}
           <details className="metadata-group bundle-metadata"><summary>Metadata bendel induk</summary><div className="metadata-table">
-            <div className="metadata-detail-row"><span>URL afiliasi / cadangan</span><strong>{bundle.affiliation_url ? <a href={bundle.affiliation_url} target="_blank" rel="noreferrer">Buka sumber cadangan</a> : 'Belum diisi'}</strong></div>
-            <div className="metadata-detail-row"><span>Kode bendel</span><strong>{bundle.bundle_code}</strong></div><div className="metadata-detail-row"><span>Kover dan kondisi</span><strong>{bundle.cover || 'Belum dicatat'} · {bundle.physical_condition || 'Belum dicatat'}</strong></div>
-            <div className="metadata-detail-row"><span>Dimensi dan ukuran kertas</span><strong>{[bundle.dimensions, bundle.paper_size].filter(Boolean).join(' · ') || 'Belum dicatat'}</strong></div><div className="metadata-detail-row"><span>Jilid / jenis kertas</span><strong>{[bundle.binding, bundle.paper_type].filter(Boolean).join(' · ') || 'Belum dicatat'}</strong></div>
-            <div className="metadata-detail-row"><span>Watermark / countermark</span><strong>{[bundle.watermark, bundle.countermark].filter(Boolean).join(' / ') || 'Belum dicatat'}</strong></div><div className="metadata-detail-row"><span>Kelengkapan fisik</span><strong>{bundle.completeness || 'Belum diperiksa'}</strong></div>
-            <div className="metadata-detail-row"><span>Jumlah halaman bendel</span><strong>{bundle.extent_pages || 'Belum dicatat'}</strong></div><div className="metadata-detail-row"><span>Koleksi / proyek</span><strong>{bundle.turots_collections?.name || '—'} · {bundle.turots_collections?.source_project || bundle.affiliation || '—'}</strong></div>
-            <div className="metadata-detail-row"><span>Catatan bendel</span><strong>{bundle.bundle_notes || 'Belum ada catatan'}</strong></div>
+            {row('URL afiliasi / cadangan', bundle.affiliation_url ? <a href={bundle.affiliation_url} target="_blank" rel="noreferrer">Buka sumber cadangan</a> : '')}{row('Kode bendel', bundle.bundle_code)}{row('Kover dan kondisi', combined(bundle.cover, bundle.physical_condition))}
+            {row('Dimensi dan ukuran kertas', combined(bundle.dimensions, bundle.paper_size))}{row('Jilid / jenis kertas', combined(bundle.binding, bundle.paper_type))}
+            {row('Watermark / countermark', combined(bundle.watermark, bundle.countermark))}{row('Kelengkapan fisik', bundle.completeness)}
+            {row('Jumlah halaman bendel', bundle.extent_pages)}{row('Koleksi / proyek', combined(bundle.turots_collections?.name, bundle.turots_collections?.source_project || bundle.affiliation))}
+            {row('Catatan bendel', bundle.bundle_notes)}
           </div></details>
           {provenance.length > 0 && <details className="metadata-group"><summary>Asal-usul data</summary>{provenance.map((item: AnyRecord, index: number) => <p key={`${item.source}-${index}`}>{item.source}: {item.value} {item.note && `— ${item.note}`}</p>)}</details>}
         </section>
         </>}
       </main>
-      {(!bundleMode || bundleReaderMode) && <aside className={`detail-sidebar${bundleReaderMode ? ' bundle-reader-sidebar' : ''}`}><section><h2>Identitas ringkas</h2><div className="metadata-row"><span>ID judul</span><strong>{activeReaderUnit.display_id || (bundleReaderMode ? 'Belum dipetakan' : '—')}</strong></div><div className="metadata-row"><span>Kode bendel</span><strong>{bundle.bundle_code || '—'}</strong></div><div className="metadata-row"><span>Folio</span><strong>{bundleReaderMode ? page?.folio_label || page?.label || '—' : `${activeReaderUnit.folio_start || '—'}${activeReaderUnit.folio_end && activeReaderUnit.folio_end !== activeReaderUnit.folio_start ? `–${activeReaderUnit.folio_end}` : ''}`}</strong></div><div className="metadata-row"><span>Kategori</span><strong>{activeReaderUnit.category_primary || '—'}</strong></div><div className="metadata-row"><span>Koleksi</span><strong>{bundle.turots_collections?.name || '—'}</strong></div></section><section><h2>Deskripsi</h2><p>{activeReaderUnit.description || (bundleReaderMode ? bundle.bundle_description : '') || 'Deskripsi kuratorial belum tersedia.'}</p></section>{bundleReaderMode ? <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}`}>Metadata bendel {bundle.bundle_code} <span aria-hidden="true">→</span></a> : <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}`}>Lihat seluruh bendel {bundle.display_title || bundle.bundle_code} <span aria-hidden="true">→</span></a>}{bundle.affiliation_url && <a className="research-link" href={bundle.affiliation_url} target="_blank" rel="noreferrer">Sumber afiliasi <span aria-hidden="true">↗</span></a>}</aside>}
+      {(!bundleMode || bundleReaderMode) && <aside className={`detail-sidebar${bundleReaderMode ? ' bundle-reader-sidebar' : ''}`}><section><h2>Identitas ringkas</h2>{row('ID judul', activeReaderUnit.display_id)}{row('Kode bendel', bundle.bundle_code)}{row('Folio', bundleReaderMode ? page?.folio_label || page?.label : combined(activeReaderUnit.folio_start, activeReaderUnit.folio_end !== activeReaderUnit.folio_start ? activeReaderUnit.folio_end : ''))}{row('Kategori', activeReaderUnit.category_primary)}{row('Koleksi', bundle.turots_collections?.name)}</section>{(activeReaderUnit.description || (bundleReaderMode && bundle.bundle_description)) && <section><h2>Deskripsi</h2><p>{activeReaderUnit.description || bundle.bundle_description}</p></section>}{bundleReaderMode ? <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}?returnTo=${encodeURIComponent(catalogReturn)}`}>Metadata bendel {bundle.bundle_code} <span aria-hidden="true">→</span></a> : <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}?returnTo=${encodeURIComponent(catalogReturn)}`}>Lihat seluruh bendel {bundle.display_title || bundle.bundle_code} <span aria-hidden="true">→</span></a>}{bundle.affiliation_url && <a className="research-link" href={bundle.affiliation_url} target="_blank" rel="noreferrer">Sumber afiliasi <span aria-hidden="true">↗</span></a>}</aside>}
     </div>
   </section>;
 }

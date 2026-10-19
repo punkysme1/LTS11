@@ -6,7 +6,7 @@ import { applyMetadataImport, ImportOutcomeUnknownError } from './services/metad
 import { listAdminBundles } from './services/turotsRepository';
 import './metadata-transfer.css';
 
-export default function MetadataTransfer({ bundles, onSaved }: { bundles: CatalogRow[]; onSaved: () => unknown }) {
+export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }) {
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -39,6 +39,20 @@ export default function MetadataTransfer({ bundles, onSaved }: { bundles: Catalo
     } catch (error) { setFailure((error as Error).message); setMessage(''); }
     finally { setBusy(false); requestAnimationFrame(() => summary.current?.focus()); }
   }
+  async function exportLatest() {
+    setBusy(true); setFailure(''); setImportResult(null);
+    setMessage('Mengambil snapshot terbaru dari database…');
+    try {
+      const latestBundles = await listAdminBundles();
+      const titleCount = latestBundles.reduce((total, bundle) => total + (bundle.turots_text_units?.length || 0), 0);
+      const photoCount = latestBundles.reduce((total, bundle) => total + (bundle.turots_pages?.length || 0), 0);
+      downloadMetadataXlsx(latestBundles, false);
+      setMessage(`Ekspor selesai dari database saat ini: ${latestBundles.length} bendel, ${titleCount} judul, ${photoCount} baris foto.`);
+    } catch (error) {
+      setMessage('Ekspor gagal mengambil data terbaru dari database.');
+      setFailure(error instanceof Error ? error.message : String(error));
+    } finally { setBusy(false); requestAnimationFrame(() => summary.current?.focus()); }
+  }
   async function save() {
     if (!plan || busy || !confirmed || plan.errors.length || !pending.length) return;
     setBusy(true); setImporting(true); setElapsedSeconds(0); setFailure(''); setImportResult(null);
@@ -70,7 +84,7 @@ export default function MetadataTransfer({ bundles, onSaved }: { bundles: Catalo
     </div>
     <div className="metadata-transfer-actions">
       <button type="button" className="secondary-action" disabled={busy} onClick={() => downloadMetadataXlsx([], true)}><Download size={16} aria-hidden="true"/>Unduh template Excel</button>
-      <button type="button" className="secondary-action" disabled={busy} onClick={() => downloadMetadataXlsx(bundles, false)}><Download size={16} aria-hidden="true"/>Ekspor metadata + URL</button>
+      <button type="button" className="secondary-action" disabled={busy} onClick={() => void exportLatest()}><Download size={16} aria-hidden="true"/>Ekspor metadata + URL terbaru</button>
       <button type="button" className="primary-action" disabled={busy} onClick={() => fileInput.current?.click()}><Upload size={16} aria-hidden="true"/>Pilih Excel untuk pratinjau</button>
       <input ref={fileInput} type="file" hidden accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void preview(file); }}/>
     </div>

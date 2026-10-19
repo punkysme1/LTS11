@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Maximize, Minimize, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Maximize, Minimize, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
 import OpenSeadragon from 'openseadragon';
 import { iiifInfoUrl } from './iiifImage';
 
-export default function IiifViewer({ imageUrl, label }: { imageUrl?: string; label: string }) {
+export default function IiifViewer({ imageUrl, label, currentPage = 1, totalPages = 1, onNavigatePage, onJumpPage, jumpPage, setJumpPage }: { imageUrl?: string; label: string; currentPage?: number; totalPages?: number; onNavigatePage?: (index: number) => void; onJumpPage?: (index: number) => void; jumpPage?: string; setJumpPage?: (value: string) => void }) {
   const element = useRef<HTMLDivElement>(null);
   const readerElement = useRef<HTMLElement>(null);
   const viewer = useRef<OpenSeadragon.Viewer | null>(null);
@@ -62,6 +63,20 @@ export default function IiifViewer({ imageUrl, label }: { imageUrl?: string; lab
     const homeZoom = instance.viewport.getHomeZoom();
     if (homeZoom > 0) setZoom(Math.round(instance.viewport.getZoom() / homeZoom * 100));
   };
+  const panBy = (x: number, y: number) => {
+    const viewport = viewer.current?.viewport;
+    if (!viewport) return;
+    viewport.panBy(new OpenSeadragon.Point(x, y));
+    viewport.applyConstraints();
+  };
+  const handlePanKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const directions: Record<string, [number, number]> = { ArrowLeft: [-0.08, 0], ArrowRight: [0.08, 0], ArrowUp: [0, -0.08], ArrowDown: [0, 0.08] };
+    const direction = directions[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    panBy(...direction);
+  };
   const toggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -72,6 +87,14 @@ export default function IiifViewer({ imageUrl, label }: { imageUrl?: string; lab
   return <section className="reader" ref={readerElement} aria-label="Pembaca manuskrip">
     <div className="reader-toolbar">
       <div className="reader-page-label"><strong>{label}</strong><span>{ready ? `${zoom}%` : 'Memuat gambar…'}</span></div>
+      {totalPages > 0 && <div className="reader-page-navigation" aria-label="Navigasi halaman">
+        <button type="button" aria-label="Halaman sebelumnya" disabled={currentPage <= 1} onClick={() => onNavigatePage?.(currentPage - 2)}><ChevronLeft size={18}/><span>Sebelumnya</span></button>
+        <span aria-live="polite">{currentPage} / {totalPages}</span>
+        <button type="button" aria-label="Halaman berikutnya" disabled={currentPage >= totalPages} onClick={() => onNavigatePage?.(currentPage)}><span>Berikutnya</span><ChevronRight size={18}/></button>
+        <form onSubmit={event => { event.preventDefault(); const value = Number(jumpPage); if (value >= 1 && value <= totalPages) onJumpPage?.(value - 1); }}>
+          <label htmlFor="reader-page-jump">Lompat ke foto</label><input id="reader-page-jump" type="number" min={1} max={totalPages} value={jumpPage || ''} onChange={event => setJumpPage?.(event.target.value)} placeholder={String(currentPage)}/><button type="submit">Buka</button>
+        </form>
+      </div>}
       <div className="reader-actions" aria-label="Kontrol pembaca">
         <button type="button" aria-label="Perkecil gambar" title="Perkecil" disabled={!ready} onClick={() => zoomBy(1 / 1.25)}><ZoomOut size={19}/></button>
         <button type="button" aria-label="Perbesar gambar" title="Perbesar" disabled={!ready} onClick={() => zoomBy(1.25)}><ZoomIn size={19}/></button>
@@ -81,10 +104,11 @@ export default function IiifViewer({ imageUrl, label }: { imageUrl?: string; lab
       </div>
     </div>
     <div className="iiif-stage" aria-label={label}>
-      {imageUrl ? <div className="iiif-canvas" ref={element} role="img" aria-label={`Viewer halaman ${label}. Gunakan tombol zoom, roda tetikus, atau gestur cubit untuk memperbesar; seret untuk menggeser.`}/> : <div className="reader-empty">Halaman ini belum memiliki gambar.</div>}
+      {imageUrl ? <div className="iiif-canvas" ref={element} role="img" tabIndex={0} onKeyDown={handlePanKey} aria-label={`Viewer halaman ${label}. Gunakan tombol zoom atau tombol pan untuk memperbesar dan menggeser. Panah pada papan ketik juga dapat menggeser gambar.`}/> : <div className="reader-empty">Halaman ini belum memiliki gambar.</div>}
+      {imageUrl && <div className="reader-pan-controls" role="group" aria-label="Geser gambar tanpa menyeret"><button type="button" aria-label="Geser ke atas" disabled={!ready} onClick={() => panBy(0, -0.08)}><ArrowUp size={18}/></button><button type="button" aria-label="Geser ke kiri" disabled={!ready} onClick={() => panBy(-0.08, 0)}><ArrowLeft size={18}/></button><button type="button" aria-label="Geser ke bawah" disabled={!ready} onClick={() => panBy(0, 0.08)}><ArrowDown size={18}/></button><button type="button" aria-label="Geser ke kanan" disabled={!ready} onClick={() => panBy(0.08, 0)}><ArrowRight size={18}/></button></div>}
       {imageUrl && !ready && !error && <div className="reader-loading" role="status">Memuat halaman…</div>}
       {error && <div className="reader-error" role="alert">{error}<button type="button" onClick={() => { setError(''); setReady(false); setRetry(value => value + 1); }}>Coba lagi</button></div>}
     </div>
-    <p className="reader-help">Gulir atau cubit untuk memperbesar · Seret untuk menggeser · Tekan Esc untuk keluar dari layar penuh</p>
+    <p className="reader-help">Gulir atau cubit untuk memperbesar · Seret, tombol pan, atau panah papan ketik untuk menggeser · Tekan Esc untuk keluar dari layar penuh</p>
   </section>;
 }
