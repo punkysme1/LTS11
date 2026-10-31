@@ -153,22 +153,32 @@ export function listPublishedCatalog() {
   if (publishedCatalogCache && publishedCatalogCache.expiresAt > Date.now()) return publishedCatalogCache.promise;
   const promise = (async () => {
     const { data, error } = await supabase.from('turots_bundles')
-      .select('id,bundle_code,display_title,updated_at,access_level,source_identifier,turots_collections(name,source_project),turots_text_units(id,sequence_no,record_no,display_id,slug,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status,folio_start,folio_end,page_ranges_label),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url,image_url,access_level)')
+      .select('id,bundle_code,display_title,extent_pages,updated_at,access_level,source_identifier,turots_collections(name,source_project),turots_text_units(id,sequence_no,record_no,display_id,slug,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status,archived_at,folio_start,folio_end,page_ranges_label),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url,image_url,access_level)')
       .eq('publication_status', 'published')
       .in('access_level', ['public_preview', 'public_full'])
-      .in('turots_text_units.metadata_status', ['imported','curated','verified'])
-      .in('turots_pages.access_level', ['public_preview', 'public_full'])
       .order('updated_at', { ascending: false });
     if (error) throw error;
     return (data || []).map((bundle: any) => ({
       ...bundle,
-      turots_text_units: (bundle.turots_text_units || []).filter((unit: any) => ['imported','curated','verified'].includes(unit.metadata_status)),
+      turots_text_units: (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && ['imported','curated','verified'].includes(unit.metadata_status)),
       turots_pages: (bundle.turots_pages || []).filter((page: any) => ['public_preview', 'public_full'].includes(page.access_level)),
     }));
   })();
   publishedCatalogCache = { expiresAt: Date.now() + 10_000, promise };
   void promise.catch(() => { if (publishedCatalogCache?.promise === promise) publishedCatalogCache = null; });
   return promise;
+}
+
+export async function countPublishedPages(): Promise<number | null> {
+  if (!supabase) return null;
+  const { count, error } = await supabase
+    .from('turots_pages')
+    .select('id,turots_bundles!inner(publication_status,access_level)', { count: 'exact', head: true })
+    .in('access_level', ['public_preview', 'public_full'])
+    .eq('turots_bundles.publication_status', 'published')
+    .in('turots_bundles.access_level', ['public_preview', 'public_full']);
+  if (error || typeof count !== 'number') return null;
+  return count;
 }
 
 export async function listPublicCatalogFilterOptions() {

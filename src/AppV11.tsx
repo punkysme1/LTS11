@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Eye, Home, Info, Mail, Menu, Megaphone, Newspaper, User, X, HandHeart } from 'lucide-react';
-import { listMonthlyPopularViews, listPublicCatalogFilterOptions, listPublishedCatalog, searchPublishedCatalog } from './services/turotsRepository';
+import { countPublishedPages, listMonthlyPopularViews, listPublicCatalogFilterOptions, listPublishedCatalog, searchPublishedCatalog } from './services/turotsRepository';
 import { listPublishedContent, type EditorialEntry } from './services/editorialContent';
 import { supabaseConfigured } from './lib/supabase';
 import { CATALOG_CATEGORIES } from './catalogTaxonomy';
@@ -158,14 +158,15 @@ export default function AppV11() {
   useEffect(() => {
     if (currentPath !== '/') return;
     let active = true;
-    void listPublishedCatalog().then((bundles: any[]) => {
+    void Promise.all([listPublishedCatalog(), countPublishedPages()]).then(([bundles, exactPages]: [any[], number | null]) => {
       if (!active) return;
       const published = bundles.filter(bundle => ['public_preview', 'public_full'].includes(bundle.access_level));
       const units = published.flatMap(bundle => bundle.turots_text_units || []);
+      const fallbackPages = published.reduce((sum, bundle) => sum + (bundle.turots_pages || []).length, 0);
       setHomeStats({
         titles: units.length,
         bundles: published.length,
-        pages: published.reduce((sum, bundle) => sum + (bundle.turots_pages || []).length, 0),
+        pages: exactPages ?? fallbackPages,
         categories: new Set(units.map(unit => unit.category_primary).filter(Boolean)).size,
       });
       const categoryCounts = new Map<string, number>();
