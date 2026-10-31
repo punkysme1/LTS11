@@ -5,6 +5,13 @@ import { parsePhotoPageRanges } from './pageRanges';
 
 export type ImportResult = { completed: string[]; failed?: string };
 
+export type ImportWriter = {
+  list: () => Promise<CatalogRow[]>;
+  collection: (name: string, project: string) => Promise<string>;
+  write: (table: 'turots_bundles' | 'turots_text_units', values: CatalogRow, id?: string) => Promise<CatalogRow>;
+  folios?: (bundleId: string, unitId: string, folios: unknown) => Promise<void>;
+};
+
 export class ImportOutcomeUnknownError extends Error {
   constructor(message: string) {
     super(message);
@@ -12,9 +19,44 @@ export class ImportOutcomeUnknownError extends Error {
   }
 }
 
-export async function applyMetadataImport(plan: ImportPlan, _unused?: unknown, progress?: (message: string) => void): Promise<ImportResult> {
-  if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
+export async function applyMetadataImport(plan: ImportPlan, writer?: ImportWriter, progress?: (message: string) => void): Promise<ImportResult> {
   if (plan.errors.length) throw new Error('Perbaiki semua kesalahan Excel sebelum menyimpan.');
+
+  if (writer) {
+    const current = await writer.list();
+    if (catalogSnapshot(current) !== plan.snapshot) throw new Error('Data server berubah sejak pratinjau. Pilih Excel lagi untuk memeriksa perubahan terbaru.');
+    const operations = plan.actions.filter(action => action.kind !== 'skip');
+    const completed: string[] = [];
+    const bundleIds = new Map<string, string>(current.map(b => [b.bundle_code, b.id]));
+    for (const action of operations) {
+      try {
+        if (action.sheet === 'Bendel') {
+          const colId = action.collection ? await writer.collection(action.collection.name, action.collection.project) : undefined;
+          const payload = {
+            ...action.values,
+            ...(colId ? { collection_id: colId } : {}),
+            ...(action.id ? {} : { bundle_code: action.code, publication_status: 'draft' }),
+          };
+          const saved = await writer.write('turots_bundles', payload, action.id);
+          bundleIds.set(action.code, saved.id);
+        } else {
+          const bId = bundleIds.get(action.code);
+          const payload = {
+            ...action.values,
+            ...(action.id ? {} : { bundle_id: bId, display_id: action.key }),
+          };
+          const saved = await writer.write('turots_text_units', payload, action.id);
+          if (action.folios && writer.folios && bId) await writer.folios(bId, saved.id, action.folios);
+        }
+        completed.push(`${action.sheet} ${action.key}`);
+      } catch (err) {
+        return { completed, failed: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    return { completed };
+  }
+
+  if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
 
   const current = await listAdminBundles() as CatalogRow[];
   if (catalogSnapshot(current) !== plan.snapshot) throw new Error('Data server berubah sejak pratinjau. Pilih Excel lagi untuk memeriksa perubahan terbaru.');
@@ -65,7 +107,7 @@ function toOperation(action: ImportAction) {
 function normalizePhotoMapping(value: (ImportAction['folios'] & { start?: string; end?: string }) | null | undefined) {
   if (!value) return null;
   if (value.clear) return { clear: true };
-  if (Array.isArray(value.ranges)) return value.ranges.length ? { ranges: value.ranges } : null;
+  if (Array.isArray(value.ranges) && value.ranges.length) return { ranges: value.ranges };
 
   const start = String(value.start || '').trim();
   const end = String(value.end || '').trim();
@@ -73,7 +115,9 @@ function normalizePhotoMapping(value: (ImportAction['folios'] & { start?: string
   const expression = /^\d+\s*-\s*\d+(?:\s*[;,]\s*\d+(?:\s*-\s*\d+)?)*$/.test(start)
     ? start
     : /^\d+$/.test(start) && /^\d+$/.test(end) ? `${start}-${end}` : '';
-  if (!expression) return null;
-  const ranges = parsePhotoPageRanges(expression);
-  return ranges.length ? { ranges } : null;
+  if (expression) {
+    const ranges = parsePhotoPageRanges(expression);
+    return ranges.length ? { ranges } : null;
+  }
+  return { start, end };
 }

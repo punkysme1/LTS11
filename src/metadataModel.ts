@@ -1,10 +1,32 @@
-export const PROJECT_CODES: Record<string,string> = {Dreamsea:'01',NT:'02',EAP:'03'};
-export const COLLECTION_CODES: Record<string,string> = {Ndalem:'A','Ainun Niam':'B',Wasil:'C',Zamroni:'D',Burhan:'E',Zaim:'F'};
+export const PROJECT_CODES: Record<string,string> = {Dreamsea:'01',NT:'02','Nahdlatut Turots':'02',EAP:'03','British Library':'03'};
+export const COLLECTION_CODES: Record<string,string> = {Ndalem:'A','Ainun Niam':'B',Wasil:'C','Ahmad Wasil':'C',Zamroni:'D',Burhan:'E',Zaim:'F'};
 export const CATEGORY_CODES: Record<string,number> = {Siroh:1,Sejarah:2,Fikih:3,Akidah:4,Quran:5,Hadis:6,Falak:7,Nahwu:8,Shorof:9,'Ilmu alat':10,Akhlaq:11,Khutbah:12,Doa:13,Fatwa:14,Surat:15,Primbon:16,Mantiq:17,Maulid:18,Matematika:19};
 export function inventoryCode(project:string,collection:string,category:string,sequence:string) {
  const n=Number(sequence);
  if(!PROJECT_CODES[project]||!COLLECTION_CODES[collection]||!CATEGORY_CODES[category]||!Number.isInteger(n)||n<1||n>9999)return '';
  return [PROJECT_CODES[project],COLLECTION_CODES[collection],String(CATEGORY_CODES[category]).padStart(2,'0'),String(n).padStart(4,'0')].join('.');
+}
+export function normalizeBundleCodeInput(raw:string,bundles?:Array<{bundle_code:string}>):string {
+ const clean=String(raw||'').trim();
+ if(!clean)return '';
+ if(bundles?.some(b=>b.bundle_code.toLowerCase()===clean.toLowerCase()))return bundles.find(b=>b.bundle_code.toLowerCase()===clean.toLowerCase())!.bundle_code;
+ const dsMatch=clean.match(/^DS[.\s_-]*0*(\d+)$/i);
+ if(dsMatch){
+  const target=`DS 0097 ${String(Number(dsMatch[1])).padStart(5,'0')}`;
+  if(!bundles||bundles.some(b=>b.bundle_code===target))return target;
+ }
+ const ntMatch=clean.match(/^NT[.\s_-]*0*(\d+(?:\.\d+)?)$/i);
+ if(ntMatch){
+  const parts=ntMatch[1].split('.');
+  const target=`NT ${parts[0].padStart(3,'0')}${parts[1]?'.'+parts[1]:''}`;
+  if(!bundles||bundles.some(b=>b.bundle_code===target))return target;
+ }
+ const eapMatch=clean.match(/^EAP1564[/._-](\d+)[/._-]0*(\d+)$/i);
+ if(eapMatch){
+  const target=`EAP1564_${eapMatch[1]}_${Number(eapMatch[2])}`;
+  if(!bundles||bundles.some(b=>b.bundle_code===target))return target;
+ }
+ return clean;
 }
 export function readItems(value:string|undefined,legacyKey='text'): any[] {
  if(!value?.trim())return [];
@@ -18,11 +40,13 @@ export function dimension(value:string|undefined): [string,string] {
 }
 export function validateMetadata(m:Record<string,string>) {
  for(const [key,name] of [['totalPages','Jumlah halaman'],['blankPages','Halaman kosong'],['linesPerPage','Baris per halaman']]){
-  if(m[key]&&!/^\d+$/.test(m[key]))throw new Error(name+' harus berupa bilangan bulat, tanpa satuan.');
+  if(m[key]&&!/^\d+(?:\s*(?:pages|hlm|halaman|lembar))?$/i.test(m[key].trim()))throw new Error(name+' harus berupa bilangan bulat (misal 242 atau 242 pages).');
  }
- if(m.totalPages&&m.blankPages&&Number(m.blankPages)>Number(m.totalPages))throw new Error('Lembar kosong tidak boleh melebihi jumlah lembar.');
+ const tpNum=m.totalPages?Number((m.totalPages.match(/\d+/)||[])[0]):0;
+ const bpNum=m.blankPages?Number((m.blankPages.match(/\d+/)||[])[0]):0;
+ if(tpNum&&bpNum&&bpNum>tpNum)throw new Error('Lembar kosong tidak boleh melebihi jumlah lembar.');
  for(const key of ['coverSize','paperSize','dimensions']){
-  if(!m[key]||m[key]==='Tidak ada')continue;
+  if(!m[key]||m[key]==='Tidak ada'||m[key].toLowerCase()==='tidak ada')continue;
   const [p,l]=dimension(m[key]);if(!p||!l||Number(p)<=0||Number(l)<=0)throw new Error('Lengkapi panjang dan lebar ukuran dalam cm.');
  }
  for(const r of readItems(m.references,'citation'))if(r.url&&!safeLink(r.url))throw new Error('Tautan referensi harus berupa URL http atau https.');

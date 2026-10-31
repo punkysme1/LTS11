@@ -1,7 +1,8 @@
 import { imageRanges } from './imageRanges';
-import { formatPhotoPageRanges, parsePhotoPageRanges } from './pageRanges';
+import { formatPhotoPageRanges, parsePhotoPageRanges, resolvePhotoPageRanges } from './pageRanges';
 import { CATALOG_CATEGORIES } from '../catalogTaxonomy';
 import { bundleFields, titleFields, retiredBundleHeaders } from './metadataFields';
+import { normalizeBundleCodeInput } from '../metadataModel';
 
 export type CatalogRow = Record<string, any>;
 export type ExcelRow = Record<string, string>;
@@ -9,10 +10,10 @@ export type ImportAction = {
   sheet: 'Bendel' | 'Judul'; row: number; code: string; key: string;
   kind: 'create' | 'update' | 'skip'; id?: string; values: CatalogRow;
   changes: Array<{ field: string; before: unknown; after: unknown }>;
-  collection?: { name: string; project: string }; folios?: { ranges?: Array<[number, number]>; clear?: boolean }; photos?: CatalogRow[];
+  collection?: { name: string; project: string }; folios?: { ranges?: Array<[number, number]>; clear?: boolean; start?: string; end?: string }; photos?: CatalogRow[];
 };
 export type ImportPlan = { actions: ImportAction[]; errors: string[]; warnings: string[]; snapshot: string };
-const numeric = new Set(['extent_pages', 'blank_pages', 'sequence_no', 'lines_per_page']);
+const numeric = new Set(['extent_pages', 'blank_pages', 'sequence_no', 'category_sequence_no']);
 const protectedFields = new Set(['bundle_code', 'display_id']);
 const requiredFields = new Set(['sequence_no', 'metadata_status', 'access_level', 'title_original', 'category_primary']);
 const statuses = ['imported', 'curated', 'verified', 'provisional', 'conflicting', 'unknown'];
@@ -34,13 +35,22 @@ function parseValues(row: ExcelRow, sheet: 'Bendel' | 'Judul') {
     if (raw === '#HAPUS') {
       if (requiredFields.has(field) || field === 'folio_start' || field === 'folio_end') throw new Error(`${field} tidak boleh dihapus melalui Excel.`);
       values[field] = null;
-    } else if (numeric.has(field)) {
-      if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)) || Number(raw) > 2147483647 || (field === 'sequence_no' && Number(raw) < 1)) throw new Error(`${field} harus bilangan bulat ${field === 'sequence_no' ? 'positif' : 'nol atau positif'}.`);
+    } else if (sheet === 'Bendel' && numeric.has(field)) {
+      if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)) || Number(raw) > 2147483647) throw new Error(`${field} harus bilangan bulat nol atau positif.`);
       values[field] = Number(raw);
+    } else if (sheet === 'Judul' && (field === 'sequence_no' || field === 'category_sequence_no')) {
+      if (!/^\d+$/.test(raw) || Number(raw) < 1) throw new Error(`${field} harus bilangan bulat positif.`);
+      values[field] = Number(raw);
+    } else if (sheet === 'Judul' && field === 'lines_per_page') {
+      if (!/^\d+$/.test(raw)) throw new Error('lines_per_page harus bilangan bulat nol atau positif.');
+      values[field] = raw;
     } else if (field === 'right_to_left') {
       if (!['true', 'false', 'yes', 'no', 'ya', 'tidak', '1', '0'].includes(raw.toLowerCase())) throw new Error('right_to_left harus Ya/Tidak atau true/false.');
       values[field] = ['true', 'yes', 'ya', '1'].includes(raw.toLowerCase());
     } else values[field] = raw;
+  }
+  if (sheet === 'Judul' && row.title_page_ranges?.trim() && row.title_page_ranges.trim() !== '#HAPUS' && !values.page_ranges_label) {
+    values.page_ranges_label = row.title_page_ranges.trim();
   }
   if (values.metadata_status && !statuses.includes(values.metadata_status)) throw new Error('metadata_status tidak dikenal.');
   if (values.access_level && !['public_preview', 'public_full', 'researcher', 'private'].includes(values.access_level)) throw new Error('access_level tidak dikenal.');
@@ -48,10 +58,11 @@ function parseValues(row: ExcelRow, sheet: 'Bendel' | 'Judul') {
   return values;
 }
 
-function actionFor(sheet: ImportAction['sheet'], row: ExcelRow, index: number, existing: CatalogRow | undefined): ImportAction {
+function actionFor(sheet: ImportAction['sheet'], row: ExcelRow, index: number, existing: CatalogRow | undefined, resolvedCode?: string): ImportAction {
   const values = parseValues(row, sheet);
   const changes = Object.entries(values).filter(([field, value]) => (existing?.[field] ?? null) !== value).map(([field, after]) => ({ field, before: existing?.[field] ?? null, after }));
-  return { sheet, row: index + 2, code: row.bundle_bundle_code?.trim() || '', key: sheet === 'Bendel' ? row.bundle_bundle_code?.trim() : row.title_display_id?.trim(), kind: existing ? (changes.length ? 'update' : 'skip') : 'create', id: existing?.id, values: Object.fromEntries(changes.map(change => [change.field, change.after])), changes };
+  const code = resolvedCode || row.bundle_bundle_code?.trim() || '';
+  return { sheet, row: index + 2, code, key: sheet === 'Bendel' ? code : row.title_display_id?.trim(), kind: existing ? (changes.length ? 'update' : 'skip') : 'create', id: existing?.id, values: Object.fromEntries(changes.map(change => [change.field, change.after])), changes };
 }
 
 export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[], bundles: CatalogRow[], photoRows: ExcelRow[] = []): ImportPlan {
@@ -68,20 +79,21 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
     if(!ownerRow||!Object.hasOwn(ownerRow,'title_page_ranges'))return false;
     const requested=ownerRow.title_page_ranges?.trim();
     if(!requested||requested==='#HAPUS')return true;
-    return !parsePhotoPageRanges(requested).some(([first,last])=>Number(page.page_order)>=first&&Number(page.page_order)<=last);
+    const ownerBundle=projected.get(code);
+    return !resolvePhotoPageRanges(requested, ownerBundle?.turots_pages||[]).some(([first,last])=>Number(page.page_order)>=first&&Number(page.page_order)<=last);
   };
   const sequences = new Map<string, number>();
   for (const unit of units) sequences.set(unit.bundle_code, Math.max(sequences.get(unit.bundle_code) || 0, Number(unit.sequence_no) || 0));
   bundleRows.forEach((row, index) => {
     if (!Object.values(row).some(value => value.trim())) return;
     try {
-      const code = row.bundle_bundle_code?.trim();
+      const code = normalizeBundleCodeInput(row.bundle_bundle_code?.trim() || '', [...projected.values()]);
       if (!code) throw new Error('bundle_bundle_code wajib diisi.');
       if (seenBundles.has(code)) throw new Error(`kode ${code} berulang dalam Excel.`);
       seenBundles.add(code);
       const existing = projected.get(code);
       if (row.bundle_id?.trim() && row.bundle_id.trim() !== existing?.id) throw new Error('ID bendel tidak cocok; kode bendel tidak boleh diganti.');
-      const action = actionFor('Bendel', row, index, existing);
+      const action = actionFor('Bendel', row, index, existing, code);
       const name = row.bundle_collection_name?.trim() || existing?.turots_collections?.name;
       const project = row.bundle_source_project?.trim() || existing?.turots_collections?.source_project;
       if (!name || !project || name === '#HAPUS' || project === '#HAPUS') throw new Error('koleksi dan proyek wajib diisi untuk bendel baru.');
@@ -99,7 +111,7 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
   photoRows.forEach((row,index)=>{
     if (!Object.values(row).some(value=>value.trim())) return;
     try {
-      const code=row.bundle_bundle_code?.trim(); const order=Number(row.photo_order);
+      const code=normalizeBundleCodeInput(row.bundle_bundle_code?.trim()||'',[...projected.values()]); const order=Number(row.photo_order);
       if (!projected.has(code)) throw new Error('Bendel belum terdaftar.');
       if (!Number.isSafeInteger(order)||order<1) throw new Error('Urutan foto harus bilangan positif.');
       const url=new URL(row.photo_image_url);
@@ -130,7 +142,7 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
   titleRows.forEach((row, index) => {
     if (!Object.values(row).some(value => value.trim())) return;
     try {
-      const code = row.bundle_bundle_code?.trim(); const key = row.title_display_id?.trim();
+      const code = normalizeBundleCodeInput(row.bundle_bundle_code?.trim() || '', [...projected.values()]); const key = row.title_display_id?.trim();
       if (!code || !key) throw new Error('bundle_bundle_code dan title_display_id wajib diisi.');
       if (seenTitles.has(key)) throw new Error(`ID judul ${key} berulang dalam Excel.`);
       seenTitles.add(key);
@@ -139,7 +151,7 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
       const existing = units.find(unit => unit.display_id === key);
       if (existing && existing.bundle_code !== code) throw new Error(`ID ${key} sudah digunakan pada bendel ${existing.bundle_code}.`);
       if (row.title_id?.trim() && row.title_id.trim() !== existing?.id) throw new Error('ID judul tidak cocok; ID inventaris tidak boleh diganti.');
-      const action = actionFor('Judul', row, index, existing);
+      const action = actionFor('Judul', row, index, existing, code);
       if (!existing) {
         if (!action.values.title_original || !action.values.category_primary) throw new Error('judul asli dan kategori wajib untuk judul baru.');
         action.values = { sequence_no: (sequences.get(code) || 0) + 1, metadata_status: 'imported', ...action.values };
@@ -160,8 +172,8 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
           action.kind = existing ? 'update' : action.kind;
         }
       } else if (explicitPageRanges) {
-        const numericRanges = parsePhotoPageRanges(row.title_page_ranges);
-        if (!numericRanges.length) throw new Error('Isi rentang halaman foto, misalnya 1-100;101-174.');
+        const numericRanges = resolvePhotoPageRanges(row.title_page_ranges, pages);
+        if (!numericRanges.length) throw new Error('Isi rentang halaman foto, misalnya 1-100;101-174 atau 066v-088r.');
         if (!pages.length) throw new Error('Rentang halaman foto belum bisa dipetakan karena bendel belum memiliki foto tersimpan. Simpan foto dahulu atau kosongkan kolom rentang.');
         for (let rangeIndex = 0; rangeIndex < numericRanges.length; rangeIndex += 1) {
           const [first, last] = numericRanges[rangeIndex];
@@ -188,19 +200,33 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
             const [first, last] = numericRanges[rangeIndex];
             if (numericRanges.slice(0, rangeIndex).some(([priorFirst, priorLast]) => first <= priorLast && last >= priorFirst)) throw new Error('Rentang foto saling bertumpang tindih.');
             if (pages.length && (!pages.some(p => Number(p.page_order) === first) || !pages.some(p => Number(p.page_order) === last))) throw new Error('Rentang foto melebihi daftar foto bendel atau batas awal/akhirnya tidak ditemukan.');
-            const selected = pages.filter(page => Number(page.page_order) >= first && Number(page.page_order) <= last);
-            for (const page of selected) {
-              const pageKey = page.id || `${code}:${page.page_order}`;
-              if ((page.text_unit_id && page.text_unit_id !== existing?.id) || (claimedPages.has(pageKey) && claimedPages.get(pageKey) !== key)) throw new Error(`Foto urutan ${page.page_order} sudah dipakai judul lain atau bertabrakan dalam Excel.`);
-              claimedPages.set(pageKey, key);
-            }
           }
           if(!pages.length) plan.warnings.push(`Judul baris ${index+2}: metadata judul disimpan, tetapi foto belum terdaftar di katalog. Impor ulang lembar Foto setelah URL foto tersedia.`);
           action.folios = { ranges: numericRanges };
           action.changes.push({ field: 'pemetaan foto', before: existing ? 'Pemetaan lama' : null, after: `${numericRanges.map(([a,b]) => `${a}-${b}`).join('; ')} foto` });
           if (existing) action.kind = 'update';
         } else if (start || end) {
-          plan.warnings.push(`Judul baris ${index + 2}: folio naskah ${start || '—'}–${end || '—'} disimpan sebagai metadata. Pemetaan foto hanya memakai nomor urutan pada title_page_ranges, misalnya 1-174.`);
+          // Folio label matching (e.g. 1r - 1v or 066v - 088r)
+          const expr = end && end !== start ? `${start}-${end}` : String(start || end);
+          const resolvedFolioRanges = pages.length ? resolvePhotoPageRanges(expr, pages) : [];
+          const selectedAll: CatalogRow[] = [];
+          for (const [first, last] of resolvedFolioRanges) {
+            const selected = pages.filter((page, idx) => Number(page.page_order ?? (idx + 1)) >= first && Number(page.page_order ?? (idx + 1)) <= last);
+            for (const page of selected) {
+              selectedAll.push(page);
+              const pageKey = page.id || `${code}:${page.page_order || page.folio_label}`;
+              if ((page.text_unit_id && page.text_unit_id !== existing?.id) || (claimedPages.has(pageKey) && claimedPages.get(pageKey) !== key)) {
+                throw new Error(`Folio ${page.folio_label || page.page_order} sudah dipakai judul lain atau bertabrakan dalam Excel.`);
+              }
+              claimedPages.set(pageKey, key);
+            }
+          }
+          const alreadyMappedSame = existing && selectedAll.length > 0 && selectedAll.every(p => p.text_unit_id === existing.id) && pages.filter(p => p.text_unit_id === existing.id).length === selectedAll.length;
+          if (!alreadyMappedSame) {
+            action.folios = resolvedFolioRanges.length ? { ranges: resolvedFolioRanges, start, end } : { start, end };
+            action.changes.push({ field: 'pemetaan foto', before: existing ? 'Pemetaan lama' : null, after: `${start || '—'}–${end || '—'}` });
+            if (existing) action.kind = 'update';
+          }
         }
       } else if (!existing) plan.warnings.push(`Judul baris ${index + 2}: belum dipetakan ke foto; isi title_page_ranges setelah foto terdaftar.`);
       plan.actions.push(action);

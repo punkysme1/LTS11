@@ -1,4 +1,4 @@
-import { parsePhotoPageRanges } from './pageRanges';
+import { parsePhotoPageRanges, resolvePhotoPageRanges } from './pageRanges';
 import { supabase } from '../lib/supabase';
 import { resolveCatalogCollection } from './collectionResolver';
 
@@ -76,7 +76,7 @@ export async function saveCatalogDraft(input: DraftInput) {
     existing.turots_pages=await fetchAllRows<any>((from,to)=>supabase.from('turots_pages').select('id,page_order,folio_label,text_unit_id').eq('bundle_id',existing.id).order('page_order').order('id').range(from,to));
   }
   const bundleMetadata=input.bundleMetadata||{};
-  const metadataColumns = ['scholarly_classification_1','scholarly_classification_2','scholarly_classification_3','folio_separator','year_masehi','copying_location','manuscript_origin','ink','lines_per_page','rubrication','marginal_notes','meaning_notes','colophon','marginal_note','readability','related_manuscripts','paper_type_other'];
+  const metadataColumns = ['record_no','category_sequence_no','page_ranges_label','affiliation_title','scholarly_classification_1','scholarly_classification_2','scholarly_classification_3','folio_separator','year_masehi','copying_location','manuscript_origin','cover','cover_size','binding','paper_size','dimensions','watermark','countermark','ink','total_pages','blank_pages','lines_per_page','rubrication','illumination','illustration','marginal_notes','meaning_notes','colophon','marginal_note','physical_condition','readability','completeness','related_manuscripts','related_persons','paper_type','paper_type_other'];
   const metadata = Object.fromEntries(metadataColumns.map((column) => [column, input.textUnit[column]]));
   const titleValues = {
     title_original: input.textUnit.titleOriginal || input.title,
@@ -125,7 +125,7 @@ export async function saveCatalogDraft(input: DraftInput) {
   let pageCount = 0;
   const availablePages = existing?.turots_pages || input.pages.map(page => ({ page_order: page.pageOrder, folio_label: page.folioLabel }));
   if (input.photoPageRanges !== undefined) {
-    const numericRanges = parsePhotoPageRanges(input.photoPageRanges);
+    const numericRanges = resolvePhotoPageRanges(input.photoPageRanges, availablePages);
     if (numericRanges.length) {
       if (!availablePages.length) throw new Error('Bendel belum memiliki halaman foto yang tersimpan. Simpan foto ke bendel dahulu.');
       const pageOrders = new Set(availablePages.map(page => Number(page.page_order)));
@@ -153,16 +153,16 @@ export function listPublishedCatalog() {
   if (publishedCatalogCache && publishedCatalogCache.expiresAt > Date.now()) return publishedCatalogCache.promise;
   const promise = (async () => {
     const { data, error } = await supabase.from('turots_bundles')
-      .select('id,bundle_code,display_title,updated_at,access_level,source_identifier,turots_collections(name,source_project),turots_text_units(id,sequence_no,display_id,slug,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status,folio_start,folio_end),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url,image_url,access_level)')
+      .select('id,bundle_code,display_title,updated_at,access_level,source_identifier,turots_collections(name,source_project),turots_text_units(id,sequence_no,record_no,display_id,slug,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status,folio_start,folio_end,page_ranges_label),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url,image_url,access_level)')
       .eq('publication_status', 'published')
       .in('access_level', ['public_preview', 'public_full'])
-      .eq('turots_text_units.metadata_status', 'imported')
+      .in('turots_text_units.metadata_status', ['imported','curated','verified'])
       .in('turots_pages.access_level', ['public_preview', 'public_full'])
       .order('updated_at', { ascending: false });
     if (error) throw error;
     return (data || []).map((bundle: any) => ({
       ...bundle,
-      turots_text_units: (bundle.turots_text_units || []).filter((unit: any) => unit.metadata_status === 'imported'),
+      turots_text_units: (bundle.turots_text_units || []).filter((unit: any) => ['imported','curated','verified'].includes(unit.metadata_status)),
       turots_pages: (bundle.turots_pages || []).filter((page: any) => ['public_preview', 'public_full'].includes(page.access_level)),
     }));
   })();
@@ -176,7 +176,7 @@ export async function listPublicCatalogFilterOptions() {
   const { data, error } = await supabase.rpc('get_turots_catalog_filter_options');
   if (error) {
     const rows = await listPublishedCatalog();
-    const units = rows.flatMap(bundle => (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && unit.metadata_status === 'imported'));
+    const units = rows.flatMap(bundle => (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && ['imported','curated','verified'].includes(unit.metadata_status)));
     const values = (items: Array<unknown>) => uniqueCatalogTerms(items);
     return {
       collections: values(rows.map(bundle => bundle.turots_collections?.name)),
@@ -211,27 +211,25 @@ export async function searchPublishedCatalog(filters: {
     p_offset: filters.offset || 0, p_limit: filters.limit || 12,
   });
   if (error) {
-    // Keep the catalogue usable while a deployment is waiting for its new
-    // migration; the legacy read path is protected by the existing published RLS.
     const bundles = (await listPublishedCatalog()).filter(bundle => ['public_preview', 'public_full'].includes(bundle.access_level));
     const query = (filters.query || '').trim().toLocaleLowerCase();
     const text = (value: unknown) => String(value || '').toLocaleLowerCase();
     const split = (value: unknown) => String(value || '').split(/[,;|]/).map(canonicalCatalogTerm);
     const rows: CatalogRow[] = [];
     for (const bundle of bundles) {
-      const activeUnits = (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && unit.metadata_status === 'imported');
+      const activeUnits = (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && ['imported','curated','verified'].includes(unit.metadata_status));
       const collection = bundle.turots_collections?.name || '';
       const affiliation = bundle.affiliation || bundle.turots_collections?.source_project || '';
       const bundleText = [bundle.display_title, bundle.bundle_code, bundle.source_identifier, collection].map(text).join(' ');
       const bundleMatches = (!filters.kind || filters.kind === 'bundle')
-        && (!query || bundleText.includes(query) || activeUnits.some((unit: any) => [unit.title_original, unit.title_latin, unit.title_curatorial, unit.display_id, unit.author, unit.scribe, unit.related_persons].map(text).join(' ').includes(query)))
+        && (!query || bundleText.includes(query) || activeUnits.some((unit: any) => [unit.title_original, unit.title_latin, unit.title_curatorial, unit.display_id, unit.record_no, unit.author, unit.scribe, unit.related_persons].map(text).join(' ').includes(query)))
         && (!filters.category || filters.category === 'Bendel')
         && (!filters.collection || collection === filters.collection);
       const affiliationMatches = !filters.affiliation || affiliation === filters.affiliation;
       if (bundleMatches && affiliationMatches) rows.push({ b: bundle, u: {}, id: `bundle-${bundle.id}`, kind: 'bundle' });
       for (const unit of activeUnits) {
         const matches = (!filters.kind || filters.kind === 'title')
-          && (!query || [unit.title_original, unit.title_latin, unit.title_curatorial, unit.description, unit.author, unit.scribe, unit.related_persons, unit.display_id, bundle.bundle_code].map(text).join(' ').includes(query))
+          && (!query || [unit.title_original, unit.title_latin, unit.title_curatorial, unit.description, unit.author, unit.scribe, unit.related_persons, unit.display_id, unit.record_no, bundle.bundle_code].map(text).join(' ').includes(query))
           && (!filters.category || unit.category_primary === filters.category)
           && (!filters.collection || collection === filters.collection)
           && affiliationMatches
