@@ -57,3 +57,14 @@
 .catalog-feedback > button {background:#f0e8dc;color:var(--archive-forest,#35463d);border-color:transparent;min-height:46px;font-size:13px;font-weight:700}
 .catalog-feedback form {margin-top:12px;background:#fffdf9;min-width:0;padding:14px}
 .catalog-feedback input,.catalog-feedback textarea {width:100%;min-width:0;box-sizing:border-box}
+
+/* Keep image adjustments in the same toolbar and typography as navigation. */
+.reader-toolbar .reader-image-options {display:flex;align-items:center;gap:6px;padding:0;border:0;background:transparent}
+.reader-toolbar .reader-image-options button {min-height:44px;padding:8px 10px;border:1px solid #535951;border-radius:8px;background:#343a33;color:#fff;font-family:inherit;font-size:13px;font-weight:500;white-space:nowrap}
+.reader-toolbar .reader-image-options button[aria-pressed="true"] {background:#e9e9de;color:#25372d;border-color:#e9e9de}
+.reader-toolbar .reader-image-options button:disabled {opacity:.5}
+.detail-v1 .research-link,.detail-v1 .catalog-feedback > button {font-family:inherit;font-size:13px;font-weight:700;line-height:1.5;min-height:46px;padding:12px 14px}
+.detail-sidebar .bundle-items {min-width:0}
+.detail-sidebar .bundle-items h2 {font-size:18px;line-height:1.4}
+.detail-sidebar .bundle-title-list {display:grid;grid-template-columns:minmax(0,1fr)}
+@media(max-width:700px){.reader-toolbar .reader-image-options {flex-wrap:wrap}}

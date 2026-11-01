@@ -97,6 +97,11 @@ export default function IiifViewer({ imageUrl, label, currentPage = 1, totalPage
           <label htmlFor="reader-page-jump">Lompat ke foto</label><input id="reader-page-jump" type="number" min={1} max={totalPages} value={jumpPage || ''} onChange={event => setJumpPage?.(event.target.value)} placeholder={String(currentPage)}/><button type="submit">Buka</button>
         </form>
       </div>}
+    <div className="reader-image-options" role="group" aria-label="Tampilan tinta">
+      <button type="button" aria-pressed={inkContrast} onClick={()=>setInkContrast(v=>!v)}>Kontras Tinta</button>
+      <button type="button" aria-pressed={inverted} onClick={()=>setInverted(v=>!v)}>Inversi</button>
+      <button type="button" disabled={!inkContrast && !inverted} onClick={()=>{setInkContrast(false);setInverted(false);}}>Gambar Asli</button>
+    </div>
       <div className="reader-actions" aria-label="Kontrol pembaca">
         <button type="button" aria-label="Perkecil gambar" title="Perkecil" disabled={!ready} onClick={() => zoomBy(1 / 1.25)}><ZoomOut size={19}/></button>
         <button type="button" aria-label="Perbesar gambar" title="Perbesar" disabled={!ready} onClick={() => zoomBy(1.25)}><ZoomIn size={19}/></button>
@@ -104,11 +109,6 @@ export default function IiifViewer({ imageUrl, label, currentPage = 1, totalPage
         <button type="button" aria-label="Putar gambar 90 derajat" title="Putar 90°" disabled={!ready} onClick={() => viewer.current?.viewport.setRotation(viewer.current.viewport.getRotation() + 90)}><RotateCw size={18}/></button>
         <button type="button" aria-label={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'} title={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'} disabled={!ready} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button>
       </div>
-    </div>
-    <div className="reader-image-options" role="group" aria-label="Tampilan tinta">
-      <button type="button" aria-pressed={inkContrast} onClick={()=>setInkContrast(v=>!v)}>Kontras Tinta</button>
-      <button type="button" aria-pressed={inverted} onClick={()=>setInverted(v=>!v)}>Inversi</button>
-      <button type="button" disabled={!inkContrast && !inverted} onClick={()=>{setInkContrast(false);setInverted(false);}}>Gambar Asli</button>
     </div>
     <div className="iiif-stage" aria-label={label}>
       {imageUrl ? <div className="iiif-canvas" style={{filter:`${inkContrast ? 'grayscale(1) contrast(1.7)' : 'contrast(1)'} ${inverted ? 'invert(1)' : ''}`}} ref={element} role="img" tabIndex={0} onKeyDown={handlePanKey} aria-label={`Viewer halaman ${label}. Gunakan tombol zoom atau tombol pan untuk memperbesar dan menggeser. Panah pada papan ketik juga dapat menggeser gambar.`}/> : <div className="reader-empty">Halaman ini belum memiliki gambar.</div>}
