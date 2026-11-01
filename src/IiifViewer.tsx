@@ -13,6 +13,8 @@ export default function IiifViewer({ imageUrl, label, currentPage = 1, totalPage
   const [zoom, setZoom] = useState(100);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const [inkContrast,setInkContrast]=useState(false);
+  const [inverted,setInverted]=useState(false);
 
   const updateZoom = useCallback(() => {
     const instance = viewer.current;
@@ -103,8 +105,13 @@ export default function IiifViewer({ imageUrl, label, currentPage = 1, totalPage
         <button type="button" aria-label={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'} title={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'} disabled={!ready} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button>
       </div>
     </div>
+    <div className="reader-image-options" role="group" aria-label="Tampilan tinta">
+      <button type="button" aria-pressed={inkContrast} onClick={()=>setInkContrast(v=>!v)}>Kontras Tinta</button>
+      <button type="button" aria-pressed={inverted} onClick={()=>setInverted(v=>!v)}>Inversi</button>
+      <button type="button" disabled={!inkContrast && !inverted} onClick={()=>{setInkContrast(false);setInverted(false);}}>Gambar Asli</button>
+    </div>
     <div className="iiif-stage" aria-label={label}>
-      {imageUrl ? <div className="iiif-canvas" ref={element} role="img" tabIndex={0} onKeyDown={handlePanKey} aria-label={`Viewer halaman ${label}. Gunakan tombol zoom atau tombol pan untuk memperbesar dan menggeser. Panah pada papan ketik juga dapat menggeser gambar.`}/> : <div className="reader-empty">Halaman ini belum memiliki gambar.</div>}
+      {imageUrl ? <div className="iiif-canvas" style={{filter:`${inkContrast ? 'grayscale(1) contrast(1.7)' : 'contrast(1)'} ${inverted ? 'invert(1)' : ''}`}} ref={element} role="img" tabIndex={0} onKeyDown={handlePanKey} aria-label={`Viewer halaman ${label}. Gunakan tombol zoom atau tombol pan untuk memperbesar dan menggeser. Panah pada papan ketik juga dapat menggeser gambar.`}/> : <div className="reader-empty">Halaman ini belum memiliki gambar.</div>}
       {imageUrl && <div className="reader-pan-controls" role="group" aria-label="Geser gambar tanpa menyeret"><button type="button" aria-label="Geser ke atas" disabled={!ready} onClick={() => panBy(0, -0.08)}><ArrowUp size={18}/></button><button type="button" aria-label="Geser ke kiri" disabled={!ready} onClick={() => panBy(-0.08, 0)}><ArrowLeft size={18}/></button><button type="button" aria-label="Geser ke bawah" disabled={!ready} onClick={() => panBy(0, 0.08)}><ArrowDown size={18}/></button><button type="button" aria-label="Geser ke kanan" disabled={!ready} onClick={() => panBy(0.08, 0)}><ArrowRight size={18}/></button></div>}
       {imageUrl && !ready && !error && <div className="reader-loading" role="status">Memuat halaman…</div>}
       {error && <div className="reader-error" role="alert">{error}<button type="button" onClick={() => { setError(''); setReady(false); setRetry(value => value + 1); }}>Coba lagi</button></div>}
