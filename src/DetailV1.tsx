@@ -1,3 +1,4 @@
+import CatalogFeedback from './CatalogFeedback';
 import { imageRanges, matchesImageRange } from './services/imageRanges';
 import { resolvePhotoPageRanges } from './services/pageRanges';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
@@ -336,6 +337,7 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
     <nav className="detail-breadcrumb" aria-label="Breadcrumb"><a href={catalogReturn} onClick={event => { if (!navigate || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); navigate(catalogReturn); }}>Kembali ke hasil katalog</a><span aria-hidden="true">/</span>{bundleMode ? 'Bendel' : unit.category_primary || 'Manuskrip'}<span aria-hidden="true">/</span>{bundle.bundle_code}</nav>
     <header className="detail-hero"><div><p className="eyebrow">{bundleMode ? bundle.bundle_code : combined(unit.record_no, unit.display_id || bundle.bundle_code)} · {bundle.turots_collections?.name || 'Koleksi manuskrip'}</p><h1 dir="auto">{bundleMode ? bundle.display_title || `Bendel ${bundle.bundle_code}` : unit.title_original || bundle.display_title}</h1>{bundleReaderMode ? <p className="latin">{`${pages.length} foto digital tersimpan`}{lastFolio ? ` · folio terakhir ${lastFolio}` : ''}</p> : !bundleMode && unit.title_latin && <p className="latin">{unit.title_latin}</p>}</div></header>
       {!bundleMode && unit?.id && <p><a href={`https://sanad-131.pages.dev/?unit=${encodeURIComponent(unit.id)}`} target="_blank" rel="noreferrer">Lihat publikasi Sanad yang merujuk salinan ini</a></p>}
+    <CatalogFeedback key={bundleMode ? bundle.id : unit.id} kind={bundleMode ? 'bundle' : 'title'} targetId={bundleMode ? bundle.id : unit.id} />
     <div className={`detail-layout${bundleMode ? ' bundle-landing-layout' : ''}`}>
       <main className="detail-main">
         {bundleMode ? <section className="bundle-landing">
