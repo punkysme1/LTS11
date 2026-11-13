@@ -67,7 +67,7 @@ export async function applyMetadataImport(plan: ImportPlan, writer?: ImportWrite
 
   let response: Awaited<ReturnType<typeof supabase.rpc>>;
   try {
-    response = await supabase.rpc('apply_turots_catalog_import', {
+    response = await supabase.rpc('apply_turots_title_metadata_v2', {
       p_operations: operations.map(toOperation),
     });
   } catch (error) {
@@ -100,6 +100,7 @@ function toOperation(action: ImportAction) {
     collection: action.collection || null,
     photos: action.photos || [],
     folios,
+    expected_pages: action.expectedPages || [],
     changes: action.changes,
   };
 }

@@ -1,3 +1,5 @@
+import { iiifThumbnailUrl } from '../iiifImage';
+import { titleFields, normalizeMultipleTerms } from './metadataFields';
 import { parsePhotoPageRanges, resolvePhotoPageRanges } from './pageRanges';
 import { supabase } from '../lib/supabase';
 import { resolveCatalogCollection } from './collectionResolver';
@@ -26,11 +28,12 @@ function uniqueCatalogTerms(values: unknown[]) {
 
 async function fetchAllRows<T>(buildQuery: (from: number, to: number) => any, pageSize = 1000): Promise<T[]> {
   const rows: T[] = [];
-  for (let from = 0; ; from += pageSize) {
+  for (let from = 0; ;) {
     const { data, error } = await buildQuery(from, from + pageSize - 1);
     if (error) throw error;
     rows.push(...((data || []) as T[]));
-    if ((data || []).length < pageSize) return rows;
+    if (!data?.length) return rows;
+    from += data.length;
   }
 }
 
@@ -65,9 +68,10 @@ export async function resolveCollection(name: string, sourceProject: string) {
 
 export async function saveCatalogDraft(input: DraftInput) {
   if (!supabase) throw new Error('Supabase belum dikonfigurasi. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY.');
-  if(!input.bundleCode.trim()||!input.textUnit.displayId.trim())throw new Error('ID bendel dan ID judul wajib diisi secara terpisah.');
+  if(!input.bundleCode.trim())throw new Error('Pilih bendel.');
   const {data:existing,error:existingError}=await supabase.from('turots_bundles').select('id').eq('bundle_code',input.bundleCode).maybeSingle();
   if(existingError)throw existingError;
+  if(!existing)throw new Error('Bendel sumber harus sudah terdaftar.');
   const activeTitleIds=new Set<string>();
   if(existing){
     const {data:activeUnits,error:unitsError}=await supabase.from('turots_text_units').select('id').eq('bundle_id',existing.id).is('archived_at',null);
@@ -75,20 +79,16 @@ export async function saveCatalogDraft(input: DraftInput) {
     (activeUnits||[]).forEach(unit=>activeTitleIds.add(unit.id));
     existing.turots_pages=await fetchAllRows<any>((from,to)=>supabase.from('turots_pages').select('id,page_order,folio_label,text_unit_id').eq('bundle_id',existing.id).order('page_order').order('id').range(from,to));
   }
-  const bundleMetadata=input.bundleMetadata||{};
-  const metadataColumns = ['record_no','category_sequence_no','page_ranges_label','affiliation_title','scholarly_classification_1','scholarly_classification_2','scholarly_classification_3','folio_separator','year_masehi','copying_location','manuscript_origin','cover','cover_size','binding','paper_size','dimensions','watermark','countermark','ink','total_pages','blank_pages','lines_per_page','rubrication','illumination','illustration','marginal_notes','meaning_notes','colophon','marginal_note','physical_condition','readability','completeness','related_manuscripts','related_persons','paper_type','paper_type_other'];
+  const metadataColumns = ['page_ranges_label','year_masehi','copying_location','manuscript_origin','cover','cover_size','binding','paper_size','dimensions','watermark','countermark','ink','total_pages','blank_pages','lines_per_page','rubrication','illumination','illustration','marginal_notes','meaning_notes','colophon','marginal_note','physical_condition','readability','completeness','related_manuscripts','related_persons','paper_type'];
   const metadata = Object.fromEntries(metadataColumns.map((column) => [column, input.textUnit[column]]));
   const titleValues = {
     title_original: input.textUnit.titleOriginal || input.title,
     title_latin: input.textUnit.titleLatin,
     title_curatorial: input.textUnit.titleCuratorial,
-    title_from_team: input.textUnit.titleFromTeam,
     category_primary: input.textUnit.categoryPrimary,
     category_secondary: input.textUnit.categorySecondary,
     category_tertiary: input.textUnit.categoryTertiary,
     description: input.textUnit.description,
-    folio_start: input.textUnit.folioStart,
-    folio_end: input.textUnit.folioEnd,
     author: input.textUnit.author,
     scribe: input.textUnit.scribe,
     language: input.textUnit.language,
@@ -98,28 +98,10 @@ export async function saveCatalogDraft(input: DraftInput) {
     glossary: input.textUnit.glossary,
     references_text: input.textUnit.references,
     notes: input.textUnit.notes,
-    metadata_status: 'imported',
+    metadata_status: input.textUnit.metadata_status || 'imported',
     ...metadata,
   };
   const operations: Array<Record<string, unknown>> = [];
-  if (!existing) operations.push({
-    sheet: 'Bendel', row: 0, code: input.bundleCode, key: input.bundleCode, values: {
-      display_title: input.bundleTitle || input.bundleCode,
-      affiliation: input.sourceProject,
-      metadata_status: 'imported',
-      source_identifier: input.sourceIdentifier,
-      archive_identifier: input.archiveIdentifier,
-      item_url: input.itemUrl,
-      iiif_manifest_url: input.manifestUrl,
-      ...bundleMetadata,
-    },
-    collection: { name: input.collectionName, project: input.sourceProject },
-    photos: input.pages.map(page => ({
-      canvas_id: page.canvasId, page_order: page.pageOrder, label: page.label,
-      folio_label: page.folioLabel || page.label, side: page.side || 'unknown',
-      image_url: page.imageUrl, thumbnail_url: page.imageUrl,
-    })),
-  });
 
   let folios: { ranges?: Array<[number, number]>; clear?: boolean } | null = null;
   let pageCount = 0;
@@ -141,8 +123,8 @@ export async function saveCatalogDraft(input: DraftInput) {
       folios = { clear: true };
     }
   }
-  operations.push({ sheet: 'Judul', row: 0, code: input.bundleCode, key: input.textUnit.displayId, values: titleValues, photos: [], folios });
-  const { error } = await supabase.rpc('apply_turots_catalog_import', { p_operations: operations });
+  operations.push({ sheet: 'Judul', row: 0, code: input.bundleCode, key: 'baru', values: Object.fromEntries(Object.entries(titleValues).filter(([key,value]) => value !== undefined && (titleFields as readonly string[]).includes(key) && !['record_no','category_sequence_no','display_id'].includes(key)).map(([key,value]) => [key, ['language','script'].includes(key) && typeof value === 'string' ? normalizeMultipleTerms(value) : value])), photos: [], folios });
+  const { error } = await supabase.rpc('apply_turots_title_metadata_v2', { p_operations: operations });
   if (error) throw new Error(formatCatalogRpcError(error, 'Data tidak disimpan'));
   return { bundleId: existing?.id || input.bundleCode, textUnitId: input.textUnit.displayId, pageCount: pageCount || (existing ? 0 : input.pages.length) };
 }
@@ -152,12 +134,17 @@ export function listPublishedCatalog() {
   if (!supabase) return Promise.resolve([]);
   if (publishedCatalogCache && publishedCatalogCache.expiresAt > Date.now()) return publishedCatalogCache.promise;
   const promise = (async () => {
-    const { data, error } = await supabase.from('turots_bundles')
-      .select('id,bundle_code,display_title,extent_pages,updated_at,access_level,source_identifier,turots_collections(name,source_project),turots_text_units(id,sequence_no,record_no,display_id,slug,title_original,title_latin,title_curatorial,description,category_primary,author,scribe,related_persons,language,script,completeness,metadata_status,archived_at,folio_start,folio_end,page_ranges_label),turots_pages(id,bundle_id,text_unit_id,page_order,thumbnail_url,image_url,access_level)')
-      .eq('publication_status', 'published')
-      .in('access_level', ['public_preview', 'public_full'])
-      .order('updated_at', { ascending: false });
-    if (error) throw error;
+    const data = await fetchAllRows<any>((from,to) => supabase.from('turots_bundles')
+      .select('id,bundle_code,display_title,affiliation,extent_pages,updated_at,access_level,source_identifier,turots_collections(name,source_project)')
+      .eq('publication_status','published').in('access_level',['public_preview','public_full']).order('id').range(from,to));
+    for (let i=0;i<data.length;i+=100) {
+      const group=data.slice(i,i+100); const ids=group.map(b=>b.id);
+      const [units,pages]=await Promise.all([
+        fetchAllRows<any>((from,to)=>supabase.from('turots_text_units').select('*').in('bundle_id',ids).is('archived_at',null).in('metadata_status',['imported','curated','verified']).order('id').range(from,to)),
+        fetchAllRows<any>((from,to)=>supabase.from('turots_pages').select('id,bundle_id,text_unit_id,page_order,thumbnail_url,image_url,access_level').in('bundle_id',ids).is('source_missing_at',null).in('access_level',['public_preview','public_full']).order('id').range(from,to))
+      ]);
+      for (const bundle of group) {bundle.turots_text_units=units.filter(u=>u.bundle_id===bundle.id);bundle.turots_pages=pages.filter(p=>p.bundle_id===bundle.id).sort((a,b)=>a.page_order-b.page_order);}
+    }
     return (data || []).map((bundle: any) => ({
       ...bundle,
       turots_text_units: (bundle.turots_text_units || []).filter((unit: any) => !unit.archived_at && ['imported','curated','verified'].includes(unit.metadata_status)),
@@ -231,7 +218,9 @@ export async function searchPublishedCatalog(filters: {
       const collection = bundle.turots_collections?.name || '';
       const affiliation = bundle.affiliation || bundle.turots_collections?.source_project || '';
       const bundleText = [bundle.display_title, bundle.bundle_code, bundle.source_identifier, collection].map(text).join(' ');
-      const bundleMatches = (!filters.kind || filters.kind === 'bundle')
+      const titleFilterMatches = (unit:any) => (!filters.language || split(unit.language).includes(canonicalCatalogTerm(filters.language))) && (!filters.script || split(unit.script).includes(canonicalCatalogTerm(filters.script))) && (!filters.completeness || unit.completeness===filters.completeness) && (!filters.status || unit.metadata_status===filters.status) && (!filters.person || [unit.author,unit.scribe,unit.related_persons].some(value=>text(value).includes(text(filters.person))));
+      const hasTitleFilters = Boolean(filters.language||filters.script||filters.completeness||filters.status||filters.person);
+      const bundleMatches = (!hasTitleFilters || activeUnits.some(titleFilterMatches)) && (!filters.kind || filters.kind === 'bundle')
         && (!query || bundleText.includes(query) || activeUnits.some((unit: any) => [unit.title_original, unit.title_latin, unit.title_curatorial, unit.display_id, unit.record_no, unit.author, unit.scribe, unit.related_persons].map(text).join(' ').includes(query)))
         && (!filters.category || filters.category === 'Bendel')
         && (!filters.collection || collection === filters.collection);
@@ -324,6 +313,7 @@ export async function getPublishedTitleById(id: string) {
 }
 
 export async function updateBundle(bundleId: string, values: Record<string, unknown>) {
+  if (Object.keys(values).some(key=>!['metadata_status','publication_status','access_level'].includes(key))) throw new Error('Metadata sumber bendel bersifat baca saja.');
   if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
   const { data, error } = await supabase.from('turots_bundles').update({ ...values, updated_at: new Date().toISOString() }).eq('id', bundleId).select().single();
   if (error) throw error;
@@ -340,7 +330,7 @@ export async function saveCantaloupePages(bundleId: string, pages: Array<{ canva
       label: page.label,
       folio_label: page.folioLabel,
       image_url: page.imageUrl,
-      thumbnail_url: page.imageUrl,
+      thumbnail_url: iiifThumbnailUrl(page.imageUrl),
       checksum_sha256: page.checksumSha256,
     })),
     p_source_list_complete: sourceListComplete,
@@ -368,7 +358,7 @@ export async function saveBulkCantaloupePages(
       label: page.label,
       folio_label: page.folioLabel,
       image_url: page.imageUrl,
-      thumbnail_url: page.imageUrl,
+      thumbnail_url: iiifThumbnailUrl(page.imageUrl),
       checksum_sha256: page.checksumSha256,
     })),
     p_allow_reassignment: allowReassignment,
@@ -381,9 +371,6 @@ export async function saveBulkCantaloupePages(
 
 export async function publishBulkCantaloupeBundle(bundleId: string) {
   if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
-  const { error: pageError } = await supabase.from('turots_pages')
-    .update({ access_level: 'public_preview' }).eq('bundle_id', bundleId);
-  if (pageError) throw pageError;
   const { data, error } = await supabase.from('turots_bundles')
     .update({ publication_status: 'published', access_level: 'public_preview', updated_at: new Date().toISOString() })
     .eq('id', bundleId).select('publication_status').single();
@@ -391,23 +378,8 @@ export async function publishBulkCantaloupeBundle(bundleId: string) {
   return data;
 }
 
-export async function createCantaloupeBundle(input: { bundleCode: string; displayTitle: string; collectionName: string; sourceProject: string; bundleMetadata: Record<string, unknown>; pages: Array<{ canvasId: string; label: string; folioLabel: string; imageUrl: string; checksumSha256?: string }> }) {
-  if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
-  const code=input.bundleCode.trim();
-  if(!code)throw new Error('Kode bendel wajib diisi.');
-  const { error } = await supabase.rpc('apply_turots_catalog_import', {
-    p_operations: [{
-      sheet: 'Bendel', row: 0, code, key: code,
-      values: { display_title: input.displayTitle || code, affiliation: input.sourceProject, metadata_status: 'imported', ...input.bundleMetadata },
-      collection: { name: input.collectionName, project: input.sourceProject },
-      photos: input.pages.map((page, index) => ({
-        canvas_id: page.canvasId, page_order: index + 1, label: page.label, folio_label: page.folioLabel,
-        image_url: page.imageUrl, thumbnail_url: page.imageUrl, checksum_sha256: page.checksumSha256,
-      })),
-    }],
-  });
-  if (error) throw new Error(formatCatalogRpcError(error, 'Bendel dan foto tidak disimpan'));
-  return { bundleId: code, added: input.pages.length, updated: 0, total: input.pages.length, missing: 0 };
+export async function createCantaloupeBundle(_input: { bundleCode: string; displayTitle: string; collectionName: string; sourceProject: string; bundleMetadata: Record<string, unknown>; pages: Array<{ canvasId: string; label: string; folioLabel: string; imageUrl: string; checksumSha256?: string }> }) {
+  throw new Error('Bendel sumber dikunci pada skema V2.1. Pilih bendel yang sudah ada untuk menambah judul atau mengunggah foto.');
 }
 
 export async function updateTextUnit(unitId: string, values: Record<string, unknown>) {

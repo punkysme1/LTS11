@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, FileArchive, FolderOpen, LoaderCircle, RefreshCw, Save, Upload, XCircle } from 'lucide-react';
 import { invalidateDetailRequestCache } from './DetailV1';
-import { publishBulkCantaloupeBundle, saveBulkCantaloupePages } from './services/turotsRepository';
+import { saveBulkCantaloupePages } from './services/turotsRepository';
 
 type Bundle = Record<string, any>;
 type Session = { access_token?: string; user?: { id?: string } };
@@ -540,8 +540,6 @@ export default function AdminBulkPhotoUpload({ bundles, bundlesLoaded, session, 
       : 'Belum ada bendel lengkap dengan semua sumber terverifikasi.');
     setIsSaving(true);
     let saved = 0;
-    let published = 0;
-    let savedUnpublished = 0;
     let failed = 0;
     const nextSaved = { ...savedBundles };
     try {
@@ -553,18 +551,8 @@ export default function AdminBulkPhotoUpload({ bundles, bundlesLoaded, session, 
           const isPdfEap = isEapBundle(bundle) && items.every(item => /\.pdf$/i.test(item.file.name));
           const extent = isPdfEap ? pages.length : null;
           const result = await saveBulkCantaloupePages(bundle.id, pages, allowReassignment, extent);
-          const expectedPages = isPdfEap ? pages.length : Number(bundle.extent_pages);
-          const fullBundleVerified = Number.isInteger(expectedPages) && expectedPages > 0 && result.total === pages.length && result.total === expectedPages;
-          if (fullBundleVerified) {
-            await publishBulkCantaloupeBundle(bundle.id);
-            invalidateDetailRequestCache();
-            nextSaved[code] = `Tersimpan dan diterbitkan · ${result.total} halaman`;
-            published += 1;
-          } else {
-            nextSaved[code] = `Tersimpan · ${result.total} halaman · belum diterbitkan karena jumlah belum sama dengan extent ${expectedPages || 'yang tercatat'}`;
-            savedUnpublished += 1;
-          }
-          if (isPdfEap) nextSaved[code] += ` · extent ${result.extent_pages}`;
+          nextSaved[code] = `Tersimpan · ${result.total} halaman. Status publikasi tetap; terbitkan secara terpisah dari daftar bendel.`;
+          invalidateDetailRequestCache();
           if (result.moved) nextSaved[code] += ` · ${result.moved} tautan dipindahkan`;
           if (result.deduplicated) nextSaved[code] += ` · ${result.deduplicated} duplikat dibersihkan`;
           saved += 1;
@@ -577,7 +565,7 @@ export default function AdminBulkPhotoUpload({ bundles, bundlesLoaded, session, 
           failed += 1;
         }
       }
-      setStatus(`Putaran ini: ${saved} bendel berhasil disimpan · ${published} diterbitkan${savedUnpublished ? ` · ${savedUnpublished} tersimpan tetapi belum diterbitkan` : ''}${failed ? ` · ${failed} gagal dan bisa dicoba ulang` : ''}${groupsBlockedByConflicts.length ? ` · ${groupsBlockedByConflicts.length} ditahan karena tautan foto bentrok` : ''}. Status simpanan putaran sebelumnya tetap dipertahankan.`);
+      setStatus(`Putaran ini: ${saved} bendel berhasil disimpan · tidak ada publikasi otomatis${failed ? ` · ${failed} gagal dan bisa dicoba ulang` : ''}${groupsBlockedByConflicts.length ? ` · ${groupsBlockedByConflicts.length} ditahan karena tautan foto bentrok` : ''}. Status simpanan putaran sebelumnya tetap dipertahankan.`);
       if (saved) onSaved();
     } finally {
       setIsSaving(false);
@@ -613,7 +601,7 @@ export default function AdminBulkPhotoUpload({ bundles, bundlesLoaded, session, 
   return <section className="page-section admin-page bulk-photo-page">
     <button type="button" className="admin-back" onClick={() => navigate('/admin/manuskrip')}><ArrowLeft size={16}/>Kembali ke manuskrip</button>
     <p className="eyebrow">Katalog manuskrip · unggah foto</p>
-    <div className="admin-heading"><div><h1>Unggah foto dari folder</h1><p>Alur ini mencocokkan folder NT dan PDF EAP ke bendel, memeriksa sumber IIIF, mengunggah yang belum ada, lalu menyimpan halaman per bendel. Bendel diterbitkan otomatis hanya jika semua halaman cocok dengan jumlah pada extent.</p></div></div>
+    <div className="admin-heading"><div><h1>Unggah foto dari folder</h1><p>Alur ini mencocokkan folder NT dan PDF EAP ke bendel, memeriksa sumber IIIF, mengunggah yang belum ada, lalu menyimpan halaman per bendel. Penyimpanan foto tidak mengubah status publikasi. Terbitkan bendel secara terpisah dari daftar manuskrip.</p></div></div>
     <div className="bulk-photo-steps" aria-label="Tahapan unggah massal"><span className="is-current">1 · Pilih folder</span><span>2 · Periksa dan unggah</span><span>3 · Tinjau pemetaan</span><span>4 · Simpan halaman</span></div>
     <div className="bulk-photo-panel">
       <input ref={element => { folderInput.current = element; element?.setAttribute('webkitdirectory', ''); element?.setAttribute('directory', ''); }} className="bulk-photo-hidden-input" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.pdf" onChange={event => { onSelectFolder(Array.from(event.currentTarget.files || [])); event.currentTarget.value = ''; }} />
@@ -667,7 +655,7 @@ export default function AdminBulkPhotoUpload({ bundles, bundlesLoaded, session, 
       {(Object.values(results) as FileResult[]).some(result => result.state === 'failed') && <div role="alert" className="bulk-photo-alert"><XCircle size={18}/><span>Sumber gagal tidak akan masuk metadata. Perbaiki masalah atau pilih ulang folder; sesi potongan besar dapat dilanjutkan.</span></div>}
       {readyGroups.length > 0 && <div className="bulk-photo-save"><div><CheckCircle2 size={20}/><span>{readyGroups.length} bendel lengkap akan disimpan otomatis setelah semua berkas tertunda selesai. Kelompok gagal akan dilewati dan dapat dicoba ulang.</span></div></div>}
       {(Object.values(savedBundles) as string[]).some(value => value.startsWith('Gagal')) && <div role="alert" className="bulk-photo-alert"><RefreshCw size={18}/><span>Bendel gagal tetap dapat dicoba ulang setelah penyebabnya diperbaiki. Bendel yang sudah tersimpan tidak diulang.</span></div>}
-      <p className="bulk-photo-note"><FileArchive size={15}/>PDF EAP dihitung dari berkas sumber di server. Saat metadata halaman tersimpan, bundle_extent_pages diperbarui menjadi jumlah halaman PDF aktual. Bendel yang belum cocok jumlah halamannya tetap tidak diterbitkan agar tidak tampil dalam keadaan kurang.</p>
+      <p className="bulk-photo-note"><FileArchive size={15}/>PDF EAP dihitung dari berkas sumber di server. Jumlah foto dihitung dari halaman yang tersimpan. Metadata extent dari sumber bendel tetap dipertahankan; penyimpanan tidak menerbitkan bendel.</p>
     </div>
   </section>;
 }

@@ -1,6 +1,5 @@
 import { excelOptions } from './metadataOptions';
-import { retiredBundleHeaders, bundleFields, titleFields, CURATOR_TITLE_HEADER_MAP } from './metadataFields';
-import { formatPhotoPageRanges } from './pageRanges';
+import { retiredTitleHeaders, retiredBundleHeaders, bundleFields, titleFields, CURATOR_TITLE_HEADER_MAP } from './metadataFields';
 import { normalizeBundleCodeInput } from '../metadataModel';
 import type { CatalogRow, ExcelRow } from './metadataImport';
 const xmlEscape = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -35,18 +34,7 @@ function zipStore(entries: Array<[string, string]>) {
 }
 
 export const bundleHeaders = ['bundle_bundle_code', 'bundle_collection_name', 'bundle_source_project', ...bundleFields.filter(field => field !== 'bundle_code').map(field => `bundle_${field}`), 'bundle_id', 'bundle_url', 'bundle_admin_url'];
-export const titleHeaders = ['bundle_bundle_code', ...titleFields.map(field => `title_${field}`), 'title_page_ranges', 'title_id', 'title_url', 'title_admin_url'];
-export const curatorTitleHeaders = [
-  'NO', 'ID', 'Kode Proyek', 'Kode Koleksi', 'Klasifikasi Keilmuan 1', 'Klasifikasi Keilmuan 2', 'Klasifikasi Keilmuan 3',
-  'No', 'hlm', 'judul_asli', 'Judul Latin SKB 3 Menteri', 'nomor_digitalisasi', 'judul_dari_tim', 'judul_dari_afiliasi',
-  'deskripsi_umum', 'hlm_pemisah', 'pengarang', 'penyalin', 'tahun_penulisan_di_teks', 'konversi_masehi', 'lokasi_penyalina',
-  'asal_usul_naskah', 'bahasa', 'aksara', 'kover', 'ukuran_kover', 'jilid', 'ukuran_kertas', 'ukuran_dimensi',
-  'watermark', 'countermark', 'tinta', 'jumlah_halaman', 'halaman_kosong', 'jumlah_baris_per_halaman', 'rubrikasi',
-  'iluminasi', 'ilustrasi', 'catatan_pinggir', 'catatan_makna', 'kolofon', 'catatan_marginal', 'kondisi_fisik_naskah',
-  'keterbacaan', 'kelengkapan_naskah', 'catatan_catatan', 'created_at', 'kata_kunci', 'glosarium', 'referensi',
-  'manuskrip_terkait', 'tokoh_terkait', 'jenis_kertas',
-];
-export const photoHeaders = ['bundle_bundle_code', 'photo_order', 'photo_label', 'photo_image_url'];
+export const titleHeaders = ['bundle_bundle_code', ...titleFields.map(field => `title_${field}`), 'title_id', 'title_url', 'title_admin_url'];
 const publicOrigin = 'https://turots.qomaruddin.com';
 export function catalogLinks(bundle: CatalogRow, unit?: CatalogRow, origin = publicOrigin) {
   const base = origin.replace(/\/+$/, '');
@@ -60,20 +48,17 @@ export function catalogLinks(bundle: CatalogRow, unit?: CatalogRow, origin = pub
 }
 const asRows = (headers: string[], records: CatalogRow[]) => [headers, ...records.map(row => headers.map(header => row[header] ?? ''))];
 const instructions = [
-  ['Petunjuk', 'Keterangan'],
-  ['Alur', 'Unggah foto dan simpan ke bendel → ekspor metadata → isi Excel → pratinjau impor → simpan → ekspor ulang untuk mendapatkan URL.'],
-  ['Bendel', 'Satu baris per bendel. Bendel menampilkan metadata persis seperti laman sumber afiliasinya (Dreamsea, EAP British Library, atau NT).'],
-  ['Judul', 'Satu baris per judul. Mendukung format standar title_* maupun tabel 55 kolom Kurator (NO, ID, Kode Proyek, Kode Koleksi, Klasifikasi Keilmuan 1..3, No, hlm, judul_asli, Judul Latin SKB 3 Menteri, nomor_digitalisasi, dst.).'],
-  ['Tambah atau perbarui', 'Kode/ID yang sudah ada diperbarui. Kode/ID baru ditambahkan. Bendel baru disimpan sebagai draft. Tidak ada publikasi otomatis.'],
-  ['Sel kosong', 'Kosong berarti pertahankan data lama. Tulis #HAPUS untuk mengosongkan field opsional. Kolom yang tidak disertakan tidak diubah.'],
-  ['Identitas', 'Jangan ubah kode bendel, ID inventaris, bundle_id, atau title_id pada hasil ekspor. Untuk baris baru, kosongkan UUID dan URL.'],
-  ['Folio dan halaman foto', 'Kolom hlm / title_page_ranges menerima nomor urut foto (mis. 1-100;101-174) maupun rentang folio Dreamsea (mis. 066v-088r atau 2r-2v).'],
-  ['URL', 'URL adalah tautan klik, bukan sinkronisasi langsung. URL dan UUID dibaca saja. Tautan publik memerlukan bendel published; tautan admin memerlukan login. Ekspor ulang setelah impor untuk memperoleh URL baru.'],
-  ['Contoh pemecahan bendel', '174 foto, 1 judul: title_page_ranges=1-174. 174 foto, 2 judul: judul A=1-100; judul B=101-174. Foto nomor 100 hanya boleh masuk satu judul.'],
-  ['Foto', 'Kelola foto di editor bendel. Foto bendel yang sudah ada di server tidak akan ditimpa atau dihapus oleh impor Excel.'],
-  ['Pilihan isian', 'Dropdown tersedia sampai baris 10001. Pilihan mengikuti admin; isian khusus tetap boleh diketik. Bahasa/aksara ganda dipisahkan titik koma; watermark atau kolofon dapat berupa Ada: keterangan. #HAPUS tetap berlaku.'],
-  ['Tipe data', 'Simpan kode, ID, tahun, tanggal, dan folio sebagai teks. Gunakan nilai biasa, bukan formula. Teks Arab didukung. right_to_left: Ya/Tidak.'],
-  ['Penyimpanan', 'Pratinjau tidak menulis database. Simpan mengirim seluruh perubahan sebagai satu transaksi. Jika satu perubahan gagal, semua perubahan dibatalkan.'],
+ ['Petunjuk','Keterangan'],
+ ['Bendel','Referensi baca saja. Metadata sumber, kode, koleksi dan afiliasi tidak boleh diubah.'],
+ ['Judul','Satu baris per judul dalam bendel yang sudah ada. Gunakan lembar Judul; Judul_Kurator tidak digunakan.'],
+ ['Identitas','title_id adalah UUID tetap: jangan diubah. Untuk judul baru kosongkan UUID, nomor TQ, ID inventaris dan nomor kategori. Nomor dihitung server dan dapat bergeser; ekspor ulang setelah simpan.'],
+ ['Sel kosong','Kosong mempertahankan nilai lama. #HAPUS mengosongkan metadata opsional.'],
+ ['Halaman','Hanya title_page_ranges_label: misalnya 1-15; 20-30 atau 066v-088r. Mengatur kaitan judul dengan foto yang sudah ada, bukan berkas/URL/urutan foto. Konflik halaman ditolak.'],
+ ['Bahasa','Boleh lebih dari satu: Arab; Jawa atau Jawa; Melayu. Pisahkan dengan titik koma. Isian khusus diperbolehkan. Pegon adalah aksara, bukan saran bahasa.'],
+ ['Aksara','Boleh lebih dari satu: Arab; Pegon atau Arab; Jawa. Isian khusus diperbolehkan.'],
+ ['Foto','Tidak diekspor atau diimpor. Lembar Foto dari workbook lama diabaikan sebelum pembacaan baris.'],
+ ['Status','imported: hasil impor; curated: sudah dikurasi; verified: metadata sudah diperiksa. Ketiganya dapat dicari bila bendel diterbitkan.'],
+ ['Simpan','Pratinjau menampilkan perubahan. Simpan dalam satu transaksi; data yang berubah sejak pratinjau ditolak.'],
 ];
 export function metadataWorkbook(bundles: CatalogRow[], template = false, origin = publicOrigin) {
   const bundleRecords = template ? [] : bundles.map(bundle => ({
@@ -81,80 +66,14 @@ export function metadataWorkbook(bundles: CatalogRow[], template = false, origin
     bundle_collection_name: bundle.turots_collections?.name, bundle_source_project: bundle.turots_collections?.source_project,
     bundle_id: bundle.id, ...catalogLinks(bundle, undefined, origin),
   }));
-  const titleRecords = template ? [] : bundles.flatMap(bundle => (bundle.turots_text_units || []).map((unit: CatalogRow) => ({
+  const titleRecords = template ? [] : bundles.flatMap(bundle => (bundle.turots_text_units || []).filter((unit: CatalogRow) => !unit.archived_at).map((unit: CatalogRow) => ({
     ...Object.fromEntries(titleFields.map(field => [`title_${field}`, unit[field]])),
-    title_page_ranges: formatPhotoPageRanges((bundle.turots_pages||[]).filter((page:CatalogRow)=>page.text_unit_id===unit.id).map((page:CatalogRow)=>page.page_order)),
+    title_page_ranges_label: unit.page_ranges_label || '',
     bundle_bundle_code: bundle.bundle_code, title_id: unit.id, ...catalogLinks(bundle, unit, origin),
-  })));
-  const curatorRecords = template ? [] : bundles.flatMap((bundle, bIdx) => (bundle.turots_text_units || []).map((unit: CatalogRow, uIdx: number) => {
-    const mappedRanges = formatPhotoPageRanges((bundle.turots_pages||[]).filter((page:CatalogRow)=>page.text_unit_id===unit.id).map((page:CatalogRow)=>page.page_order));
-    return {
-      'NO': unit.record_no || `TQ${String(bIdx * 10 + uIdx + 1).padStart(4, '0')}`,
-      'ID': unit.display_id || '',
-      'Kode Proyek': bundle.turots_collections?.source_project || bundle.affiliation || '',
-      'Kode Koleksi': bundle.turots_collections?.name || '',
-      'Klasifikasi Keilmuan 1': unit.category_primary || '',
-      'Klasifikasi Keilmuan 2': unit.category_secondary || '',
-      'Klasifikasi Keilmuan 3': unit.category_tertiary || '',
-      'No': unit.category_sequence_no ?? unit.sequence_no ?? '',
-      'hlm': unit.page_ranges_label || mappedRanges || (unit.folio_start && unit.folio_end ? `${unit.folio_start}-${unit.folio_end}` : unit.folio_start || ''),
-      'judul_asli': unit.title_original || '',
-      'Judul Latin SKB 3 Menteri': unit.title_latin || '',
-      'nomor_digitalisasi': bundle.bundle_code || '',
-      'judul_dari_tim': unit.title_from_team || '',
-      'judul_dari_afiliasi': unit.affiliation_title || '',
-      'deskripsi_umum': unit.description || '',
-      'hlm_pemisah': unit.folio_separator || '',
-      'pengarang': unit.author || '',
-      'penyalin': unit.scribe || '',
-      'tahun_penulisan_di_teks': unit.year_original || '',
-      'konversi_masehi': unit.year_masehi || '',
-      'lokasi_penyalina': unit.copying_location || '',
-      'asal_usul_naskah': unit.manuscript_origin || '',
-      'bahasa': unit.language || '',
-      'aksara': unit.script || '',
-      'kover': unit.cover || '',
-      'ukuran_kover': unit.cover_size || '',
-      'jilid': unit.binding || '',
-      'ukuran_kertas': unit.paper_size || '',
-      'ukuran_dimensi': unit.dimensions || '',
-      'watermark': unit.watermark || '',
-      'countermark': unit.countermark || '',
-      'tinta': unit.ink || '',
-      'jumlah_halaman': unit.total_pages || '',
-      'halaman_kosong': unit.blank_pages || '',
-      'jumlah_baris_per_halaman': unit.lines_per_page || '',
-      'rubrikasi': unit.rubrication || '',
-      'iluminasi': unit.illumination || '',
-      'ilustrasi': unit.illustration || '',
-      'catatan_pinggir': unit.marginal_notes || '',
-      'catatan_makna': unit.meaning_notes || '',
-      'kolofon': unit.colophon || '',
-      'catatan_marginal': unit.marginal_note || '',
-      'kondisi_fisik_naskah': unit.physical_condition || '',
-      'keterbacaan': unit.readability || '',
-      'kelengkapan_naskah': unit.completeness || '',
-      'catatan_catatan': unit.notes || '',
-      'created_at': unit.created_at || '',
-      'kata_kunci': unit.keywords || '',
-      'glosarium': unit.glossary || '',
-      'referensi': unit.references_text || '',
-      'manuskrip_terkait': unit.related_manuscripts || '',
-      'tokoh_terkait': unit.related_persons || '',
-      'jenis_kertas': unit.paper_type || '',
-    };
-  }));
-  const photoRecords = template ? [] : bundles.flatMap(bundle => (bundle.turots_pages || []).map((page: CatalogRow) => ({
-    bundle_bundle_code: bundle.bundle_code,
-    photo_order: page.page_order,
-    photo_label: page.folio_label || page.label || page.page_order,
-    photo_image_url: page.image_url,
   })));
   const sheets: Array<{ name: string; rows: unknown[][] }> = [
     { name: 'Bendel', rows: asRows(bundleHeaders, bundleRecords) },
     { name: 'Judul', rows: asRows(titleHeaders, titleRecords) },
-    { name: 'Judul_Kurator', rows: asRows(curatorTitleHeaders, curatorRecords) },
-    { name: 'Foto', rows: asRows(photoHeaders, photoRecords) },
     { name: 'Petunjuk', rows: instructions },
     { name: 'Referensi', rows: [Object.keys(excelOptions), ...Array.from({length: Math.max(...Object.values(excelOptions).map(values=>values.length))}, (_, i)=>Object.values(excelOptions).map(values=>values[i]||''))] },
   ];
@@ -170,7 +89,7 @@ export function metadataWorkbook(bundles: CatalogRow[], template = false, origin
     sheet.rows.slice(1).forEach((row, r) => row.forEach((value, c) => {
       if (String(sheet.rows[0][c]).endsWith('_url') && /^https?:\/\//.test(String(value))) links.push({ cell: `${colName(c)}${r + 2}`, url: String(value) });
     }));
-    const validations = index < 2 ? sheet.rows[0].flatMap((header, column) => excelOptions[String(header)] ? [`<dataValidation type="list" allowBlank="1" showDropDown="0" showErrorMessage="0" sqref="${colName(column)}2:${colName(column)}10001"><formula1>options_${xmlEscape(header)}</formula1></dataValidation>`] : []) : [];
+    const validations = index < 2 ? sheet.rows[0].flatMap((header, column) => excelOptions[String(header)] && !['title_language','title_script'].includes(String(header)) ? [`<dataValidation type="list" allowBlank="1" showDropDown="0" showErrorMessage="0" sqref="${colName(column)}2:${colName(column)}10001"><formula1>options_${xmlEscape(header)}</formula1></dataValidation>`] : []) : [];
     const dropdowns = validations.length ? `<dataValidations count="${validations.length}">${validations.join('')}</dataValidations>` : '';
     entries.push([`xl/worksheets/sheet${index + 1}.xml`, sheetXml(sheet.rows, links, dropdowns)]);
     if (links.length) entries.push([`xl/worksheets/_rels/sheet${index + 1}.xml.rels`, `<Relationships xmlns="${ns}/package/2006/relationships">${links.map((link, i) => `<Relationship Id="rId${i + 1}" Type="${ns}/officeDocument/2006/relationships/hyperlink" Target="${xmlEscape(link.url)}" TargetMode="External"/>`).join('')}</Relationships>`]);
@@ -263,13 +182,18 @@ function normalizeTitleSheetRows(rows: string[][]): string[][] {
   const headerRow = rows[0].map(v => (v || '').trim());
   const isCuratorFormat = headerRow.some(h => h.toLowerCase() === 'nomor_digitalisasi' || h.toLowerCase() === 'judul_asli');
   if (!isCuratorFormat) return rows;
+  const hasExplicitCatSeq = headerRow.some(h => {
+    const low = h.toLowerCase();
+    return low === 'no_kategori' || low === 'title_category_sequence_no';
+  });
   let seenNoCount = 0;
   const mappedHeaders = headerRow.map(h => {
     const low = h.toLowerCase();
     if (!low || low.startsWith('column ')) return '';
     if (low === 'no') {
       seenNoCount += 1;
-      return seenNoCount === 1 ? 'title_record_no' : 'title_category_sequence_no';
+      if (seenNoCount === 1) return 'title_record_no';
+      return hasExplicitCatSeq ? '' : 'title_category_sequence_no';
     }
     return CURATOR_TITLE_HEADER_MAP[low] || h;
   });
@@ -306,10 +230,12 @@ export async function readMetadataXlsx(file: File) {
   const shared = files.has('xl/sharedStrings.xml') ? elementsByLocalName(parseXml(files.get('xl/sharedStrings.xml')!), 'si').map(si => elementsByLocalName(si, 't').map(t => t.textContent || '').join('')) : [];
   const rels = parseXml(files.get('xl/_rels/workbook.xml.rels') || '<Relationships/>');
   const targets = new Map(elementsByLocalName(rels, 'Relationship').map(rel => [rel.getAttribute('Id'), rel.getAttribute('Target') || '']));
+  const warnings: string[] = [];
   const found = new Map<string, string[][]>();
-  const sheetNames = new Map([['bendel', 'Bendel'], ['judul', 'Judul'], ['judul_kurator', 'Judul_Kurator'], ['foto', 'Foto']]);
+  const sheetNames = new Map([['bendel', 'Bendel'], ['judul', 'Judul'], ]);
   for (const sheet of elementsByLocalName(parseXml(workbook), 'sheet')) {
     const rawName = sheet.getAttribute('name') || '';
+    if (['foto','judul_kurator'].includes(rawName.toLowerCase())) warnings.push(`Lembar ${rawName} diabaikan. Hanya lembar Judul yang menjadi sumber perubahan metadata; foto tidak diproses.`);
     const name = sheetNames.get(rawName.toLocaleLowerCase());
     if (!name) continue;
     const target = targets.get(sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id'));
@@ -320,11 +246,13 @@ export async function readMetadataXlsx(file: File) {
     found.set(name, xmlRows(xml, shared, name));
   }
   if (!found.size) throw new Error('Workbook harus memiliki lembar Bendel atau Judul.');
-  const rawTitles = found.get('Judul')?.length ? found.get('Judul')! : (found.get('Judul_Kurator') || []);
+  if (!found.has('Judul')) throw new Error('Gunakan lembar Judul dari ekspor terbaru. Judul_Kurator lama tidak diimpor.');
+  const rawTitles = found.get('Judul') || [];
   const normalizedTitles = normalizeTitleSheetRows(rawTitles);
   return {
-    photos: records(found.get('Foto') || [], ['bundle_bundle_code','photo_order','photo_label','photo_image_url'], ['bundle_bundle_code','photo_order','photo_image_url']),
+    warnings,
+    photos: [],
     bundles: records(found.get('Bendel') || [], [...bundleHeaders, ...retiredBundleHeaders], ['bundle_bundle_code']),
-    titles: records(normalizedTitles, [...titleHeaders, 'title_access_level', 'title_project_name', 'title_collection_name', 'title_created_at'], ['bundle_bundle_code', 'title_display_id']),
+    titles: records(normalizedTitles, [...titleHeaders, ...retiredTitleHeaders, 'title_page_ranges', 'title_access_level', 'title_project_name', 'title_collection_name', 'title_created_at'], ['bundle_bundle_code']),
   };
 }

@@ -1,3 +1,4 @@
+import { iiifThumbnailUrl } from './iiifImage';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Eye, Home, Info, Mail, Menu, Megaphone, Newspaper, User, X, HandHeart } from 'lucide-react';
@@ -180,7 +181,7 @@ export default function AppV11() {
         const pages = [...(bundle.turots_pages || [])].sort((left: any, right: any) => left.page_order - right.page_order);
         for (const unit of bundle.turots_text_units || []) {
           const page = pages.find((candidate: any) => candidate.text_unit_id === unit.id && (candidate.thumbnail_url || candidate.image_url)) || pages.find((candidate: any) => candidate.thumbnail_url || candidate.image_url);
-          const cover = page?.thumbnail_url || page?.image_url;
+          const cover = iiifThumbnailUrl(page?.thumbnail_url || page?.image_url);
           if (cover) covers[unit.id] = cover;
         }
       }
@@ -208,15 +209,58 @@ export default function AppV11() {
   const requestedPage = Number(params.get('halaman'));
   const page = Math.min(Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1), Math.max(1, pageCount));
 
+  const bundleCardSubtitle = (b: any) =>
+    [b.subject_matter?.trim(), b.languages?.trim(), b.extent_pages ? `${b.extent_pages} halaman` : '']
+      .filter(Boolean)
+      .join(' · ');
+
+  const bundleCardDescription = (b: any) => {
+    const desc = b.bundle_description?.trim();
+    if (desc) return desc;
+    const count = Number(b.title_count || 0);
+    if (b.unit_titles?.trim()) {
+      return `Memuat ${count} judul: ${b.unit_titles.trim()}${count > 4 ? ', dan lainnya' : ''}.`;
+    }
+    return count > 0 ? `Bendel naskah berisi ${count} judul.` : 'Deskripsi kuratorial bendel belum tersedia.';
+  };
+
+  const titleCardDescription = (u: any, b: any) => {
+    const desc = u.description?.trim();
+    if (desc) return desc;
+    const folio = u.folio_start
+      ? `${u.folio_start}${u.folio_end && u.folio_end !== u.folio_start ? `–${u.folio_end}` : ''}`
+      : '';
+    const details = [
+      u.author?.trim() ? `Karya ${u.author.trim()}` : '',
+      u.language?.trim()
+        ? `Bahasa ${u.language.trim()}${u.script?.trim() ? ` (${u.script.trim()})` : ''}`
+        : u.script?.trim()
+          ? `Aksara ${u.script.trim()}`
+          : '',
+      u.completeness?.trim() ? `Kelengkapan: ${u.completeness.trim()}` : '',
+      folio ? `Folio ${folio}` : '',
+    ].filter(Boolean);
+    const hasRichUnitMeta = Boolean(u.author?.trim() || u.language?.trim() || u.script?.trim() || u.completeness?.trim());
+    const bundleDesc = b.bundle_description?.trim();
+    if (hasRichUnitMeta && bundleDesc) return `${details.join(' · ')} — Bagian dari bendel ${b.bundle_code}: ${bundleDesc}`;
+    if (hasRichUnitMeta) return `${details.join(' · ')}.`;
+    if (bundleDesc) return `Bagian dari bendel ${b.bundle_code}: ${bundleDesc}`;
+    return 'Deskripsi kuratorial belum tersedia.';
+  };
+
   const cards = (data: CatalogRow[]) => <div className="archive-grid">{data.map(({ b, u, id, kind }) => {
     const isBundle = kind === 'bundle';
-    const thumbnail = [...(b.turots_pages || [])].sort((left: any, right: any) => left.page_order - right.page_order)[0]?.thumbnail_url;
+    const sortedPages = [...(b.turots_pages || [])].sort((left: any, right: any) => left.page_order - right.page_order);
+    const firstPage = (!isBundle && sortedPages.find((p: any) => p.text_unit_id === id)) || sortedPages[0];
+    const thumbnail = iiifThumbnailUrl(firstPage?.thumbnail_url || firstPage?.image_url);
     const returnTo = `${location.pathname}${location.search}`;
     const target = isBundle ? `/bendel/${encodeURIComponent(b.bundle_code)}?returnTo=${encodeURIComponent(returnTo)}` : `/katalog/${encodeURIComponent(u.slug || u.display_id || u.title_original || b.bundle_code)}?unit=${encodeURIComponent(id)}&bundle=${encodeURIComponent(b.id)}&returnTo=${encodeURIComponent(returnTo)}`;
     const title = isBundle ? b.display_title || `Bendel ${b.bundle_code}` : u.title_original || b.display_title;
+    const subtitle = isBundle ? bundleCardSubtitle(b) : u.title_latin;
+    const description = isBundle ? bundleCardDescription(b) : titleCardDescription(u, b);
     return <article className={`archive-card${isBundle ? ' archive-bundle-card' : ''}`} key={id}>
       <a href={target} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (currentPath === '/katalog') { try { sessionStorage.setItem(`turots-catalog-scroll:${returnTo}`, String(window.scrollY)); } catch { /* Pemulihan posisi bersifat opsional bila penyimpanan browser dinonaktifkan. */ } } navigate(target); }}><div className="archive-cover">{thumbnail ? <img loading="lazy" src={thumbnail} alt={isBundle ? `Foto dari bendel ${b.bundle_code}` : `Folio ${u.folio_start || ''}`}/> : <BookOpen size={58}/>}</div>
-        <div className="archive-copy"><small>{isBundle ? `Bendel · ${b.bundle_code}` : `${u.category_primary || 'Belum dikategorikan'} · ${b.bundle_code} · ${u.folio_start || ''}${u.folio_end && u.folio_end !== u.folio_start ? `–${u.folio_end}` : ''}`}</small><h3 dir="auto">{title}</h3>{!isBundle && <><p className="latin">{u.title_latin}</p><p>{u.description || 'Deskripsi kuratorial belum tersedia.'}</p></>}<footer>{b.turots_collections?.name}<span>{isBundle ? `${b.title_count || 0} judul di dalam bendel` : 'Lihat judul'} <span aria-hidden="true">→</span></span></footer></div></a>
+        <div className="archive-copy"><small>{isBundle ? `Bendel · ${b.bundle_code}` : `${u.category_primary || 'Belum dikategorikan'} · ${b.bundle_code} · ${u.folio_start || ''}${u.folio_end && u.folio_end !== u.folio_start ? `–${u.folio_end}` : ''}`}</small><h3 dir="auto">{title}</h3>{subtitle && <p className="latin">{subtitle}</p>}<p>{description}</p><footer>{b.turots_collections?.name}<span>{isBundle ? `${b.title_count || 0} judul di dalam bendel` : 'Lihat judul'} <span aria-hidden="true">→</span></span></footer></div></a>
     </article>;
   })}</div>;
 
@@ -324,8 +368,8 @@ export default function AppV11() {
   const renderLink = ([target, label, Icon]: readonly [string, string, typeof Home]) => <a key={target} href={target} aria-current={currentPath === target || target !== '/' && currentPath.startsWith(`${target}/`) ? 'page' : undefined} onClick={(event) => handleInternalLink(event, target)}><Icon size={19}/><span>{label}</span></a>;
   return <div className={`archive-app${isAdmin ? ' admin-route' : ''}`}>
     {!isAdmin && <a className="skip-link" href="#main-content">Lewati ke konten</a>}
-    {!isAdmin && <header className="desktop-header"><a className="archive-brand" href="/" onClick={(event) => handleInternalLink(event, '/')}><BookOpen size={26}/><span><small>GALERI MANUSKRIP</small><strong>SAMPURNAN</strong></span></a><nav aria-label="Navigasi utama">{[['/katalog','Katalog'],['/profil','Profil'],['/artikel','Artikel'],['/donasi','Donasi'],['/buku-tamu','Buku Tamu'],['/kontak','Kontak']].map(([path,label])=><a key={path} href={path} aria-current={currentPath === path || currentPath.startsWith(`${path}/`) ? 'page' : undefined} onClick={(event)=>handleInternalLink(event,path)}>{label}</a>)}<a className="desktop-admin-link" href="/admin" onClick={(event) => handleInternalLink(event, '/admin')}>Admin</a></nav></header>}
-    {!isAdmin && <aside className="archive-nav"><a className="archive-brand" href="/" onClick={(event) => handleInternalLink(event, '/')}><BookOpen size={26}/><span><small>GALERI MANUSKRIP</small><strong>SAMPURNAN</strong></span></a>
+    {!isAdmin && <header className="desktop-header"><a className="archive-brand" href="/" onClick={(event) => handleInternalLink(event, '/')}><img className="archive-brand-logo" src="/tppkp-logo.png" alt="Logo TPPKP Yayasan Pondok Pesantren Qomaruddin" width={44} height={44}/><span><small>GALERI MANUSKRIP</small><strong>SAMPURNAN</strong></span></a><nav aria-label="Navigasi utama">{[['/katalog','Katalog'],['/profil','Profil'],['/artikel','Artikel'],['/donasi','Donasi'],['/buku-tamu','Buku Tamu'],['/kontak','Kontak']].map(([path,label])=><a key={path} href={path} aria-current={currentPath === path || currentPath.startsWith(`${path}/`) ? 'page' : undefined} onClick={(event)=>handleInternalLink(event,path)}>{label}</a>)}<a className="desktop-admin-link" href="/admin" onClick={(event) => handleInternalLink(event, '/admin')}>Admin</a></nav></header>}
+    {!isAdmin && <aside className="archive-nav"><a className="archive-brand" href="/" onClick={(event) => handleInternalLink(event, '/')}><img className="archive-brand-logo" src="/tppkp-logo.png" alt="Logo TPPKP Yayasan Pondok Pesantren Qomaruddin" width={44} height={44}/><span><small>GALERI MANUSKRIP</small><strong>SAMPURNAN</strong></span></a>
       <nav className="archive-primary-nav" aria-label="Navigasi utama">{primaryLinks.map(renderLink)}</nav>
       <nav className="archive-secondary-nav" aria-label="Halaman lainnya">{moreLinks.map(renderLink)}<a href="/admin" onClick={(event) => handleInternalLink(event, '/admin')}><User size={19}/><span>Admin</span></a></nav>
       <div className="nav-bottom"><p>Warisan ilmu,<br/>untuk generasi mendatang.</p><small>Galeri Manuskrip Sampurnan · Qomaruddin</small></div>

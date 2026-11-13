@@ -11,18 +11,18 @@ export const bundleFields = [
 ] as const;
 
 export const titleFields = [
-  'record_no', 'display_id', 'sequence_no', 'category_sequence_no', 'page_ranges_label',
-  'title_original', 'title_latin', 'title_curatorial', 'title_from_team', 'affiliation_title',
-  'scholarly_classification_1', 'scholarly_classification_2', 'scholarly_classification_3',
+  'record_no', 'display_id', 'category_sequence_no', 'page_ranges_label',
+  'title_original', 'title_latin', 'title_curatorial',
+
   'category_primary', 'category_secondary', 'category_tertiary', 'description',
-  'folio_separator', 'folio_start', 'folio_end', 'author', 'scribe',
+  'author', 'scribe',
   'year_original', 'year_masehi', 'copying_location', 'manuscript_origin',
   'language', 'script', 'cover', 'cover_size', 'binding', 'paper_size', 'dimensions',
   'watermark', 'countermark', 'ink', 'total_pages', 'blank_pages', 'lines_per_page',
   'rubrication', 'illumination', 'illustration', 'marginal_notes', 'meaning_notes',
   'colophon', 'marginal_note', 'physical_condition', 'readability', 'completeness',
   'notes', 'keywords', 'glossary', 'references_text', 'related_manuscripts',
-  'related_persons', 'paper_type', 'paper_type_other', 'metadata_status',
+  'related_persons', 'paper_type', 'metadata_status',
 ] as const;
 
 export const retiredBundleHeaders = [
@@ -87,3 +87,9 @@ export const CURATOR_TITLE_HEADER_MAP: Record<string, string> = {
   'tokoh_terkait': 'title_related_persons',
   'jenis_kertas': 'title_paper_type',
 };
+
+export const retiredTitleHeaders = ['sequence_no','title_from_team','affiliation_title','scholarly_classification_1','scholarly_classification_2','scholarly_classification_3','folio_separator','folio_start','folio_end','paper_type_other'].map(field => `title_${field}`);
+export function normalizeMultipleTerms(raw: string) {
+ const known: Record<string,string> = {arab:'Arab',arabic:'Arab',jawa:'Jawa',javanese:'Jawa',pegon:'Pegon',jawi:'Jawi',latin:'Latin',indonesia:'Indonesia',melayu:'Melayu',sunda:'Sunda',madura:'Madura',belanda:'Belanda'};
+ return [...new Map(raw.split(/\s*(?:[;,|/]|\bdan\b)\s*/i).map(v=>v.trim()).filter(Boolean).map(v=>[v.toLowerCase(),known[v.toLowerCase()]||v])).values()].join('; ');
+}

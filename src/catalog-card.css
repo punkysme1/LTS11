@@ -1,6 +1,7 @@
 /* Constrain portrait scans independently from their intrinsic dimensions. */
 .archive-card > a {
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
 }
 .archive-card .archive-cover {
@@ -8,6 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   height: 260px;
   min-height: 0;
   overflow: hidden;
@@ -26,6 +28,9 @@
 }
 .archive-card .archive-copy {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   background: #fffdf8;
   padding: 22px;
   border-top: 1px solid #dedbce;
@@ -49,6 +54,7 @@
   font-size: 12px;
 }
 .archive-card .archive-copy footer {
+  margin-top: auto;
   flex-wrap: wrap;
   align-items: center;
   color: #54634f;

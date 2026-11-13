@@ -35,7 +35,8 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
       const workbook = await readMetadataXlsx(file);
       const current = await listAdminBundles();
       const next = planMetadataImport(workbook.bundles, workbook.titles, current, workbook.photos);
-      setPlan(next); setVisibleActionCount(50); setMessage('Pratinjau siap. Belum ada perubahan yang disimpan.');
+      next.warnings.push(...workbook.warnings);
+      setPlan(next); setVisibleActionCount(50); setMessage(next.actions.some(action=>action.kind!=='skip') ? 'Pratinjau siap. Belum ada perubahan yang disimpan.' : 'Tidak ada perubahan metadata judul yang dapat disimpan. Isian nomor otomatis dan metadata referensi Bendel tidak diterapkan; periksa catatan impor di bawah.');
     } catch (error) { setFailure((error as Error).message); setMessage(''); }
     finally { setBusy(false); requestAnimationFrame(() => summary.current?.focus()); }
   }
@@ -44,10 +45,9 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
     setMessage('Mengambil snapshot terbaru dari database…');
     try {
       const latestBundles = await listAdminBundles();
-      const titleCount = latestBundles.reduce((total, bundle) => total + (bundle.turots_text_units?.length || 0), 0);
-      const photoCount = latestBundles.reduce((total, bundle) => total + (bundle.turots_pages?.length || 0), 0);
+      const titleCount = latestBundles.reduce((total, bundle) => total + (bundle.turots_text_units?.filter((unit:any)=>!unit.archived_at).length || 0), 0);
       downloadMetadataXlsx(latestBundles, false);
-      setMessage(`Ekspor selesai dari database saat ini: ${latestBundles.length} bendel, ${titleCount} judul, ${photoCount} baris foto.`);
+      setMessage(`Ekspor selesai dari database saat ini: ${latestBundles.length} bendel, ${titleCount} judul aktif. Foto tidak disertakan.`);
     } catch (error) {
       setMessage('Ekspor gagal mengambil data terbaru dari database.');
       setFailure(error instanceof Error ? error.message : String(error));
@@ -80,7 +80,7 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
     finally { setBusy(false); setImporting(false); requestAnimationFrame(() => summary.current?.focus()); }
   }
   return <section className="metadata-transfer" aria-labelledby="excel-heading" aria-busy={busy}>
-    <div className="metadata-transfer-heading"><div><h2 id="excel-heading">Metadata Excel</h2><p>Isi bendel dan judul melalui Excel. Foto tetap dikelola di editor bendel.</p></div>
+    <div className="metadata-transfer-heading"><div><h2 id="excel-heading">Metadata Excel</h2><p>Edit metadata judul melalui Excel. Bendel hanya referensi; lembar Foto lama diabaikan.</p></div>
     </div>
     <div className="metadata-transfer-actions">
       <button type="button" className="secondary-action" disabled={busy} onClick={() => downloadMetadataXlsx([], true)}><Download size={16} aria-hidden="true"/>Unduh template Excel</button>
@@ -99,9 +99,9 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
         <h3>Pratinjau: {filename}</h3>
         <p>{plan.actions.filter(a => a.kind === 'create').length} baru · {plan.actions.filter(a => a.kind === 'update').length} diperbarui · {plan.actions.filter(a => a.kind === 'skip').length} tanpa perubahan</p>
         {plan.errors.length > 0 && <div role="alert" className="metadata-error"><strong>{plan.errors.length} kesalahan — perbaiki Excel lalu pilih ulang.</strong><ul>{plan.errors.map((error, i) => <li key={i}>{error}</li>)}</ul></div>}
-        {plan.warnings.length > 0 && <details><summary>{plan.warnings.length} catatan impor</summary><ul>{plan.warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul></details>}
+        {plan.warnings.length > 0 && <details open={!pending.length}><summary>{plan.warnings.length} catatan impor</summary><ul>{plan.warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul></details>}
         <div className="metadata-table-scroll" tabIndex={0} role="region" aria-label="Perubahan metadata"><table><thead><tr><th>Lembar / baris</th><th>Kode / ID</th><th>Tindakan</th><th>Perubahan</th></tr></thead><tbody>{plan.actions.slice(0, visibleActionCount).map((action, i) => <tr key={i}><td>{action.sheet} / {action.row}</td><td>{action.key}</td><td>{action.kind === 'create' ? 'Tambah' : action.kind === 'update' ? 'Perbarui' : 'Tetap'}</td><td>{action.changes.length ? <details><summary>{action.changes.length} field</summary><dl>{action.changes.map(change => <div key={change.field}><dt>{change.field}</dt><dd><span>{String(change.before ?? '(kosong)')}</span> → <strong dir="auto">{String(change.after ?? '(dihapus)')}</strong></dd></div>)}</dl></details> : '—'}</td></tr>)}</tbody></table>{visibleActionCount < plan.actions.length && <button type="button" className="secondary-action metadata-load-more" onClick={() => setVisibleActionCount(count => Math.min(count + 50, plan.actions.length))}>Tampilkan {Math.min(50, plan.actions.length - visibleActionCount)} perubahan berikutnya ({visibleActionCount} dari {plan.actions.length})</button>}</div>
-        {!plan.errors.length && pending.length > 0 && <><label className="metadata-confirm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)}/>Saya sudah memeriksa perubahan dan akan menyimpan {pending.length} baris ke database di atas.</label><p className="metadata-help">Semua perubahan disimpan dalam satu transaksi. Jika satu perubahan gagal, seluruh impor dibatalkan. Bendel baru tetap draf.</p></>}
+        {!plan.errors.length && pending.length > 0 && <><label className="metadata-confirm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)}/>Saya sudah memeriksa perubahan dan akan menyimpan {pending.length} baris ke database di atas.</label><p className="metadata-help">Semua perubahan disimpan dalam satu transaksi. Jika satu perubahan gagal, seluruh impor dibatalkan. Nomor inventaris dihitung ulang setelah simpan.</p></>}
         <div className="metadata-transfer-actions"><button type="button" className="primary-action" disabled={busy || !confirmed || !!plan.errors.length || !pending.length} onClick={() => void save()}>{busy ? <><LoaderCircle className="metadata-import-spinner" size={16} aria-hidden="true"/> {importing ? `Mengirim ${pending.length} perubahan…` : 'Memuat ulang daftar…'}</> : `Simpan ${pending.length} perubahan ke database`}</button><button type="button" className="secondary-action" disabled={busy} onClick={() => { setPlan(null); setConfirmed(false); setMessage('Pratinjau dibatalkan.'); }}>Batalkan</button></div>
       </>}
     </div>

@@ -1,7 +1,7 @@
 import { CATALOG_CATEGORIES } from '../catalogTaxonomy';
 export const presence = ['Ada', 'Tidak ada'];
 export const scripts = ['Arab', 'Pegon', 'Jawi', 'Latin', 'Jawa'];
-export const languages = ['Arab', 'Pegon', 'Jawa', 'Indonesia', 'Melayu', 'Sunda', 'Madura', 'Belanda'];
+export const languages = ['Arab', 'Jawa', 'Indonesia', 'Melayu', 'Sunda', 'Madura', 'Belanda'];
 export const bundleOptions: Record<string, string[]> = {
   surrogateFormat: ['Digital', 'Fisik', 'Digital dan fisik', 'Lainnya'],
   rightToLeft: ['Ya', 'Tidak'], bundleScript: scripts,
