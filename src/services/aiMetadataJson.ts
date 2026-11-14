@@ -70,6 +70,152 @@ function cleanScalar(value: unknown): string {
   return PLACEHOLDER_RE.test(text) ? '' : text;
 }
 
+const PERSON_ROLE_MAP = new Map(
+  ['Pengarang', 'Penyalin', 'Pemilik', 'Pemberi naskah', 'Pemberi catatan', 'Penerjemah', 'Tokoh disebut']
+    .map(role => [role.toLowerCase(), role]),
+);
+
+function sanitizeHttpUrl(raw: unknown): string {
+  const text = cleanScalar(raw);
+  if (!text) return '';
+  try {
+    const parsed = new URL(text);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? text : '';
+  } catch {
+    return '';
+  }
+}
+
+function splitLegacyList(raw: string, allowComma: boolean): string[] {
+  const delimiter = allowComma && !raw.includes(';') && !raw.includes('\n') ? /\s*,\s*/ : /\s*(?:;|\r?\n)+\s*/;
+  return raw.split(delimiter).map(part => part.trim()).filter(Boolean);
+}
+
+function parseJsonArrayIfPossible(raw: unknown): unknown[] | null {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // Fall back to legacy text parsing.
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeStructuredGlossary(rawVal: unknown): string {
+  const items: Array<{ term: string; definition: string }> = [];
+  const pushFromText = (text: string) => {
+    const paren = text.match(/^(.+?)\s*\((.+)\)\s*$/);
+    if (paren) {
+      items.push({ term: paren[1].trim(), definition: paren[2].trim() });
+      return;
+    }
+    const colonIdx = text.indexOf(':');
+    if (colonIdx > 0) {
+      items.push({ term: text.slice(0, colonIdx).trim(), definition: text.slice(colonIdx + 1).trim() });
+      return;
+    }
+    items.push({ term: text, definition: '' });
+  };
+
+  const arr = parseJsonArrayIfPossible(rawVal);
+  if (arr) {
+    for (const entry of arr) {
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const obj = entry as Record<string, unknown>;
+        const term = cleanScalar(obj.term ?? obj.istilah ?? obj.word ?? obj.kata);
+        const definition = cleanScalar(obj.definition ?? obj.makna ?? obj.penjelasan ?? obj.meaning);
+        if (term || definition) items.push({ term, definition });
+      } else {
+        const text = cleanScalar(entry);
+        if (text) pushFromText(text);
+      }
+    }
+  } else {
+    const text = cleanScalar(rawVal);
+    if (text) splitLegacyList(text, false).forEach(pushFromText);
+  }
+  return items.length ? JSON.stringify(items) : '';
+}
+
+function normalizeStructuredReferences(rawVal: unknown): string {
+  const items: Array<{ citation: string; url: string }> = [];
+  const pushFromText = (text: string) => {
+    const urlMatch = text.match(/https?:\/\/\S+/i);
+    const url = urlMatch ? sanitizeHttpUrl(urlMatch[0].replace(/[),.;]+$/, '')) : '';
+    const citation = (urlMatch ? text.replace(urlMatch[0], '') : text).replace(/\s*[-–—|]+\s*$/, '').trim();
+    if (citation || url) items.push({ citation, url });
+  };
+
+  const arr = parseJsonArrayIfPossible(rawVal);
+  if (arr) {
+    for (const entry of arr) {
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const obj = entry as Record<string, unknown>;
+        const citation = cleanScalar(obj.citation ?? obj.referensi ?? obj.title ?? obj.text);
+        const url = sanitizeHttpUrl(obj.url ?? obj.link ?? obj.tautan);
+        if (citation || url) items.push({ citation, url });
+      } else {
+        const text = cleanScalar(entry);
+        if (text) pushFromText(text);
+      }
+    }
+  } else {
+    const text = cleanScalar(rawVal);
+    if (text) splitLegacyList(text, !/https?:\/\//i.test(text)).forEach(pushFromText);
+  }
+  return items.length ? JSON.stringify(items) : '';
+}
+
+function normalizePersonRole(raw: unknown): string {
+  const text = cleanScalar(raw);
+  if (!text) return '';
+  return PERSON_ROLE_MAP.get(text.toLowerCase()) ?? '';
+}
+
+function normalizeStructuredPersons(rawVal: unknown): string {
+  const items: Array<{ name: string; role: string; text: string }> = [];
+  const pushFromText = (rawText: string) => {
+    const paren = rawText.match(/^(.+?)\s*\(([^)]+)\)\s*(?:[-–—:]\s*(.+))?$/);
+    if (paren) {
+      const role = normalizePersonRole(paren[2]);
+      const extraText = cleanScalar(paren[3]);
+      items.push({
+        name: paren[1].trim(),
+        role,
+        text: role ? extraText : [paren[2].trim(), extraText].filter(Boolean).join(' — '),
+      });
+      return;
+    }
+    items.push({ name: rawText, role: '', text: '' });
+  };
+
+  const arr = parseJsonArrayIfPossible(rawVal);
+  if (arr) {
+    for (const entry of arr) {
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const obj = entry as Record<string, unknown>;
+        const name = cleanScalar(obj.name ?? obj.nama ?? obj.person ?? obj.tokoh);
+        const role = normalizePersonRole(obj.role ?? obj.peran);
+        const text = cleanScalar(obj.text ?? obj.hubungan ?? obj.keterangan ?? obj.description ?? obj.note);
+        if (name || role || text) items.push({ name, role, text });
+      } else {
+        const text = cleanScalar(entry);
+        if (text) pushFromText(text);
+      }
+    }
+  } else {
+    const text = cleanScalar(rawVal);
+    if (text) splitLegacyList(text, true).forEach(pushFromText);
+  }
+  return items.length ? JSON.stringify(items) : '';
+}
+
 function normalizePageRangesLabel(raw: string): string {
   return raw
     .replace(/^(?:hlm|hal|halaman|folio|fol)\.?\s*/i, '')
@@ -82,6 +228,19 @@ function normalizePageRangesLabel(raw: string): string {
 function canonicalCategory(raw: string): string {
   const cleaned = raw.trim().toLowerCase();
   return CATALOG_CATEGORIES.find(cat => cat.toLowerCase() === cleaned) || raw.trim();
+}
+
+function normalizeIntegerField(raw: string): { value: string; changed: boolean } {
+  const cleaned = raw.trim();
+  if (/^\d+$/.test(cleaned)) return { value: cleaned, changed: false };
+  const rangeMatch = cleaned.match(/(\d+)\s*[-–—]\s*(\d+)/);
+  if (rangeMatch) {
+    const mid = Math.round((Number(rangeMatch[1]) + Number(rangeMatch[2])) / 2);
+    return { value: String(mid), changed: true };
+  }
+  const singleMatch = cleaned.match(/(\d+)/);
+  if (singleMatch) return { value: singleMatch[1], changed: true };
+  return { value: '', changed: true };
 }
 
 function normalizeKey(rawKey: string): string {
@@ -127,10 +286,27 @@ export function parseAiTitleJsonBatch(
       if (IGNORED_AUTO_KEYS.has(rawKey.trim())) continue;
       const key = normalizeKey(rawKey);
       if (IGNORED_AUTO_KEYS.has(key)) continue;
-      let val = cleanScalar(rawVal);
+      let val =
+        key === 'title_glossary'
+          ? normalizeStructuredGlossary(rawVal)
+          : key === 'title_references_text'
+            ? normalizeStructuredReferences(rawVal)
+            : key === 'title_related_persons'
+              ? normalizeStructuredPersons(rawVal)
+              : cleanScalar(rawVal);
       if (!val) continue;
       if (key === 'title_page_ranges_label') val = normalizePageRangesLabel(val);
       if (key === 'title_category_primary') val = canonicalCategory(val);
+      if (key === 'title_lines_per_page') {
+        const normalized = normalizeIntegerField(val);
+        if (normalized.changed) {
+          warnings.push(normalized.value
+            ? `Judul ke-${idx + 1}: title_lines_per_page "${val}" dinormalkan menjadi "${normalized.value}".`
+            : `Judul ke-${idx + 1}: title_lines_per_page "${val}" diabaikan karena bukan angka bulat.`);
+        }
+        val = normalized.value;
+        if (!val) continue;
+      }
       row[key] = val;
     }
     if (!row.bundle_bundle_code && fallbackBundleCode.trim()) {

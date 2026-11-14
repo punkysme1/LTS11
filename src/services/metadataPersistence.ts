@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { formatCatalogRpcError, listAdminBundles } from './turotsRepository';
+import { formatCatalogRpcError, listAdminBundles, listAdminBundlesByCodes } from './turotsRepository';
 import { catalogSnapshot, type ImportAction, type ImportPlan, type CatalogRow } from './metadataImport';
 import { parsePhotoPageRanges } from './pageRanges';
 
@@ -58,7 +58,8 @@ export async function applyMetadataImport(plan: ImportPlan, writer?: ImportWrite
 
   if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
 
-  const current = await listAdminBundles() as CatalogRow[];
+  const targetCodes = [...new Set(plan.actions.map(action => action.code).filter(Boolean))];
+  const current = (targetCodes.length ? await listAdminBundlesByCodes(targetCodes) : await listAdminBundles()) as CatalogRow[];
   if (catalogSnapshot(current) !== plan.snapshot) throw new Error('Data server berubah sejak pratinjau. Pilih Excel lagi untuk memeriksa perubahan terbaru.');
 
   const operations = plan.actions.filter(action => action.kind !== 'skip');

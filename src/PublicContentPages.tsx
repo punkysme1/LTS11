@@ -47,13 +47,32 @@ export function PublicContentPage({ type, slug, navigate }: { type: EditorialTyp
   </main>;
 }
 
-export function StaticLandingPage({ page }: { page: 'profile' | 'donation' | 'contact' }) {
-  if (page === 'profile') return <main className="archive-content static-landing profile-page"><p className="eyebrow">Yayasan Pondok Pesantren Qomaruddin</p><h1>Menjaga naskah, merawat kesinambungan ilmu.</h1><p className="page-intro">Galeri Manuskrip Sampurnan merawat koleksi naskah pesantren dan membuka akses bagi masyarakat, santri, akademisi, serta peneliti.</p>
-    <section className="profile-lead"><div><span className="eyebrow">Koleksi digital</span><strong>591 Judul · 421 Bendel</strong><p>terdiri atas 79 bendel DREAMSEA, 204 bendel British Library (EAP: 52 Ahmad Wasil, 130 Ndalem, 16 Burhan, 6 Zamroni), dan 138 bendel Nahdlatut Turots dengan total 18.270 lembar foto digital dalam 17 kategori keilmuan</p></div><div><p>Koleksi ini tumbuh di lingkungan pesantren: naskah bukan hanya peninggalan sejarah, tetapi juga sumber ajaran yang dibaca, disalin, dikaji, dan diwariskan.</p></div></section>
+export type CollectionOverviewStats = {
+  titles: number | null;
+  bundles: number | null;
+  pages: number | null;
+  categories: number | null;
+  totalVisitors: number | null;
+  affiliationSummary?: string;
+};
+
+function formatStat(value: number | null | undefined): string {
+  return value == null ? '—' : value.toLocaleString('id-ID');
+}
+
+export function StaticLandingPage({ page, stats }: { page: 'profile' | 'donation' | 'contact'; stats?: CollectionOverviewStats }) {
+  if (page === 'profile') {
+    const breakdownText = stats?.affiliationSummary
+      ? `terdiri atas ${stats.affiliationSummary}, dengan total ${formatStat(stats.pages)} lembar foto digital dalam ${formatStat(stats.categories)} kategori keilmuan.`
+      : `dengan total ${formatStat(stats?.pages)} lembar foto digital dalam ${formatStat(stats?.categories)} kategori keilmuan.`;
+    return <main className="archive-content static-landing profile-page"><p className="eyebrow">Yayasan Pondok Pesantren Qomaruddin</p><h1>Menjaga naskah, merawat kesinambungan ilmu.</h1><p className="page-intro">Galeri Manuskrip Sampurnan merawat koleksi naskah pesantren dan membuka akses bagi masyarakat, santri, akademisi, serta peneliti.</p>
+    <section className="profile-lead"><div><span className="eyebrow">Koleksi digital</span><strong>{formatStat(stats?.titles)} Judul · {formatStat(stats?.bundles)} Bendel</strong><p>{breakdownText}</p></div><div><p>Koleksi ini tumbuh di lingkungan pesantren: naskah bukan hanya peninggalan sejarah, tetapi juga sumber ajaran yang dibaca, disalin, dikaji, dan diwariskan.</p></div></section>
+    <section className="profile-stats-wrap" aria-label="Ringkasan statistik koleksi dan pengunjung"><div className="archive-stats archive-stats-five profile-stats" aria-live="polite"><span><b>{formatStat(stats?.titles)}</b>Judul</span><span><b>{formatStat(stats?.bundles)}</b>Bendel</span><span><b>{formatStat(stats?.pages)}</b>Lembar foto</span><span><b>{formatStat(stats?.categories)}</b>Kategori</span><span><b>{formatStat(stats?.totalVisitors)}</b>Pengunjung</span></div></section>
     <section className="profile-story"><div><p className="eyebrow">Isi khazanah</p><h2>Beragam kitab dan catatan kehidupan pesantren.</h2></div><div><p>Mayoritas naskah berbahasa Arab dan Jawa dengan aksara Arab dan Pegon; sebagian lainnya menggunakan bahasa Belanda dan Indonesia. Isinya mencakup tafsir, fikih, gramatika Arab, tasawuf, akidah, dan tauhid.</p><p>Selain salinan kitab, koleksi juga memuat karya dan catatan lokal seperti Qoshidah Lis Shibyan, Qoshidah Fi Shaum, catatan wirid, surat, silsilah, serta tradisi haji.</p></div></section>
     <section className="profile-story profile-preservation"><div><p className="eyebrow">Sejak 2010</p><h2>Pelestarian fisik, digital, dan keilmuan.</h2></div><div><p>Yayasan Pondok Pesantren Qomaruddin menggiatkan pelestarian naskah sejak 2010. Digitalisasi koleksi didukung Perpustakaan Provinsi Jawa Timur, sementara kerja sama dengan DREAMSEA, Nahdlatut Turats, dan British Library membantu penyimpanan salinan digital mengikuti standar pengarsipan.</p><p>Upaya ini berjalan bersama promosi koleksi, kajian filologi dan tahqiq, serta peningkatan kapasitas santri dan pengelola dalam membaca dan merawat naskah.</p></div></section>
     <section className="profile-story"><div><p className="eyebrow">Naskah sebagai sumber hidup</p><h2>Tradisi belajar yang berlanjut dari halaman ke halaman.</h2></div><div><p>Keunikan koleksi tumbuh dari hubungan naskah dengan kehidupan pesantren. Catatan penyalin dan syarah kerap berdampingan dengan teks utama; beberapa penjelasan disesuaikan dengan tradisi lokal, seperti ukuran zakat fitrah dalam satuan Jawa.</p><p>Melalui katalog digital, koleksi yang dahulu tersimpan di lingkungan pesantren dapat ditelusuri dan dipelajari lebih luas, sekaligus mendukung penelitian serta penyusunan metadata dan pendaftaran koleksi ke Perpustakaan Nasional.</p><a className="primary-action" href="/katalog">Jelajahi katalog <BookOpen size={18}/></a></div></section>
   </main>;
+  }
   if (page === 'donation') return <main className="archive-content static-landing"><p className="eyebrow">Dukung pelestarian</p><h1>Donasi</h1><div className="content-state"><HandHeart size={30}/><h2>Informasi donasi resmi belum tersedia</h2><p>Periksa kembali nanti untuk mengetahui saluran donasi yang telah diumumkan pengelola.</p></div></main>;
   return <main className="archive-content static-landing"><p className="eyebrow">Kami siap membantu</p><h1>Kontak Kami</h1><section className="contact-card"><h2>Galeri Manuskrip Sampurnan (TPPKP Qomaruddin)</h2><p><Mail size={16}/> <a href="mailto:tppkp.qomaruddin@gmail.com">email: tppkp.qomaruddin@gmail.com</a></p><p><Phone size={16}/> Phone: <a href="tel:+6285314603330">+62 85314603330</a> - <a href="tel:+628995023222">+62 8995023222</a></p><p>Di bawah naungan Pondok Pesantren Qomaruddin dan YPP Qomaruddin.</p><p><small>© 2026 Qomaruddin. Design By PT Naracode Digital Inovasi.</small></p></section></main>;
 }

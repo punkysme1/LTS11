@@ -5,7 +5,7 @@
 .metadata-transfer label { display:flex; flex-direction:column; gap:8px; font-size:14px; }
 .metadata-transfer select { min-height:44px; padding:8px; border:1px solid #718675; border-radius:6px; background:white; max-width:100%; }
 .metadata-transfer-actions { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
-.metadata-transfer-actions button { display:inline-flex; align-items:center; gap:8px; min-height:44px; }
+.metadata-transfer-actions button { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:44px; min-height:44px; padding:0 18px; font-size:14px; line-height:1; box-sizing:border-box; }
 .metadata-transfer button:disabled { opacity:.5; cursor:not-allowed; }
 .metadata-target { padding:12px; background:#f1e8dc; border-radius:6px; overflow-wrap:anywhere; }
 .metadata-help { font-size:14px; color:#505d53; }

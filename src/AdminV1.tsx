@@ -2,7 +2,7 @@ import { normalizeMultipleTerms } from './services/metadataFields';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, Home, LoaderCircle, RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { supabase, supabaseConfigured } from './lib/supabase';
-import { archiveCatalogRecord, listAdminBundles, saveCatalogDraft, updateBundle, saveCantaloupePages, formatCatalogRpcError } from './services/turotsRepository';
+import { archiveCatalogRecord, listAdminBundles, listAdminBundlesByCodes, saveCatalogDraft, updateBundle, saveCantaloupePages, formatCatalogRpcError } from './services/turotsRepository';
 import './admin.css';
 import CategorySelect from './CategorySelect';
 import MetadataEditor from './MetadataEditor';
@@ -152,7 +152,7 @@ function diffMetadata(values: Record<string, unknown>, previous: AnyRecord) {
 export default function AdminV1({path=location.pathname,navigate=(to:string)=>{history.pushState({},'',to);dispatchEvent(new PopStateEvent('popstate'));}}:{path?:string;navigate?:(path:string)=>void}) {
   const [session, setSession] = useState<any>(null); const [isAdmin, setIsAdmin] = useState(false); const [adminCheckDone, setAdminCheckDone] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
   const [bundles, setBundles] = useState<Bundle[]>([]); const [adminLoaded,setAdminLoaded]=useState(false);
-  const [manuscriptSearch,setManuscriptSearch]=useState(''); const [manuscriptPage,setManuscriptPage]=useState(1);
+  const [manuscriptSearch,setManuscriptSearch]=useState(''); const [manuscriptAffiliation,setManuscriptAffiliation]=useState(''); const [manuscriptPage,setManuscriptPage]=useState(1); const [expandedBundles,setExpandedBundles]=useState<Record<string,boolean>>({});
   const [cantaloupeBase,setCantaloupeBase]=useState('https://cloud.naracode.id/iiif/3'); const [cantaloupeNames,setCantaloupeNames]=useState(''); const [cantaloupePages,setCantaloupePages]=useState<Array<Page & {folioLabel:string}>>([]); const [cantaloupeLoading,setCantaloupeLoading]=useState(false); const [cantaloupeFiles,setCantaloupeFiles]=useState<File[]>([]); const [pdfPageCount,setPdfPageCount]=useState(''); const [uploadingPhotos,setUploadingPhotos]=useState(false); const [uploadProgress,setUploadProgress]=useState('');
   const [cantaloupeIssues,setCantaloupeIssues]=useState<CantaloupeIssue[]>([]);
   const [retryOnlyIssues,setRetryOnlyIssues]=useState(false);
@@ -171,17 +171,28 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
   const [metadata, setMetadata] = useState<Record<string, string>>({}); const [bundleMetadata,setBundleMetadata]=useState<Record<string,string>>({}); const [message, setMessage] = useState(''); const [editing, setEditing] = useState<Bundle | null>(null); const [saving,setSaving]=useState(false); const [saveFeedback,setSaveFeedback]=useState('');
   const [aiJsonText, setAiJsonText] = useState('');
   const computedCode=displayId.trim();
+  const bundleAffiliation = (bundle: Bundle) => String(bundle.affiliation || bundle.turots_collections?.source_project || '').trim();
+  const affiliationOptions = [...new Set(bundles.map(bundleAffiliation).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const normalizedManuscriptSearch=manuscriptSearch.trim().toLocaleLowerCase();
   const matchesManuscriptText=(value:unknown)=>String(value||'').toLocaleLowerCase().includes(normalizedManuscriptSearch);
-  const matchingBundles=bundles.filter(bundle=>!normalizedManuscriptSearch||[
+  const matchingBundles=bundles.filter(bundle=>(!manuscriptAffiliation||bundleAffiliation(bundle)===manuscriptAffiliation)&&(!normalizedManuscriptSearch||[
     bundle.bundle_code,bundle.display_title,bundle.publication_status,bundle.turots_collections?.name,bundle.turots_collections?.source_project,
   ].some(matchesManuscriptText)||(bundle.turots_text_units||[]).some((unit:AnyRecord)=>[
     unit.display_id,unit.record_no,unit.title_original,unit.title_latin,unit.author,unit.scribe,unit.related_persons,unit.category_primary,
-  ].some(matchesManuscriptText)));
+  ].some(matchesManuscriptText))));
   const adminPageSize=20; const adminPageCount=Math.max(1,Math.ceil(matchingBundles.length/adminPageSize));
   const visibleAdminBundles=matchingBundles.slice((manuscriptPage-1)*adminPageSize,manuscriptPage*adminPageSize);
-  useEffect(()=>setManuscriptPage(1),[manuscriptSearch]);
-  const load = () => listAdminBundles().then(data=>{setBundles(data);setManuscriptPage(1);setAdminLoaded(true);}).catch((e) => {setMessage(e.message);setAdminLoaded(true);});
+  useEffect(()=>setManuscriptPage(1),[manuscriptSearch,manuscriptAffiliation]);
+  const toggleBundleExpand=(bundleId:string)=>setExpandedBundles(prev=>({...prev,[bundleId]:!prev[bundleId]}));
+  const load = (resetPage = true, includePages = path === '/admin/manuskrip/foto-massal') => listAdminBundles(includePages).then(data=>{setBundles(data);if(resetPage)setManuscriptPage(1);setAdminLoaded(true);}).catch((e) => {setMessage(e.message);setAdminLoaded(true);});
+  const ensureBundlePages = async (bundle: Bundle) => {
+    if (!bundle || (bundle as AnyRecord)._pagesLoaded) return bundle;
+    const loaded = await listAdminBundlesByCodes([bundle.bundle_code]);
+    const hydrated = loaded[0];
+    if (!hydrated) return bundle;
+    setBundles(prev => prev.map(b => b.id === hydrated.id ? hydrated : b));
+    return hydrated;
+  };
   useEffect(() => {
     if (!supabase) { setAdminCheckDone(true); return; }
     let active = true;
@@ -374,7 +385,8 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
       if(!title.trim())throw new Error('Lengkapi judul.');
       const selectedCategory=normalizeCategory(category);
       if(!selectedCategory)throw new Error('Pilih satu kategori dari 19 kategori katalog.');
-      const pageRows=bundle.turots_pages||[];
+      const hydratedBundle = await ensureBundlePages(bundle);
+      const pageRows=hydratedBundle.turots_pages||[];
       const effectiveRangeInput=photoPageRanges.trim();
       const ranges=resolvePhotoPageRanges(effectiveRangeInput,pageRows);
       if(ranges.length&&!pageRows.length)throw new Error('Bendel belum memiliki foto tersimpan; simpan foto dahulu sebelum mengisi rentang halaman.');
@@ -422,6 +434,13 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
     finally{setSaving(false);}
   };
   const publish = async (bundle: Bundle) => { if(saving||!supabase)return;setSaving(true);try{await updateBundle(bundle.id,{publication_status:'published',access_level:'public_preview'});invalidateDetailRequestCache();setMessage('Bendel berhasil diterbitkan sebagai pratinjau publik.');await load();}catch(e){setMessage(e instanceof Error?e.message:'Gagal menerbitkan bendel.');}finally{setSaving(false);} };
+  const removeUnitLocally = (bundleId: string, unitId: string) => {
+    setBundles(prev => prev.map(b => b.id !== bundleId ? b : {
+      ...b,
+      turots_text_units: (b.turots_text_units || []).filter((u: AnyRecord) => u.id !== unitId),
+      turots_pages: (b.turots_pages || []).map((p: AnyRecord) => p.text_unit_id === unitId ? { ...p, text_unit_id: null } : p),
+    }));
+  };
   const archiveUnit = async (bundle: Bundle, unit: AnyRecord) => {
     if (saving || !supabase) return setMessage('Supabase belum dikonfigurasi atau masih ada proses berjalan.');
     const label = unit.title_original || bundle.display_title || unit.display_id || 'manuskrip ini';
@@ -430,8 +449,9 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
     try {
       await archiveCatalogRecord('title', unit.id);
       invalidateDetailRequestCache();
+      removeUnitLocally(bundle.id, unit.id);
       setMessage(`Judul ${unit.display_id || ''} berhasil diarsipkan.`);
-      await load();
+      void load(false);
     } catch (e) { setMessage(e instanceof Error ? `Gagal mengarsipkan judul: ${e.message}` : 'Gagal mengarsipkan judul.'); }
     finally { setSaving(false); }
   };
@@ -445,8 +465,9 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
       if(error)throw error;
       if(!data)throw new Error('Judul tidak ditemukan atau tidak dapat dihapus.');
       invalidateDetailRequestCache();
+      removeUnitLocally(bundle.id, unit.id);
       setMessage(`Judul ${unit.display_id||''} berhasil dihapus.`);
-      await load();
+      void load(false);
     }catch(e){setMessage(e instanceof Error?`Gagal menghapus judul: ${e.message}`:'Gagal menghapus judul.');}
     finally{setSaving(false);}
   };
@@ -471,7 +492,8 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
         ...metadataToDb({ ...metadata, pageRangesLabel: effectiveRangeInput }),
       };
       const titleDiff = diffMetadata(titleValues, unit);
-      const pages = editing.turots_pages || [];
+      const hydratedEditing = await ensureBundlePages(editing);
+      const pages = hydratedEditing.turots_pages || [];
       const existingPageRanges = formatPhotoPageRanges(pages.filter((page: AnyRecord) => page.text_unit_id === unit.id).map((page: AnyRecord) => page.page_order));
       const rangeChanged = effectiveRangeInput !== (unit.page_ranges_label || existingPageRanges);
       let folios: Record<string, unknown> | null = null;
@@ -584,6 +606,9 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
   const editingBundleId=bundleEditRoute?decodeURIComponent(bundleEditRoute[1]):'';
   const targetBundleId=editingBundleId||(bundleTitleNewRoute?decodeURIComponent(bundleTitleNewRoute[1]):'');
   const editingBundle=bundles.find(bundle=>bundle.id===targetBundleId)||null;
+  useEffect(()=>{if(path==='/admin/manuskrip/foto-massal'&&adminLoaded&&bundles.some(b=>!(b as AnyRecord)._pagesLoaded))void load(false,true);},[path,adminLoaded]);
+  useEffect(()=>{if(editingBundle&&!(editingBundle as AnyRecord)._pagesLoaded)void ensureBundlePages(editingBundle);},[editingBundle?.id]);
+  useEffect(()=>{if(editing&&!(editing as AnyRecord)._pagesLoaded)void ensureBundlePages(editing);},[editing?.id]);
   useEffect(()=>{if(!bundleTitleNewRoute)return;setTitle('');setDisplayId('');setCategory('');setPhotoPageRanges('');setMetadata({});setMessage('');},[path]);
   useEffect(()=>{if(!editingBundle)return;if(editing?.id!==editingBundle.id||editingUnit!==null)startBundleEdit(editingBundle);},[editingBundle?.id,bundles,editing?.id,editingUnit]);
   useEffect(()=>{if(!editRoute||!adminLoaded)return;const unitId=decodeURIComponent(editRoute[1]);const bundle=bundles.find(item=>item.turots_text_units?.some((unit:AnyRecord)=>unit.id===unitId));const unit=bundle?.turots_text_units?.find((item:AnyRecord)=>item.id===unitId);if(bundle&&unit&&editingUnit?.id!==unitId)startEdit(bundle,unit);else if(!unit)setMessage(`Manuskrip dengan ID ${unitId} tidak ditemukan.`);},[path,bundles,adminLoaded]);
@@ -637,7 +662,7 @@ export default function AdminV1({path=location.pathname,navigate=(to:string)=>{h
   if(path==='/admin/pengumuman')return workspace(<AdminEditorialManager key="announcement" type="announcement" userId={session.user.id}/>);
   if(path==='/admin/buku-tamu')return workspace(<AdminGuestbookManager/>);
   if(path==='/admin/manuskrip/foto-massal')return workspace(<AdminBulkPhotoUpload key={path} bundles={bundles} bundlesLoaded={adminLoaded} session={session} onSaved={load} navigate={navigate}/>);
-  if(path==='/admin/manuskrip')return workspace(<section className="page-section admin-page"><p className="eyebrow">Katalog manuskrip</p><div className="admin-heading"><div><h1>Manuskrip</h1><p>Kelola judul dalam bendel. Metadata sumber bendel bersifat baca saja.</p></div><div className="admin-header-actions"><button className="secondary-action" onClick={()=>navigate('/admin/manuskrip/foto-massal')}>Unggah foto massal</button><button className="primary-action" onClick={()=>navigate('/admin/manuskrip/baru')}>Tambah manuskrip</button></div></div>{!supabaseConfigured&&<div className="status-badge">Supabase belum dikonfigurasi.</div>}<p role="status">{message}</p><MetadataTransfer onSaved={load}/><div className="admin-list"><h2>Daftar manuskrip</h2><div className="admin-list-tools"><label className="admin-list-search">Cari manuskrip<input type="search" value={manuscriptSearch} onChange={event=>setManuscriptSearch(event.target.value)} placeholder="ID, judul, bendel, pengarang, koleksi…"/></label><p aria-live="polite">{matchingBundles.length} bendel ditemukan · halaman {Math.min(manuscriptPage,adminPageCount)} dari {adminPageCount}</p></div><div className="admin-list-head" aria-hidden="true"><span>ID</span><span>Judul</span><span>Aksi</span></div>{visibleAdminBundles.flatMap(bundle=><div className="admin-bundle-group" key={`bundle-${bundle.id}`}><article className="admin-list-item admin-bundle-list-item"><code className="admin-list-id">{bundle.bundle_code}</code><strong className="admin-list-title">Bendel · {bundle.display_title||bundle.bundle_code}</strong><div className="admin-unit-actions"><button onClick={()=>navigate(`/admin/manuskrip/bendel/${encodeURIComponent(bundle.id)}/edit`)}>Lihat metadata bendel</button>{bundle.publication_status!=='published'&&bundle.publication_status!=='archived'&&<button disabled={saving} onClick={()=>void publish(bundle)}>Publish bendel</button>}</div></article>{(bundle.turots_text_units||[]).filter((unit:AnyRecord)=>!unit.archived_at&&(!normalizedManuscriptSearch||[bundle.bundle_code,bundle.display_title,bundle.turots_collections?.name].some(matchesManuscriptText)||[unit.display_id,unit.record_no,unit.title_original,unit.title_latin,unit.author,unit.scribe,unit.related_persons,unit.category_primary].some(matchesManuscriptText))).map((unit:AnyRecord)=><article className="admin-list-item" key={unit.id}><code className="admin-list-id">{unit.display_id||'—'}</code><strong className="admin-list-title" dir="auto">{unit.title_original||'Tanpa judul'}</strong><div className="admin-unit-actions"><button onClick={()=>navigate(`/admin/manuskrip/${encodeURIComponent(unit.id)}/edit`)}>Edit judul</button><button className="secondary-action" disabled={saving} onClick={()=>void archiveUnit(bundle,unit)}>Arsipkan</button><button className="admin-delete" disabled={saving} onClick={()=>void removeUnit(bundle,unit)}>Hapus judul</button></div></article>)}</div>)}</div>{adminPageCount>1&&<nav className="pagination admin-pagination" aria-label="Halaman manuskrip">{Array.from({length:adminPageCount},(_,index)=><button key={index} aria-current={manuscriptPage===index+1?"page":undefined} onClick={()=>{setManuscriptPage(index+1);document.querySelector(".admin-list")?.scrollIntoView({behavior:"smooth",block:"start"});}}>{index+1}</button>)}</nav>}</section>);
+  if(path==='/admin/manuskrip')return workspace(<section className="page-section admin-page"><p className="eyebrow">Katalog manuskrip</p><div className="admin-heading"><div><h1>Manuskrip</h1><p>Kelola judul dalam bendel. Metadata sumber bendel bersifat baca saja.</p></div><div className="admin-header-actions"><button className="secondary-action" onClick={()=>navigate('/admin/manuskrip/foto-massal')}>Unggah foto massal</button><button className="primary-action" onClick={()=>navigate('/admin/manuskrip/baru')}>Tambah manuskrip</button></div></div>{!supabaseConfigured&&<div className="status-badge">Supabase belum dikonfigurasi.</div>}<p role="status">{message}</p><MetadataTransfer onSaved={load}/><div className="admin-list"><h2>Daftar manuskrip</h2><div className="admin-list-tools"><label className="admin-list-search">Cari manuskrip<input type="search" value={manuscriptSearch} onChange={event=>setManuscriptSearch(event.target.value)} placeholder="ID, judul, bendel, pengarang, koleksi…"/></label><label className="admin-list-filter">Afiliasi<select value={manuscriptAffiliation} onChange={event=>setManuscriptAffiliation(event.target.value)}><option value="">Semua afiliasi</option>{affiliationOptions.map(option=><option key={option} value={option}>{option}</option>)}</select></label><p aria-live="polite">{matchingBundles.length} bendel ditemukan · halaman {Math.min(manuscriptPage,adminPageCount)} dari {adminPageCount}</p></div><div className="admin-list-head" aria-hidden="true"><span>ID</span><span>Judul</span><span>Aksi</span></div>{visibleAdminBundles.flatMap(bundle=>{const activeUnits=(bundle.turots_text_units||[]).filter((unit:AnyRecord)=>!unit.archived_at);const matchingUnits=activeUnits.filter((unit:AnyRecord)=>!normalizedManuscriptSearch||[bundle.bundle_code,bundle.display_title,bundle.turots_collections?.name].some(matchesManuscriptText)||[unit.display_id,unit.record_no,unit.title_original,unit.title_latin,unit.author,unit.scribe,unit.related_persons,unit.category_primary].some(matchesManuscriptText));const isExpanded=Boolean(normalizedManuscriptSearch||expandedBundles[bundle.id]);return <div className="admin-bundle-group" key={`bundle-${bundle.id}`}><article className="admin-list-item admin-bundle-list-item"><code className="admin-list-id">{bundle.bundle_code}</code><div className="admin-list-title"><button type="button" className="admin-bundle-toggle" aria-expanded={isExpanded} onClick={()=>toggleBundleExpand(bundle.id)}><span className="admin-bundle-count">({activeUnits.length} judul)</span><span>Bendel · {bundle.display_title||bundle.bundle_code}</span><span aria-hidden="true">{isExpanded?'▾':'▸'}</span></button></div><div className="admin-unit-actions"><button onClick={()=>navigate(`/admin/manuskrip/bendel/${encodeURIComponent(bundle.id)}/edit`)}>Lihat metadata bendel</button>{bundle.publication_status!=='published'&&bundle.publication_status!=='archived'&&<button disabled={saving} onClick={()=>void publish(bundle)}>Publish bendel</button>}</div></article>{isExpanded&&matchingUnits.map((unit:AnyRecord)=><article className="admin-list-item admin-unit-child" key={unit.id}><code className="admin-list-id">{unit.display_id||'—'}</code><strong className="admin-list-title" dir="auto">{unit.title_original||'Tanpa judul'}</strong><div className="admin-unit-actions"><button onClick={()=>navigate(`/admin/manuskrip/${encodeURIComponent(unit.id)}/edit`)}>Edit judul</button><button className="secondary-action" disabled={saving} onClick={()=>void archiveUnit(bundle,unit)}>Arsipkan</button><button className="admin-delete" disabled={saving} onClick={()=>void removeUnit(bundle,unit)}>Hapus judul</button></div></article>)}</div>;})}</div>{adminPageCount>1&&<nav className="pagination admin-pagination" aria-label="Halaman manuskrip">{Array.from({length:adminPageCount},(_,index)=><button key={index} aria-current={manuscriptPage===index+1?"page":undefined} onClick={()=>{setManuscriptPage(index+1);document.querySelector(".admin-list")?.scrollIntoView({behavior:"smooth",block:"start"});}}>{index+1}</button>)}</nav>}</section>);
   if(path==='/admin/manuskrip/baru')return workspace(<section className="page-section admin-page"><p className="eyebrow">Manuskrip · Entri baru</p><h1>Tambah manuskrip</h1><p className="admin-context">Pilih bendel tempat judul berada, lalu isi metadata dan rentang folionya.</p><div className="admin-form"><label>Bendel induk<select defaultValue="" onChange={event=>{if(event.target.value)navigate(`/admin/manuskrip/bendel/${encodeURIComponent(event.target.value)}/judul/baru`);}}><option value="">Pilih bendel</option>{bundles.map(bundle=><option key={bundle.id} value={bundle.id}>{bundle.bundle_code}</option>)}</select></label></div><p role="status">{message}</p></section>);
   if(path==='/admin/manuskrip/bendel/baru')return workspace(<p>Bendel sumber dikunci. Pilih bendel yang sudah ada untuk menambah judul.</p>);
   if(editRoute)return workspace(<section className="page-section admin-page"><p className="eyebrow">Manuskrip · Editor metadata</p>{routeUnit?<><h1>Edit metadata manuskrip</h1><div className="admin-edit-context"><strong>{routeTitle}</strong><span>ID manuskrip: {routeUnit.display_id||'—'}</span><span>Koleksi: {editing?.turots_collections?.name||'—'} · Status: {editing?.publication_status||'—'}</span></div>{editorForm}</>:adminLoaded?<div role="alert" className="empty"><h1>Manuskrip tidak ditemukan</h1><p>{message||`Tidak ada unit dengan ID ${routeUnitId}.`}</p></div>:<div role="status" className="empty"><h1>Memuat manuskrip…</h1><p>Editor terkunci ke ID <code>{routeUnitId}</code>.</p></div>}<p role="status">{message}</p></section>);

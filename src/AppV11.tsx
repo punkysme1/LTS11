@@ -4,6 +4,7 @@ import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Eye, Home, Info, Mail, Menu, Megaphone, Newspaper, User, X, HandHeart } from 'lucide-react';
 import { countPublishedPages, listMonthlyPopularViews, listPublicCatalogFilterOptions, listPublishedCatalog, searchPublishedCatalog } from './services/turotsRepository';
 import { listPublishedContent, type EditorialEntry } from './services/editorialContent';
+import { countryFlagUrl, getVisitorStats, recordSiteVisitor, type VisitorStats } from './services/visitorStats';
 import { supabaseConfigured } from './lib/supabase';
 import { CATALOG_CATEGORIES } from './catalogTaxonomy';
 import { slugify } from './catalogSlugs';
@@ -27,6 +28,8 @@ export default function AppV11() {
   const [items, setItems] = useState<any[]>([]);
   const [catalogTotal, setCatalogTotal] = useState(0);
   const [homeStats, setHomeStats] = useState<{ titles: number | null; bundles: number | null; pages: number | null; categories: number | null }>({ titles: null, bundles: null, pages: null, categories: null });
+  const [affiliationSummary, setAffiliationSummary] = useState('');
+  const [visitorStats, setVisitorStats] = useState<VisitorStats>({ total_visitors: 0, countries: [] });
   const [homeCategories, setHomeCategories] = useState<Array<{ name: string; count: number }>>([]);
   const [homeArticles, setHomeArticles] = useState<EditorialEntry[]>([]);
   const [homeManuscriptCovers, setHomeManuscriptCovers] = useState<Record<string, string>>({});
@@ -157,9 +160,17 @@ export default function AppV11() {
     return () => { active = false; };
   }, [currentPath]);
   useEffect(() => {
-    if (currentPath !== '/') return;
     let active = true;
-    void Promise.all([listPublishedCatalog(), countPublishedPages()]).then(([bundles, exactPages]: [any[], number | null]) => {
+    void recordSiteVisitor()
+      .then(() => getVisitorStats())
+      .then(stats => { if (active) setVisitorStats(stats); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (currentPath !== '/' && currentPath !== '/profil') return;
+    let active = true;
+    void Promise.all([listPublishedCatalog(), countPublishedPages(), getVisitorStats()]).then(([bundles, exactPages, vStats]: [any[], number | null, VisitorStats]) => {
       if (!active) return;
       const published = bundles.filter(bundle => ['public_preview', 'public_full'].includes(bundle.access_level));
       const units = published.flatMap(bundle => bundle.turots_text_units || []);
@@ -170,6 +181,17 @@ export default function AppV11() {
         pages: exactPages ?? fallbackPages,
         categories: new Set(units.map(unit => unit.category_primary).filter(Boolean)).size,
       });
+      setVisitorStats(vStats);
+      const affCounts = new Map<string, number>();
+      for (const bundle of published) {
+        const aff = String(bundle.affiliation || bundle.turots_collections?.source_project || '').trim() || 'Lainnya';
+        affCounts.set(aff, (affCounts.get(aff) || 0) + 1);
+      }
+      const affParts = [...affCounts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'id'))
+        .map(([name, count]) => `${count.toLocaleString('id-ID')} bendel ${name}`);
+      setAffiliationSummary(affParts.length > 1 ? `${affParts.slice(0, -1).join(', ')}, dan ${affParts[affParts.length - 1]}` : affParts[0] || '');
+      if (currentPath !== '/') return;
       const categoryCounts = new Map<string, number>();
       for (const unit of units) {
         const category = String(unit.category_primary || '').trim();
@@ -322,6 +344,7 @@ export default function AppV11() {
     <section className="archive-hero archive-hero-exhibition"><div className="archive-hero-copy"><p className="eyebrow">Merawat warisan intelektual</p><h1><span>Jejak ilmu.</span><em>Terbuka untuk Anda.</em></h1><p>Jelajahi manuskrip dan khazanah pesantren. Temukan pengetahuan yang terus hidup dari halaman ke halaman.</p><button className="primary-action" onClick={() => navigate('/katalog')}>Jelajahi katalog <BookOpen size={18}/></button></div><figure className={`archive-hero-manuscript${loupeVisible ? ' is-loupe-active' : ''}`} onPointerMove={updateHeroLoupe} onPointerLeave={() => setLoupeVisible(false)}><img className="hero-manuscript-image" src="https://cloud.naracode.id/iiif/3/editorial-179fef8a-bd7e-4ec9-9f8e-316dc2607c14.jpg/full/max/0/default.jpg" alt="Lembar manuskrip dari koleksi digital Sampurnan" fetchPriority="high"/><span className="hero-manuscript-loupe" aria-hidden="true"/><figcaption><span aria-hidden="true">✦</span> Khazanah manuskrip Sampurnan</figcaption></figure></section>
     <section className="home-section home-profile"><div className="home-profile-content"><p className="eyebrow">Yayasan Pondok Pesantren Qomaruddin</p><h2>Merawat naskah, menghidupkan kembali jejak ilmu.</h2><p>Khazanah manuskrip pesantren menyimpan salinan kitab, catatan ulama, dan tradisi keilmuan yang terus dipelajari lintas generasi.</p><button className="home-profile-cta" onClick={() => navigate('/profil')}><span>Jelajahi kisah koleksi</span><ArrowRight size={19}/></button></div></section>
     <section className="home-section home-statistics"><div className="section-heading"><div><p className="eyebrow">Koleksi dalam angka</p></div></div><div className="archive-stats archive-stats-four" aria-live="polite"><span><b>{homeStats.titles ?? '—'}</b>Judul</span><span><b>{homeStats.bundles ?? '—'}</b>Bendel</span><span><b>{homeStats.pages ?? '—'}</b>Lembar foto</span><span><b>{homeStats.categories ?? '—'}</b>Kategori</span></div></section>
+    <section className="home-section home-visitor-section" aria-label="Statistik pengunjung berdasarkan negara"><div className="home-visitor-header"><div><p className="eyebrow">Pengunjung berdasarkan negara</p></div><div className="home-visitor-total"><span>Total pengunjung</span><strong>{visitorStats.total_visitors.toLocaleString('id-ID')}</strong></div></div>{visitorStats.countries.length > 0 ? <div className="visitor-country-grid">{visitorStats.countries.slice(0, 4).map(country => { const flag = countryFlagUrl(country.country_code); return <div className="visitor-country-card" key={country.country_code}><span className="visitor-flag-wrap">{flag ? <img className="visitor-flag" src={flag} alt={`Bendera ${country.country_name}`} width={28} height={20} loading="lazy" onError={event => { event.currentTarget.style.display = 'none'; }}/> : null}<span className="visitor-code">{country.country_code}</span></span><span className="visitor-country-name">{country.country_name}</span><strong className="visitor-country-count">{country.visitors.toLocaleString('id-ID')}</strong></div>; })}</div> : <p className="home-visitor-empty">Statistik pengunjung per negara sedang dikumpulkan.</p>}</section>
     <section className="home-popular"><div className="section-heading"><div><p className="eyebrow">{hasMonthlyPopularity ? 'Sering dibaca' : 'Mulai menjelajah'}</p><h2>{hasMonthlyPopularity ? 'Paling banyak dibaca bulan ini' : 'Kenali khazanah manuskrip.'}</h2><p>{hasMonthlyPopularity ? 'Pilihan pengunjung berdasarkan jumlah kunjungan unik.' : 'Belum ada kunjungan unik tercatat bulan ini. Berikut beberapa judul untuk memulai penelusuran.'}</p></div><div className="home-carousel-controls"><button className="secondary-action" aria-label="Manuskrip sebelumnya" onClick={() => scrollPopular(-1)}><ChevronLeft size={19}/></button><button className="secondary-action" aria-label="Manuskrip berikutnya" onClick={() => scrollPopular(1)}><ChevronRight size={19}/></button></div></div>{popular.length ? <div className="home-popular-track" ref={popularTrack} role="region" aria-label={hasMonthlyPopularity ? 'Sepuluh manuskrip paling banyak dibaca' : 'Pilihan manuskrip untuk dijelajahi'} tabIndex={0}>{popular.slice(0, 10).map((item: any, index: number) => {
       const target = `/katalog/${encodeURIComponent(item.slug)}?unit=${encodeURIComponent(item.text_unit_id)}&bundle=${encodeURIComponent(item.bundle_id)}`;
       const image = homeManuscriptCovers[item.text_unit_id];
@@ -360,7 +383,7 @@ export default function AppV11() {
   }
   else if (currentPath === '/artikel' || currentPath === '/informasi' || currentPath === '/pengumuman') pageContent = <PublicContentPage type={currentPath === '/artikel' ? 'article' : currentPath === '/informasi' ? 'information' : 'announcement'} navigate={navigate}/>;
   else if (currentPath === '/buku-tamu') pageContent = <GuestbookPage/>;
-  else if (currentPath === '/profil') pageContent = <StaticLandingPage page="profile"/>;
+  else if (currentPath === '/profil') pageContent = <StaticLandingPage page="profile" stats={{ ...homeStats, totalVisitors: visitorStats.total_visitors, affiliationSummary }}/>;
   else if (currentPath === '/donasi') pageContent = <StaticLandingPage page="donation"/>;
   else if (currentPath === '/kontak') pageContent = <StaticLandingPage page="contact"/>;
   else pageContent = <main className="archive-content"><div className="empty"><h1>Halaman tidak ditemukan</h1><button className="primary-action" onClick={() => navigate('/')}>Kembali ke beranda</button></div></main>;
@@ -377,7 +400,7 @@ export default function AppV11() {
     {!isAdmin && <nav className="mobile-nav" aria-label="Navigasi ponsel">{primaryLinks.map(renderLink)}<button ref={menuTrigger} aria-expanded={menuOpen} aria-controls="mobile-more-menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20}/> : <Menu size={20}/>}<span>{menuOpen ? 'Tutup' : 'Menu'}</span></button></nav>}
     {menuOpen && !isAdmin && <div id="mobile-more-menu" className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)}><nav ref={menuDialog} className="mobile-more-menu" role="dialog" aria-modal="true" aria-label="Halaman lainnya" onClick={(event) => event.stopPropagation()}><div className="mobile-menu-heading"><strong>Jelajahi Sampurnan</strong><button aria-label="Tutup menu" onClick={() => setMenuOpen(false)}><X size={20}/></button></div>{moreLinks.map(renderLink)}<a href="/admin" onClick={(event) => handleInternalLink(event, '/admin')}><User size={19}/><span>Admin</span></a></nav></div>}
     <div className="archive-body" id="main-content" tabIndex={-1}>{notice && <p role="alert">{notice}</p>}{pageContent}
-      {!isAdmin && <footer className="archive-footer"><div className="archive-footer-brand"><strong>Sampurnan</strong><span>Merawat naskah, merawat pengetahuan.</span></div><nav aria-label="Tautan footer">{[...primaryLinks, ...moreLinks].filter(([path]) => path !== '/').map(([path, label]) => <a key={path} href={path} onClick={(event) => handleInternalLink(event, path)}>{label}</a>)}</nav><div className="archive-footer-details"><a href="mailto:tppkp.qomaruddin@gmail.com">email: tppkp.qomaruddin@gmail.com</a><span><a href="tel:+6285314603330">Phone: +62 85314603330</a><span aria-hidden="true"> - </span><a href="tel:+628995023222">+62 8995023222</a></span><p>Di bawah naungan Pondok Pesantren Qomaruddin dan YPP Qomaruddin.</p><small>© 2026 Qomaruddin. Design By PT Naracode Digital Inovasi.</small></div></footer>}
+      {!isAdmin && <footer className="archive-footer"><div className="archive-footer-brand"><strong>Sampurnan</strong><span>Merawat naskah, merawat pengetahuan.</span></div><nav aria-label="Tautan footer">{[...primaryLinks, ...moreLinks].filter(([path]) => path !== '/').map(([path, label]) => <a key={path} href={path} onClick={(event) => handleInternalLink(event, path)}>{label}</a>)}</nav><div className="archive-footer-details"><a href="mailto:tppkp.qomaruddin@gmail.com">email: tppkp.qomaruddin@gmail.com</a><span><a href="tel:+6285314603330">Phone: +62 85314603330</a><span aria-hidden="true"> - </span><a href="tel:+628995023222">+62 8995023222</a></span><p>Di bawah naungan Pondok Pesantren Qomaruddin dan YPP Qomaruddin.</p><small>© 2026 Qomaruddin. Design By PT Naracode Digital Inovasi. · Turots V.2.1.1</small></div></footer>}
     </div>
   </div>;
 }

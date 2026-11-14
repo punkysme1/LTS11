@@ -258,7 +258,7 @@ export async function listMonthlyPopularViews() {
   return data || [];
 }
 
-export async function listAdminBundles() {
+export async function listAdminBundles(includePages = true) {
   if (!supabase) return [];
   const bundles: any[] = [];
   for (let offset = 0; ; offset += 500) {
@@ -273,14 +273,54 @@ export async function listAdminBundles() {
   for (const bundle of bundles) {
     bundle.turots_text_units = [];
     bundle.turots_pages = [];
+    bundle._pagesLoaded = includePages;
   }
   const byId = new Map(bundles.map(bundle => [bundle.id, bundle]));
   for (let offset = 0; offset < ids.length; offset += 100) {
     const chunk = ids.slice(offset, offset + 100);
+    const unitsPromise = fetchAllRows<any>((from, to) => supabase.from('turots_text_units').select('*').in('bundle_id', chunk)
+      .order('bundle_id').order('sequence_no').order('id').range(from, to));
+    const pagesPromise = includePages
+      ? fetchAllRows<any>((from, to) => supabase.from('turots_pages').select('*').in('bundle_id', chunk)
+          .order('bundle_id').order('page_order').order('id').range(from, to))
+      : Promise.resolve([] as any[]);
+    const [units, pages] = await Promise.all([unitsPromise, pagesPromise]);
+    for (const unit of units) byId.get(unit.bundle_id)?.turots_text_units.push(unit);
+    for (const page of pages) byId.get(page.bundle_id)?.turots_pages.push(page);
+  }
+  return bundles;
+}
+
+export async function listAdminBundlesByCodes(bundleCodes: string[]) {
+  if (!supabase) return [];
+  const codes = [...new Set(bundleCodes.map(c => c.trim()).filter(Boolean))];
+  if (!codes.length) return [];
+  const bundles: any[] = [];
+  for (let offset = 0; offset < codes.length; offset += 50) {
+    const chunk = codes.slice(offset, offset + 50);
+    const { data, error } = await supabase
+      .from('turots_bundles')
+      .select('*, turots_collections(*)')
+      .in('bundle_code', chunk)
+      .order('updated_at', { ascending: false })
+      .order('id', { ascending: true });
+    if (error) throw error;
+    bundles.push(...(data || []));
+  }
+  const ids = bundles.map(bundle => bundle.id);
+  for (const bundle of bundles) {
+    bundle.turots_text_units = [];
+    bundle.turots_pages = [];
+    bundle._pagesLoaded = true;
+  }
+  if (!ids.length) return bundles;
+  const byId = new Map(bundles.map(bundle => [bundle.id, bundle]));
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const chunk = ids.slice(offset, offset + 50);
     const [units, pages] = await Promise.all([
       fetchAllRows<any>((from, to) => supabase.from('turots_text_units').select('*').in('bundle_id', chunk)
         .order('bundle_id').order('sequence_no').order('id').range(from, to)),
-      fetchAllRows<any>((from, to) => supabase.from('turots_pages').select('*').in('bundle_id', chunk)
+      fetchAllRows<any>((from, to) => supabase.from('turots_pages').select('id,bundle_id,text_unit_id,page_order,folio_label,label').in('bundle_id', chunk)
         .order('bundle_id').order('page_order').order('id').range(from, to)),
     ]);
     for (const unit of units) byId.get(unit.bundle_id)?.turots_text_units.push(unit);

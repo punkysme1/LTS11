@@ -4,7 +4,7 @@ import { downloadMetadataXlsx, readMetadataXlsx } from './services/metadataXlsx'
 import { parseAiTitleJsonBatch } from './services/aiMetadataJson';
 import { planMetadataImport, type ImportPlan, type CatalogRow } from './services/metadataImport';
 import { applyMetadataImport, ImportOutcomeUnknownError } from './services/metadataPersistence';
-import { listAdminBundles } from './services/turotsRepository';
+import { listAdminBundles, listAdminBundlesByCodes } from './services/turotsRepository';
 import './metadata-transfer.css';
 
 export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }) {
@@ -36,7 +36,8 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
     setBusy(true); setFailure(''); setImportResult(null); setMessage('Membaca Excel dan memeriksa data server…'); setPlan(null); setConfirmed(false); setFilename(file.name); setVisibleActionCount(50);
     try {
       const workbook = await readMetadataXlsx(file);
-      const current = await listAdminBundles();
+      const targetCodes = [...new Set([...workbook.bundles, ...workbook.titles].map(row => row.bundle_bundle_code?.trim()).filter(Boolean))];
+      const current = targetCodes.length ? await listAdminBundlesByCodes(targetCodes) : await listAdminBundles();
       const next = planMetadataImport(workbook.bundles, workbook.titles, current, workbook.photos);
       next.warnings.push(...workbook.warnings);
       setPlan(next); setVisibleActionCount(50); setMessage(next.actions.some(action=>action.kind!=='skip') ? 'Pratinjau siap. Belum ada perubahan yang disimpan.' : 'Tidak ada perubahan metadata judul yang dapat disimpan. Isian nomor otomatis dan metadata referensi Bendel tidak diterapkan; periksa catatan impor di bawah.');
@@ -47,7 +48,8 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
     setBusy(true); setFailure(''); setImportResult(null); setMessage('Memeriksa JSON AI dan mencocokkan data server…'); setPlan(null); setConfirmed(false); setFilename('JSON AI Notebook'); setVisibleActionCount(50);
     try {
       const { titles, warnings } = parseAiTitleJsonBatch(jsonInput, defaultBundleCode);
-      const current = await listAdminBundles();
+      const targetCodes = [...new Set(titles.map(t => t.bundle_bundle_code).filter(Boolean))];
+      const current = targetCodes.length ? await listAdminBundlesByCodes(targetCodes) : await listAdminBundles();
       const next = planMetadataImport([], titles, current);
       next.warnings.push(...warnings);
       setPlan(next); setVisibleActionCount(50);
@@ -61,7 +63,7 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
     setBusy(true); setFailure(''); setImportResult(null);
     setMessage('Mengambil snapshot terbaru dari database…');
     try {
-      const latestBundles = await listAdminBundles();
+      const latestBundles = await listAdminBundles(false);
       const titleCount = latestBundles.reduce((total, bundle) => total + (bundle.turots_text_units?.filter((unit:any)=>!unit.archived_at).length || 0), 0);
       downloadMetadataXlsx(latestBundles, false);
       setMessage(`Ekspor selesai dari database saat ini: ${latestBundles.length} bendel, ${titleCount} judul aktif. Foto tidak disertakan.`);
