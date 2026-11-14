@@ -341,6 +341,10 @@
 .metadata-detail-row span { color: var(--archive-muted); font-size: 14px; }
 .metadata-detail-row strong { color: var(--archive-ink); font-size: 15px; font-weight: 600; overflow-wrap: anywhere; white-space: pre-wrap; }
 .metadata-detail-row a { color: var(--archive-forest); text-decoration: underline; text-underline-offset: 3px; }
+.metadata-structured-list { margin: 2px 0 0; padding-left: 18px; display: grid; gap: 6px; color: var(--archive-ink); font-size: 15px; font-weight: 500; line-height: 1.5; }
+.metadata-structured-list li { overflow-wrap: anywhere; }
+.metadata-structured-list .metadata-structured-text { color: var(--archive-ink); font-size: 15px; }
+.metadata-person-role { font-style: normal; color: var(--archive-muted); font-size: 13px; }
 .detail-sidebar { position: sticky; top: 20px; display: grid; gap: 14px; }
 .detail-sidebar section { border: 1px solid var(--archive-line); border-radius: 12px; background: var(--archive-card); padding: 18px; }
 .detail-sidebar h2 { margin: 0 0 10px; font-size: 24px; }

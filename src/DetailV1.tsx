@@ -5,7 +5,7 @@ import { resolvePhotoPageRanges } from './services/pageRanges';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { supabase } from './lib/supabase';
-import { unpackNotesAndProvenance } from './metadataModel';
+import { readItems, safeLink, unpackNotesAndProvenance } from './metadataModel';
 import { buildCatalogSlugMap } from './catalogSlugs';
 import { getPublishedBundleByCode, getPublishedTitleById } from './services/turotsRepository';
 import './detail.css';
@@ -102,6 +102,46 @@ function displayMetadataValue(key: string, value: unknown) {
   if (key === 'metadata_status' && value === 'imported') return 'Diimpor';
   if (key === 'notes') return unpackNotesAndProvenance(String(value)).notes;
   return String(value);
+}
+
+function renderMetadataContent(key: string, value: string) {
+  if (key === 'glossary') {
+    const items = readItems(value, 'term');
+    if (items.length) {
+      return <ul className="metadata-structured-list">{items.map((item, idx) => (
+        <li key={idx}><b dir="auto">{item.term || item.text || ''}</b>{item.definition ? <> — {item.definition}</> : null}</li>
+      ))}</ul>;
+    }
+  }
+  if (key === 'references_text') {
+    const items = readItems(value, 'citation');
+    if (items.length) {
+      return <ul className="metadata-structured-list">{items.map((item, idx) => {
+        const href = safeLink(item.url);
+        const label = item.citation || item.text || href || '';
+        return <li key={idx}><span className="metadata-structured-text">{label}</span>{href ? <> (<a href={href} target="_blank" rel="noopener noreferrer">Tautan</a>)</> : null}</li>;
+      })}</ul>;
+    }
+  }
+  if (key === 'related_persons') {
+    const items = readItems(value, 'name');
+    if (items.length) {
+      return <ul className="metadata-structured-list">{items.map((item, idx) => (
+        <li key={idx}><b dir="auto">{item.name || ''}</b>{item.role ? <em className="metadata-person-role"> ({item.role})</em> : null}{item.text ? <> — {item.text}</> : null}</li>
+      ))}</ul>;
+    }
+  }
+  if (key === 'related_manuscripts') {
+    const items = readItems(value, 'text');
+    if (items.length) {
+      return <ul className="metadata-structured-list">{items.map((item, idx) => {
+        const href = safeLink(item.url);
+        const label = item.text || href || '';
+        return <li key={idx}>{href ? <a href={href} target="_blank" rel="noopener noreferrer">{label}</a> : <span className="metadata-structured-text">{label}</span>}</li>;
+      })}</ul>;
+    }
+  }
+  return <strong>{value}</strong>;
 }
 
 export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMode = false, navigate }: { keyValue: string; bundleMode?: boolean; bundleReaderMode?: boolean; navigate?: (path: string) => void; key?: string }) {
@@ -356,7 +396,7 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
           {!bundleReaderMode && renderBundleTitles()}
         </section> : <>
         {reader}
-        <section className="metadata-detail"><h2>Metadata judul</h2>{metadataGroups.map(([group, fields]) => { const values = fields.map(([label,key]) => ({label,key,value:displayMetadataValue(key,unit[key])})).filter(field => field.value); return values.length ? <details className="metadata-group" key={group} open={group === 'Identitas judul'}><summary>{group}</summary><div className="metadata-table">{values.map(({label,key,value}) => <div className="metadata-detail-row" key={key}><span>{label}</span><strong>{value}</strong></div>)}</div></details> : null; })}
+        <section className="metadata-detail"><h2>Metadata judul</h2>{metadataGroups.map(([group, fields]) => { const values = fields.map(([label,key]) => ({label,key,value:displayMetadataValue(key,unit[key])})).filter(field => field.value); return values.length ? <details className="metadata-group" key={group} open={group === 'Identitas judul'}><summary>{group}</summary><div className="metadata-table">{values.map(({label,key,value}) => <div className="metadata-detail-row" key={key}><span>{label}</span>{renderMetadataContent(key, value)}</div>)}</div></details> : null; })}
           <details className="metadata-group bundle-metadata"><summary>Metadata bendel induk ({bundle.bundle_code})</summary><div className="metadata-table">
             {row('URL afiliasi / cadangan', bundle.affiliation_url ? <a href={bundle.affiliation_url} target="_blank" rel="noreferrer">Buka sumber cadangan</a> : '')}{row('Kode bendel', bundle.bundle_code)}{row('Kover dan kondisi', combined(bundle.cover, bundle.physical_condition))}
             {row('Dimensi dan ukuran kertas', combined(bundle.dimensions, bundle.paper_size))}{row('Jilid / jenis kertas', combined(bundle.binding, bundle.paper_type))}
