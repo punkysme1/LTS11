@@ -40,7 +40,7 @@ language sql immutable set search_path='' as $$
 $$;
 create or replace function public.turots_category_code(p_name text) returns integer
 language sql immutable set search_path='' as $$
- select array_position(array['siroh','sejarah','fikih','akidah','quran','hadis','falak','nahwu','shorof','ilmu alat','akhlaq','khutbah','doa','fatwa','surat','primbon','mantiq','maulid','matematika'],lower(btrim(p_name)))
+ select array_position(array['siroh','sejarah','fikih','akidah','quran','hadis','falak','nahwu','shorof','ilmu alat','akhlaq','khutbah','doa','fatwa','surat','primbon','mantiq','maulid','matematika','kover dan fisik'],lower(btrim(p_name)))
 $$;
 create or replace function public.turots_natural_key(p_value text) returns text
 language sql immutable set search_path='' as $$
