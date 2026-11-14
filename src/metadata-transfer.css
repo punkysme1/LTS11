@@ -25,6 +25,11 @@
 .metadata-import-progress p,.metadata-import-success p { margin:6px 0; }
 .metadata-import-spinner { flex:0 0 auto; animation:metadata-import-spin 1s linear infinite; }
 .metadata-load-more { margin:12px; }
+.metadata-ai-panel { margin:14px 0; padding:12px 16px; border:1px solid #cbd4c8; border-radius:8px; background:#f8faf6; }
+.metadata-ai-panel summary { font-weight:600; color:#304b40; }
+.metadata-ai-body { display:flex; flex-direction:column; gap:12px; margin-top:10px; }
+.metadata-ai-body input,.metadata-ai-body textarea { width:100%; box-sizing:border-box; padding:10px; border:1px solid #718675; border-radius:6px; font-family:inherit; font-size:14px; background:#fff; }
+.metadata-ai-body textarea { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:13px; }
 @keyframes metadata-import-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .metadata-import-spinner { animation:none; } }
 .metadata-transfer :focus-visible { outline:3px solid #536e5b; outline-offset:3px; }

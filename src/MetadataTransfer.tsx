@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Download, LoaderCircle, Upload } from 'lucide-react';
+import { CheckCircle2, Download, LoaderCircle, Sparkles, Upload } from 'lucide-react';
 import { downloadMetadataXlsx, readMetadataXlsx } from './services/metadataXlsx';
+import { parseAiTitleJsonBatch } from './services/aiMetadataJson';
 import { planMetadataImport, type ImportPlan, type CatalogRow } from './services/metadataImport';
 import { applyMetadataImport, ImportOutcomeUnknownError } from './services/metadataPersistence';
 import { listAdminBundles } from './services/turotsRepository';
@@ -16,6 +17,8 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
   const [importing, setImporting] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [visibleActionCount, setVisibleActionCount] = useState(50);
+  const [jsonInput, setJsonInput] = useState('');
+  const [defaultBundleCode, setDefaultBundleCode] = useState('');
   const [importResult, setImportResult] = useState<{ count: number; refreshWarning?: string } | null>(null);
   const summary = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -37,6 +40,20 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
       const next = planMetadataImport(workbook.bundles, workbook.titles, current, workbook.photos);
       next.warnings.push(...workbook.warnings);
       setPlan(next); setVisibleActionCount(50); setMessage(next.actions.some(action=>action.kind!=='skip') ? 'Pratinjau siap. Belum ada perubahan yang disimpan.' : 'Tidak ada perubahan metadata judul yang dapat disimpan. Isian nomor otomatis dan metadata referensi Bendel tidak diterapkan; periksa catatan impor di bawah.');
+    } catch (error) { setFailure((error as Error).message); setMessage(''); }
+    finally { setBusy(false); requestAnimationFrame(() => summary.current?.focus()); }
+  }
+  async function previewAiJson() {
+    setBusy(true); setFailure(''); setImportResult(null); setMessage('Memeriksa JSON AI dan mencocokkan data server…'); setPlan(null); setConfirmed(false); setFilename('JSON AI Notebook'); setVisibleActionCount(50);
+    try {
+      const { titles, warnings } = parseAiTitleJsonBatch(jsonInput, defaultBundleCode);
+      const current = await listAdminBundles();
+      const next = planMetadataImport([], titles, current);
+      next.warnings.push(...warnings);
+      setPlan(next); setVisibleActionCount(50);
+      setMessage(next.actions.some(action => action.kind !== 'skip')
+        ? `Pratinjau JSON AI siap (${titles.length} judul). Belum ada perubahan yang disimpan.`
+        : 'Tidak ada perubahan metadata judul yang dapat disimpan dari JSON tersebut.');
     } catch (error) { setFailure((error as Error).message); setMessage(''); }
     finally { setBusy(false); requestAnimationFrame(() => summary.current?.focus()); }
   }
@@ -62,7 +79,7 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
       setImporting(false);
       setImportResult({ count: result.completed.length });
       setMessage(`Impor berhasil: ${result.completed.length} dari ${pending.length} perubahan dikonfirmasi tersimpan dalam satu transaksi. Memuat ulang daftar admin…`);
-      setPlan(null); setConfirmed(false);
+      setPlan(null); setConfirmed(false); setJsonInput('');
       try { await onSaved(); }
       catch (error) {
         const refreshWarning = error instanceof Error ? error.message : String(error);
@@ -90,6 +107,22 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
     </div>
     <p className="metadata-target">Database tujuan: <strong>{endpoint}</strong>. Menjalankan localhost tetap menyimpan ke database ini.</p>
     <p className="metadata-help">Sel kosong mempertahankan data lama. Gunakan <code>#HAPUS</code> untuk mengosongkan field opsional. URL adalah tautan klik; edit Excel perlu diimpor kembali.</p>
+    <details className="metadata-ai-panel">
+      <summary><Sparkles size={15} aria-hidden="true"/> Tempel JSON AI (1 atau banyak judul sekaligus)</summary>
+      <div className="metadata-ai-body">
+        <p className="metadata-help">Tempel blok JSON dari Notebook Gemini (1 objek judul atau array beberapa judul). Jika mengganti judul lama di bendel, hapus atau arsipkan judul lama terlebih dahulu agar rentang halaman tidak bentrok.</p>
+        <label>Kode bendel default (opsional, dipakai jika JSON tidak mencantumkan <code>bundle_bundle_code</code>)
+          <input value={defaultBundleCode} onChange={event => setDefaultBundleCode(event.target.value)} placeholder="Contoh: DS 0097 00003" />
+        </label>
+        <label>JSON metadata judul dari Notebook Gemini
+          <textarea rows={7} value={jsonInput} onChange={event => setJsonInput(event.target.value)} placeholder={'[\n  {\n    "bundle_bundle_code": "DS 0097 00003",\n    "title_page_ranges_label": "1r-12v",\n    "title_title_original": "...",\n    "title_category_primary": "Fikih"\n  }\n]'} />
+        </label>
+        <div className="metadata-transfer-actions">
+          <button type="button" className="primary-action" disabled={busy || !jsonInput.trim()} onClick={() => void previewAiJson()}><Sparkles size={16} aria-hidden="true"/>Pratinjau JSON AI</button>
+          {jsonInput && <button type="button" className="secondary-action" disabled={busy} onClick={() => setJsonInput('')}>Bersihkan JSON</button>}
+        </div>
+      </div>
+    </details>
     <div ref={summary} tabIndex={-1} className="metadata-summary">
       {!importing && !importResult && <p role={failure ? 'alert' : 'status'} aria-live="polite" className={failure ? 'metadata-error' : undefined}>{message}</p>}
       {importing && <div className="metadata-import-progress" role="status" aria-live="polite"><LoaderCircle className="metadata-import-spinner" size={20} aria-hidden="true"/><div><strong>Impor sedang berjalan</strong><p>{message}</p><small>{pending.length} perubahan diproses dalam satu transaksi. Server memberi konfirmasi setelah transaksi selesai. Waktu berjalan: {Math.floor(elapsedSeconds / 60)} menit {elapsedSeconds % 60} detik.</small></div></div>}
