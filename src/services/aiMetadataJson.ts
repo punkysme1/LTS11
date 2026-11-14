@@ -312,6 +312,10 @@ export function parseAiTitleJsonBatch(
     if (!row.bundle_bundle_code && fallbackBundleCode.trim()) {
       row.bundle_bundle_code = fallbackBundleCode.trim();
     }
+    if (!row.title_title_original) {
+      const fallbackTitle = row.title_title_curatorial || row.title_title_latin || '';
+      if (fallbackTitle) row.title_title_original = fallbackTitle;
+    }
     if (!row.title_metadata_status) {
       row.title_metadata_status = 'curated';
     }
