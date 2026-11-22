@@ -2,7 +2,7 @@ import { iiifThumbnailUrl } from './iiifImage';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Eye, Home, Info, Mail, Menu, Megaphone, Newspaper, User, X, HandHeart } from 'lucide-react';
-import { countPublishedPages, listMonthlyPopularViews, listPublicCatalogFilterOptions, listPublishedCatalog, searchPublishedCatalog } from './services/turotsRepository';
+import { getHomeSummary, listMonthlyPopularViews, listPublicCatalogFilterOptions, searchPublishedCatalog } from './services/turotsRepository';
 import { listPublishedContent, type EditorialEntry } from './services/editorialContent';
 import { countryFlagUrl, getVisitorStats, recordSiteVisitor, type VisitorStats } from './services/visitorStats';
 import { supabaseConfigured } from './lib/supabase';
@@ -153,7 +153,7 @@ export default function AppV11() {
     return () => { active = false; };
   }, [currentPath]);
   useEffect(() => {
-    if (currentPath !== '/' && currentPath !== '/populer') return;
+    if (currentPath !== '/populer') return;
     let active = true;
     setPopularLoaded(false);
     void listMonthlyPopularViews().then((rows) => { if (active) setPopular(rows.map((row:any) => ({...row,slug:slugify(row.title_original||row.display_id||row.bundle_code||'manuskrip')}))); }).catch(() => { if (active) setPopular([]); }).finally(() => { if (active) setPopularLoaded(true); });
@@ -170,45 +170,32 @@ export default function AppV11() {
   useEffect(() => {
     if (currentPath !== '/' && currentPath !== '/profil') return;
     let active = true;
-    void Promise.all([listPublishedCatalog(), countPublishedPages(), getVisitorStats()]).then(([bundles, exactPages, vStats]: [any[], number | null, VisitorStats]) => {
+    if (currentPath === '/') setPopularLoaded(false);
+    void Promise.all([getHomeSummary(), getVisitorStats()]).then(([summary, vStats]) => {
       if (!active) return;
-      const published = bundles.filter(bundle => ['public_preview', 'public_full'].includes(bundle.access_level));
-      const units = published.flatMap(bundle => bundle.turots_text_units || []);
-      const fallbackPages = published.reduce((sum, bundle) => sum + (bundle.turots_pages || []).length, 0);
-      setHomeStats({
-        titles: units.length,
-        bundles: published.length,
-        pages: exactPages ?? fallbackPages,
-        categories: new Set(units.map(unit => unit.category_primary).filter(Boolean)).size,
-      });
+      setHomeStats(summary.stats);
       setVisitorStats(vStats);
-      const affCounts = new Map<string, number>();
-      for (const bundle of published) {
-        const aff = String(bundle.affiliation || bundle.turots_collections?.source_project || '').trim() || 'Lainnya';
-        affCounts.set(aff, (affCounts.get(aff) || 0) + 1);
-      }
-      const affParts = [...affCounts.entries()]
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'id'))
-        .map(([name, count]) => `${count.toLocaleString('id-ID')} bendel ${name}`);
+      const affParts = [...summary.affiliations]
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'id'))
+        .map(({ name, count }) => `${count.toLocaleString('id-ID')} bendel ${name}`);
       setAffiliationSummary(affParts.length > 1 ? `${affParts.slice(0, -1).join(', ')}, dan ${affParts[affParts.length - 1]}` : affParts[0] || '');
       if (currentPath !== '/') return;
-      const categoryCounts = new Map<string, number>();
-      for (const unit of units) {
-        const category = String(unit.category_primary || '').trim();
-        if (category) categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
-      }
-      setHomeCategories([...categoryCounts].map(([name, count]) => ({ name, count })).sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'id')).slice(0, 8));
+      setHomeCategories(summary.categories.slice(0, 8));
+      setPopular(summary.popular.map((row) => ({
+        ...row,
+        slug: slugify(row.title_original || row.display_id || row.bundle_code || 'manuskrip'),
+      })));
       const covers: Record<string, string> = {};
-      for (const bundle of published) {
-        const pages = [...(bundle.turots_pages || [])].sort((left: any, right: any) => left.page_order - right.page_order);
-        for (const unit of bundle.turots_text_units || []) {
-          const page = pages.find((candidate: any) => candidate.text_unit_id === unit.id && (candidate.thumbnail_url || candidate.image_url)) || pages.find((candidate: any) => candidate.thumbnail_url || candidate.image_url);
-          const cover = iiifThumbnailUrl(page?.thumbnail_url || page?.image_url);
-          if (cover) covers[unit.id] = cover;
-        }
+      for (const item of summary.popular) {
+        const cover = iiifThumbnailUrl(item.cover_url || undefined);
+        if (cover && item.text_unit_id) covers[item.text_unit_id] = cover;
       }
       setHomeManuscriptCovers(covers);
-    }).catch(() => {});
+    }).catch(() => {
+      if (active && currentPath === '/') setPopular([]);
+    }).finally(() => {
+      if (active && currentPath === '/') setPopularLoaded(true);
+    });
     return () => { active = false; };
   }, [currentPath]);
   useEffect(() => {

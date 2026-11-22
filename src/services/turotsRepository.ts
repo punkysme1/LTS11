@@ -251,6 +251,87 @@ export async function searchPublishedCatalog(filters: {
   return { rows: result.map((item: any) => item.entry as CatalogRow), total: Number(result[0]?.total_count || 0) };
 }
 
+export type TurotsHomeSummary = {
+  stats: {
+    titles: number | null;
+    bundles: number | null;
+    pages: number | null;
+    categories: number | null;
+  };
+  affiliations: Array<{ name: string; count: number }>;
+  categories: Array<{ name: string; count: number }>;
+  popular: Array<{
+    text_unit_id: string;
+    bundle_id: string;
+    bundle_code: string;
+    display_id: string;
+    title_original: string | null;
+    display_title: string | null;
+    category_primary: string | null;
+    collection_name: string | null;
+    views: number;
+    cover_url?: string | null;
+  }>;
+};
+
+let homeSummaryCache: { expiresAt: number; promise: Promise<TurotsHomeSummary> } | null = null;
+export function getHomeSummary(): Promise<TurotsHomeSummary> {
+  if (!supabase) {
+    return Promise.resolve({
+      stats: { titles: null, bundles: null, pages: null, categories: null },
+      affiliations: [],
+      categories: [],
+      popular: [],
+    });
+  }
+  if (homeSummaryCache && homeSummaryCache.expiresAt > Date.now()) return homeSummaryCache.promise;
+  const promise = (async (): Promise<TurotsHomeSummary> => {
+    const { data, error } = await supabase.rpc('get_turots_home_summary');
+    if (error) throw error;
+    const raw = (data || {}) as Record<string, any>;
+    const rawStats = (raw.stats || {}) as Record<string, any>;
+    return {
+      stats: {
+        titles: typeof rawStats.titles === 'number' ? rawStats.titles : Number(rawStats.titles ?? 0),
+        bundles: typeof rawStats.bundles === 'number' ? rawStats.bundles : Number(rawStats.bundles ?? 0),
+        pages: typeof rawStats.pages === 'number' ? rawStats.pages : Number(rawStats.pages ?? 0),
+        categories: typeof rawStats.categories === 'number' ? rawStats.categories : Number(rawStats.categories ?? 0),
+      },
+      affiliations: Array.isArray(raw.affiliations)
+        ? raw.affiliations.map((item: any) => ({
+            name: String(item?.name || '').trim() || 'Lainnya',
+            count: Number(item?.count || 0),
+          }))
+        : [],
+      categories: Array.isArray(raw.categories)
+        ? raw.categories.map((item: any) => ({
+            name: String(item?.name || '').trim(),
+            count: Number(item?.count || 0),
+          })).filter((item: { name: string }) => Boolean(item.name))
+        : [],
+      popular: Array.isArray(raw.popular)
+        ? raw.popular.map((item: any) => ({
+            text_unit_id: String(item?.text_unit_id || ''),
+            bundle_id: String(item?.bundle_id || ''),
+            bundle_code: String(item?.bundle_code || ''),
+            display_id: String(item?.display_id || ''),
+            title_original: item?.title_original ?? null,
+            display_title: item?.display_title ?? null,
+            category_primary: item?.category_primary ?? null,
+            collection_name: item?.collection_name ?? null,
+            views: Number(item?.views || 0),
+            cover_url: item?.cover_url ?? null,
+          }))
+        : [],
+    };
+  })();
+  homeSummaryCache = { expiresAt: Date.now() + 10_000, promise };
+  void promise.catch(() => {
+    if (homeSummaryCache?.promise === promise) homeSummaryCache = null;
+  });
+  return promise;
+}
+
 export async function listMonthlyPopularViews() {
   if (!supabase) return [];
   const { data, error } = await supabase.rpc('get_turots_monthly_popular');

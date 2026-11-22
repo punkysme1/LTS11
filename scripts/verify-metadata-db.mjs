@@ -42,6 +42,17 @@ await db.exec(readFileSync('deploy/metadata-v2/preflight.sql','utf8').split('\n'
 await db.exec(migration);
 // Re-running the deployment must be safe.
 await db.exec(migration);
+const homeSummaryMigration = readFileSync('supabase/migrations/202611220001_turots_home_summary_rpc.sql','utf8');
+await db.exec(homeSummaryMigration);
+await db.exec(homeSummaryMigration);
+const homeSummary = (await db.query('select public.get_turots_home_summary() as summary')).rows[0]?.summary;
+assert.equal(homeSummary.stats.bundles, 5);
+assert.equal(homeSummary.stats.titles, 5);
+assert.equal(homeSummary.stats.pages, 25);
+assert.equal(homeSummary.stats.categories, 1);
+assert.ok(Array.isArray(homeSummary.affiliations) && homeSummary.affiliations.length === 3);
+assert.ok(Array.isArray(homeSummary.categories) && homeSummary.categories[0].name === 'Fikih');
+assert.ok(Array.isArray(homeSummary.popular) && homeSummary.popular.length === 5 && homeSummary.popular[0].cover_url);
 let units=(await db.query('select u.*,b.bundle_code from turots_text_units u join turots_bundles b on b.id=u.bundle_id order by record_no')).rows;
 assert.deepEqual(units.map(u=>u.bundle_code),['DS 0097 00002','DS 0097 00003','NT 002','NT 010','EAP1564_1_1']);
 assert.deepEqual(units.slice(0,2).map(u=>u.display_id),['01.A.03.0001','01.B.03.0002']);
