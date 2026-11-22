@@ -275,6 +275,8 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
 
   const isDreamseaBundle = String(bundle.turots_collections?.source_project || bundle.affiliation || '').toLowerCase().includes('dreamsea') || /^DS\b/i.test(bundle.bundle_code || '');
   const affiliateItems: AnyRecord[] = Array.isArray(bundle.affiliate_items) ? bundle.affiliate_items : [];
+  const safeIiifManifestUrl = safeLink(bundle.iiif_manifest_url);
+  const safeAffiliationUrl = safeLink(bundle.affiliation_url);
 
   const reader = <>
         {showAllPages && <p className="bundle-reader-note">Foto mengikuti urutan yang tersimpan di katalog. Foto yang belum dipetakan ke judul tetap ditampilkan.</p>}
@@ -290,8 +292,8 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
         {row('MSID', bundle.msid || bundle.source_identifier)}
         {row('Institution', bundle.institution || 'HMML; DREAMSEA')}
         {row('Surrogate Format', bundle.surrogate_format || 'Digital')}
-        {bundle.iiif_manifest_url && row('IIIF Manifest', <a href={bundle.iiif_manifest_url} target="_blank" rel="noreferrer">{bundle.iiif_manifest_url}</a>)}
-        {bundle.affiliation_url && row('DREAMSEA Catalog URL', <a href={bundle.affiliation_url} target="_blank" rel="noreferrer">{bundle.affiliation_url}</a>)}
+        {safeIiifManifestUrl && row('IIIF Manifest', <a href={safeIiifManifestUrl} target="_blank" rel="noopener noreferrer">{safeIiifManifestUrl}</a>)}
+        {safeAffiliationUrl && row('DREAMSEA Catalog URL', <a href={safeAffiliationUrl} target="_blank" rel="noopener noreferrer">{safeAffiliationUrl}</a>)}
         {row('Country', bundle.country || 'Indonesia')}
         {row('City (Province)', bundle.city_province)}
         {row('Name of collection', bundle.affiliation || 'Pondok Pesantren Qomaruddin')}
@@ -366,7 +368,7 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
           {row('Identifier', refCode)}
           {row('Title', fileTitle)}
           {row('Description', bundle.bundle_description)}
-          {bundle.affiliation_url && row('Link to catalogue record', <a href={bundle.affiliation_url} target="_blank" rel="noreferrer">View the catalogue record ({bundle.affiliation_url})</a>)}
+          {safeAffiliationUrl && row('Link to catalogue record', <a href={safeAffiliationUrl} target="_blank" rel="noopener noreferrer">View the catalogue record ({safeAffiliationUrl})</a>)}
           {row('Citation', bundle.citation_text)}
           {row('Digitised by', bundle.digitised_by || "Ma'had Jamiah Universitas Qomaruddin")}
           {row('Digitisation funded by', bundle.digitisation_funded_by)}
@@ -392,13 +394,13 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
         {bundleMode ? <section className="bundle-landing">
           {reader}
           {isDreamseaBundle ? renderDreamseaBundleMetadata() : renderEapOrNtBundleMetadata()}
-          {!bundleReaderMode && <section className="bundle-feedback-source">{bundle.affiliation_url && <a className="research-link" href={bundle.affiliation_url} target="_blank" rel="noreferrer">Sumber afiliasi ↗</a>}<CatalogFeedback key={bundleMode ? bundle.id : unit.id} kind={bundleMode ? 'bundle' : 'title'} targetId={bundleMode ? bundle.id : unit.id} /></section>}
+          {!bundleReaderMode && <section className="bundle-feedback-source">{safeAffiliationUrl && <a className="research-link" href={safeAffiliationUrl} target="_blank" rel="noopener noreferrer">Sumber afiliasi ↗</a>}<CatalogFeedback key={bundleMode ? bundle.id : unit.id} kind={bundleMode ? 'bundle' : 'title'} targetId={bundleMode ? bundle.id : unit.id} /></section>}
           {!bundleReaderMode && renderBundleTitles()}
         </section> : <>
         {reader}
         <section className="metadata-detail"><h2>Metadata judul</h2>{metadataGroups.map(([group, fields]) => { const values = fields.map(([label,key]) => ({label,key,value:displayMetadataValue(key,unit[key])})).filter(field => field.value); return values.length ? <details className="metadata-group" key={group} open={group === 'Identitas judul'}><summary>{group}</summary><div className="metadata-table">{values.map(({label,key,value}) => <div className="metadata-detail-row" key={key}><span>{label}</span>{renderMetadataContent(key, value)}</div>)}</div></details> : null; })}
           <details className="metadata-group bundle-metadata"><summary>Metadata bendel induk ({bundle.bundle_code})</summary><div className="metadata-table">
-            {row('URL afiliasi / cadangan', bundle.affiliation_url ? <a href={bundle.affiliation_url} target="_blank" rel="noreferrer">Buka sumber cadangan</a> : '')}{row('Kode bendel', bundle.bundle_code)}{row('Kover dan kondisi', combined(bundle.cover, bundle.physical_condition))}
+            {row('URL afiliasi / cadangan', safeAffiliationUrl ? <a href={safeAffiliationUrl} target="_blank" rel="noopener noreferrer">Buka sumber cadangan</a> : '')}{row('Kode bendel', bundle.bundle_code)}{row('Kover dan kondisi', combined(bundle.cover, bundle.physical_condition))}
             {row('Dimensi dan ukuran kertas', combined(bundle.dimensions, bundle.paper_size))}{row('Jilid / jenis kertas', combined(bundle.binding, bundle.paper_type))}
             {row('Watermark / countermark', combined(bundle.watermark, bundle.countermark))}{row('Kelengkapan fisik', bundle.completeness)}
             {row('Jumlah halaman bendel', bundle.pages_text || bundle.extent_text || bundle.extent_pages)}{row('Koleksi / proyek', combined(bundle.turots_collections?.name, bundle.turots_collections?.source_project || bundle.affiliation))}
@@ -408,7 +410,7 @@ export default function DetailV1({ keyValue, bundleMode = false, bundleReaderMod
         </section>
         </>}
       </main>
-      {(!bundleMode || bundleReaderMode) && <aside className={`detail-sidebar${bundleReaderMode ? ' bundle-reader-sidebar' : ''}`}><section><h2>Identitas ringkas</h2>{row('NO Turots', activeReaderUnit.record_no)}{row('ID judul', activeReaderUnit.display_id)}{row('Kode bendel', bundle.bundle_code)}{row('Hlm / Folio', bundleReaderMode ? page?.folio_label || page?.label : activeReaderUnit.page_ranges_label)}{row('Kategori', activeReaderUnit.category_primary)}{row('Koleksi', bundle.turots_collections?.name)}</section>{(activeReaderUnit.description || (bundleReaderMode && bundle.bundle_description)) && <section><h2>Deskripsi</h2><p>{activeReaderUnit.description || bundle.bundle_description}</p></section>}{bundleReaderMode ? <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}?returnTo=${encodeURIComponent(catalogReturn)}`}>Metadata bendel {bundle.bundle_code} <span aria-hidden="true">→</span></a> : <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}?returnTo=${encodeURIComponent(catalogReturn)}`}>Lihat seluruh bendel {bundle.display_title || bundle.bundle_code} <span aria-hidden="true">→</span></a>}{bundle.affiliation_url && <a className="research-link" href={bundle.affiliation_url} target="_blank" rel="noreferrer">Sumber afiliasi <span aria-hidden="true">↗</span></a>}<CatalogFeedback key={bundleMode ? bundle.id : unit.id} kind={bundleMode ? 'bundle' : 'title'} targetId={bundleMode ? bundle.id : unit.id} />{renderBundleTitles()}</aside>}
+      {(!bundleMode || bundleReaderMode) && <aside className={`detail-sidebar${bundleReaderMode ? ' bundle-reader-sidebar' : ''}`}><section><h2>Identitas ringkas</h2>{row('NO Turots', activeReaderUnit.record_no)}{row('ID judul', activeReaderUnit.display_id)}{row('Kode bendel', bundle.bundle_code)}{row('Hlm / Folio', bundleReaderMode ? page?.folio_label || page?.label : activeReaderUnit.page_ranges_label)}{row('Kategori', activeReaderUnit.category_primary)}{row('Koleksi', bundle.turots_collections?.name)}</section>{(activeReaderUnit.description || (bundleReaderMode && bundle.bundle_description)) && <section><h2>Deskripsi</h2><p>{activeReaderUnit.description || bundle.bundle_description}</p></section>}{bundleReaderMode ? <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}?returnTo=${encodeURIComponent(catalogReturn)}`}>Metadata bendel {bundle.bundle_code} <span aria-hidden="true">→</span></a> : <a className="research-link" href={`/bendel/${encodeURIComponent(bundle.bundle_code)}?returnTo=${encodeURIComponent(catalogReturn)}`}>Lihat seluruh bendel {bundle.display_title || bundle.bundle_code} <span aria-hidden="true">→</span></a>}{safeAffiliationUrl && <a className="research-link" href={safeAffiliationUrl} target="_blank" rel="noopener noreferrer">Sumber afiliasi <span aria-hidden="true">↗</span></a>}<CatalogFeedback key={bundleMode ? bundle.id : unit.id} kind={bundleMode ? 'bundle' : 'title'} targetId={bundleMode ? bundle.id : unit.id} />{renderBundleTitles()}</aside>}
     </div>
   </section>;
 }

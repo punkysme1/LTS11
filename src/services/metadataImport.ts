@@ -7,7 +7,7 @@ export type CatalogRow = Record<string, any>;
 export type ExcelRow = Record<string, string>;
 export type ImportAction = {
   sheet: 'Bendel' | 'Judul'; row: number; code: string; key: string;
-  kind: 'create' | 'update' | 'skip'; id?: string; expectedPages?: number[]; values: CatalogRow;
+  kind: 'create' | 'update' | 'delete' | 'skip'; id?: string; expectedPages?: number[]; values: CatalogRow;
   changes: Array<{ field: string; before: unknown; after: unknown }>;
   collection?: { name: string; project: string }; folios?: { ranges?: Array<[number, number]>; clear?: boolean; start?: string; end?: string }; photos?: CatalogRow[];
 };
@@ -58,7 +58,13 @@ function actionFor(sheet: ImportAction['sheet'], row: ExcelRow, index: number, e
   return { sheet, row: index + 2, code, key: sheet === 'Bendel' ? code : row.title_display_id?.trim(), kind: existing ? (changes.length ? 'update' : 'skip') : 'create', id: existing?.id, values: Object.fromEntries(changes.map(change => [change.field, change.after])), changes };
 }
 
-export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[], bundles: CatalogRow[], photoRows: ExcelRow[] = []): ImportPlan {
+export function planMetadataImport(
+  bundleRows: ExcelRow[],
+  titleRows: ExcelRow[],
+  bundles: CatalogRow[],
+  photoRows: ExcelRow[] = [],
+  options: { replaceExistingBundleTitles?: boolean } = {},
+): ImportPlan {
   titleRows = titleRows.map(row => ({...row, ...(row.title_page_ranges_label?.trim() ? {} : row.title_page_ranges?.trim() ? {title_page_ranges_label: row.title_page_ranges} : {})}));
   const plan: ImportPlan = { actions: [], errors: [], warnings: [], snapshot: catalogSnapshot(bundles) };
   if (bundleRows.some(row => retiredBundleHeaders.some(header => header in row))) plan.warnings.push('Kolom lama sumber/Archive, nomor DREAMSEA, writing_support, dan institution diabaikan. Gunakan ekspor terbaru untuk format yang lebih ringkas.');
@@ -68,7 +74,38 @@ export function planMetadataImport(bundleRows: ExcelRow[], titleRows: ExcelRow[]
   const seenBundles = new Set<string>(); const seenTitles = new Set<string>();
   const claimedPages = new Map<string, string>();
   const titleRowsById = new Map(titleRows.map(row=>[row.title_id?.trim(),row]));
+  const deletedUnitIds = new Set<string>();
+  if (options.replaceExistingBundleTitles) {
+    const targetBundleCodes = new Set(
+      titleRows
+        .map(row => normalizeBundleCodeInput(row.bundle_bundle_code?.trim() || '', [...projected.values()]))
+        .filter(Boolean),
+    );
+    for (const code of targetBundleCodes) {
+      const existingUnits = units.filter(u => u.bundle_code === code && !u.archived_at && !titleRowsById.has(u.id));
+      for (const oldUnit of existingUnits) {
+        deletedUnitIds.add(oldUnit.id);
+        plan.actions.push({
+          sheet: 'Judul',
+          row: 1,
+          code,
+          key: oldUnit.display_id || oldUnit.id,
+          kind: 'delete',
+          id: oldUnit.id,
+          values: {},
+          changes: [
+            {
+              field: 'ganti_judul_lama',
+              before: oldUnit.title_original || oldUnit.display_id || 'Judul lama',
+              after: '(dihapus otomatis & diganti JSON baru)',
+            },
+          ],
+        });
+      }
+    }
+  }
   const pageWillBeReleased = (page: CatalogRow, code: string) => {
+    if (page.text_unit_id && deletedUnitIds.has(page.text_unit_id)) return true;
     const owner=units.find(unit=>unit.id===page.text_unit_id&&unit.bundle_code===code);
     const ownerRow=owner?titleRowsById.get(owner.id):undefined;
     if(!ownerRow||!Object.hasOwn(ownerRow,'title_page_ranges_label'))return false;

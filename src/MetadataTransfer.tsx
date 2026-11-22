@@ -19,6 +19,7 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
   const [visibleActionCount, setVisibleActionCount] = useState(50);
   const [jsonInput, setJsonInput] = useState('');
   const [defaultBundleCode, setDefaultBundleCode] = useState('');
+  const [replaceOldTitles, setReplaceOldTitles] = useState(true);
   const [importResult, setImportResult] = useState<{ count: number; refreshWarning?: string } | null>(null);
   const summary = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -50,11 +51,12 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
       const { titles, warnings } = parseAiTitleJsonBatch(jsonInput, defaultBundleCode);
       const targetCodes = [...new Set(titles.map(t => t.bundle_bundle_code).filter(Boolean))];
       const current = targetCodes.length ? await listAdminBundlesByCodes(targetCodes) : await listAdminBundles();
-      const next = planMetadataImport([], titles, current);
+      const next = planMetadataImport([], titles, current, [], { replaceExistingBundleTitles: replaceOldTitles });
       next.warnings.push(...warnings);
       setPlan(next); setVisibleActionCount(50);
+      const deletedCount = next.actions.filter(a => a.kind === 'delete').length;
       setMessage(next.actions.some(action => action.kind !== 'skip')
-        ? `Pratinjau JSON AI siap (${titles.length} judul). Belum ada perubahan yang disimpan.`
+        ? `Pratinjau JSON AI siap (${titles.length} judul baru${deletedCount ? `, ${deletedCount} judul lama otomatis diganti/dihapus` : ''}). Belum ada perubahan yang disimpan.`
         : 'Tidak ada perubahan metadata judul yang dapat disimpan dari JSON tersebut.');
     } catch (error) { setFailure((error as Error).message); setMessage(''); }
     finally { setBusy(false); requestAnimationFrame(() => summary.current?.focus()); }
@@ -112,7 +114,11 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
     <details className="metadata-ai-panel">
       <summary><Sparkles size={15} aria-hidden="true"/> Tempel JSON AI (1 atau banyak judul sekaligus)</summary>
       <div className="metadata-ai-body">
-        <p className="metadata-help">Tempel blok JSON dari Notebook Gemini (1 objek judul atau array beberapa judul). Jika mengganti judul lama di bendel, hapus atau arsipkan judul lama terlebih dahulu agar rentang halaman tidak bentrok.</p>
+        <p className="metadata-help">Tempel blok JSON dari Notebook Gemini (1 objek judul atau array beberapa judul). Sistem otomatis mengganti &amp; menghapus metadata judul lama di bendel yang sama (foto bendel tetap aman).</p>
+        <label className="metadata-confirm">
+          <input type="checkbox" checked={replaceOldTitles} disabled={busy} onChange={event => setReplaceOldTitles(event.target.checked)} />
+          Otomatis hapus &amp; ganti metadata judul lama di bendel yang sama (Direkomendasikan)
+        </label>
         <label>Kode bendel default (opsional, dipakai jika JSON tidak mencantumkan <code>bundle_bundle_code</code>)
           <input value={defaultBundleCode} onChange={event => setDefaultBundleCode(event.target.value)} placeholder="Contoh: DS 0097 00003" />
         </label>
@@ -132,10 +138,10 @@ export default function MetadataTransfer({ onSaved }: { onSaved: () => unknown }
       {importResult && <div className="metadata-import-success" role="status"><CheckCircle2 size={21} aria-hidden="true"/><div><strong>Transaksi selesai: {importResult.count} perubahan berhasil disimpan.</strong>{importResult.refreshWarning && <p>Perincian pemuatan ulang daftar admin: {importResult.refreshWarning}</p>}<p>Ekspor ulang metadata untuk memeriksa data yang tersimpan.</p></div></div>}
       {plan && <>
         <h3>Pratinjau: {filename}</h3>
-        <p>{plan.actions.filter(a => a.kind === 'create').length} baru · {plan.actions.filter(a => a.kind === 'update').length} diperbarui · {plan.actions.filter(a => a.kind === 'skip').length} tanpa perubahan</p>
+        <p>{plan.actions.filter(a => a.kind === 'create').length} baru · {plan.actions.filter(a => a.kind === 'update').length} diperbarui · {plan.actions.filter(a => a.kind === 'delete').length} judul lama dihapus · {plan.actions.filter(a => a.kind === 'skip').length} tanpa perubahan</p>
         {plan.errors.length > 0 && <div role="alert" className="metadata-error"><strong>{plan.errors.length} kesalahan — perbaiki Excel lalu pilih ulang.</strong><ul>{plan.errors.map((error, i) => <li key={i}>{error}</li>)}</ul></div>}
         {plan.warnings.length > 0 && <details open={!pending.length}><summary>{plan.warnings.length} catatan impor</summary><ul>{plan.warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul></details>}
-        <div className="metadata-table-scroll" tabIndex={0} role="region" aria-label="Perubahan metadata"><table><thead><tr><th>Lembar / baris</th><th>Kode / ID</th><th>Tindakan</th><th>Perubahan</th></tr></thead><tbody>{plan.actions.slice(0, visibleActionCount).map((action, i) => <tr key={i}><td>{action.sheet} / {action.row}</td><td>{action.key}</td><td>{action.kind === 'create' ? 'Tambah' : action.kind === 'update' ? 'Perbarui' : 'Tetap'}</td><td>{action.changes.length ? <details><summary>{action.changes.length} field</summary><dl>{action.changes.map(change => <div key={change.field}><dt>{change.field}</dt><dd><span>{String(change.before ?? '(kosong)')}</span> → <strong dir="auto">{String(change.after ?? '(dihapus)')}</strong></dd></div>)}</dl></details> : '—'}</td></tr>)}</tbody></table>{visibleActionCount < plan.actions.length && <button type="button" className="secondary-action metadata-load-more" onClick={() => setVisibleActionCount(count => Math.min(count + 50, plan.actions.length))}>Tampilkan {Math.min(50, plan.actions.length - visibleActionCount)} perubahan berikutnya ({visibleActionCount} dari {plan.actions.length})</button>}</div>
+        <div className="metadata-table-scroll" tabIndex={0} role="region" aria-label="Perubahan metadata"><table><thead><tr><th>Lembar / baris</th><th>Kode / ID</th><th>Tindakan</th><th>Perubahan</th></tr></thead><tbody>{plan.actions.slice(0, visibleActionCount).map((action, i) => <tr key={i}><td>{action.sheet} / {action.row}</td><td>{action.key}</td><td>{action.kind === 'create' ? 'Tambah' : action.kind === 'update' ? 'Perbarui' : action.kind === 'delete' ? 'Hapus Judul Lama' : 'Tetap'}</td><td>{action.changes.length ? <details><summary>{action.changes.length} field</summary><dl>{action.changes.map(change => <div key={change.field}><dt>{change.field}</dt><dd><span>{String(change.before ?? '(kosong)')}</span> → <strong dir="auto">{String(change.after ?? '(dihapus)')}</strong></dd></div>)}</dl></details> : '—'}</td></tr>)}</tbody></table>{visibleActionCount < plan.actions.length && <button type="button" className="secondary-action metadata-load-more" onClick={() => setVisibleActionCount(count => Math.min(count + 50, plan.actions.length))}>Tampilkan {Math.min(50, plan.actions.length - visibleActionCount)} perubahan berikutnya ({visibleActionCount} dari {plan.actions.length})</button>}</div>
         {!plan.errors.length && pending.length > 0 && <><label className="metadata-confirm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)}/>Saya sudah memeriksa perubahan dan akan menyimpan {pending.length} baris ke database di atas.</label><p className="metadata-help">Semua perubahan disimpan dalam satu transaksi. Jika satu perubahan gagal, seluruh impor dibatalkan. Nomor inventaris dihitung ulang setelah simpan.</p></>}
         <div className="metadata-transfer-actions"><button type="button" className="primary-action" disabled={busy || !confirmed || !!plan.errors.length || !pending.length} onClick={() => void save()}>{busy ? <><LoaderCircle className="metadata-import-spinner" size={16} aria-hidden="true"/> {importing ? `Mengirim ${pending.length} perubahan…` : 'Memuat ulang daftar…'}</> : `Simpan ${pending.length} perubahan ke database`}</button><button type="button" className="secondary-action" disabled={busy} onClick={() => { setPlan(null); setConfirmed(false); setMessage('Pratinjau dibatalkan.'); }}>Batalkan</button></div>
       </>}

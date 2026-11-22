@@ -14,23 +14,6 @@ export type VisitorStats = {
 const VISITOR_ID_KEY = 'turots_visitor_id';
 const SESSION_RECORDED_KEY = 'turots_site_visitor_recorded';
 
-const TIMEZONE_COUNTRY_MAP: Record<string, string> = {
-  'Asia/Jakarta': 'ID',
-  'Asia/Pontianak': 'ID',
-  'Asia/Makassar': 'ID',
-  'Asia/Jayapura': 'ID',
-  'Asia/Kuala_Lumpur': 'MY',
-  'Asia/Kuching': 'MY',
-  'Asia/Singapore': 'SG',
-  'Asia/Riyadh': 'SA',
-  'Africa/Cairo': 'EG',
-  'Europe/London': 'GB',
-  'Europe/Amsterdam': 'NL',
-  'Europe/Berlin': 'DE',
-  'Asia/Tokyo': 'JP',
-  'Australia/Sydney': 'AU',
-};
-
 function formatCountryNameId(code: string): string {
   const upper = code.trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(upper)) return 'Indonesia';
@@ -56,39 +39,6 @@ export function getOrCreateVisitorId(): string {
   }
 }
 
-async function detectCountry(): Promise<{ code: string; name: string }> {
-  try {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 2500);
-    const response = await fetch('https://api.country.is/', { signal: controller.signal });
-    window.clearTimeout(timer);
-    if (response.ok) {
-      const data = await response.json() as { country?: string };
-      const code = String(data?.country || '').trim().toUpperCase();
-      if (/^[A-Z]{2}$/.test(code) && code !== 'XX') {
-        return { code, name: formatCountryNameId(code) };
-      }
-    }
-  } catch {
-    // Fall back to timezone/locale heuristic when offline or blocked.
-  }
-
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    if (TIMEZONE_COUNTRY_MAP[tz]) {
-      const code = TIMEZONE_COUNTRY_MAP[tz];
-      return { code, name: formatCountryNameId(code) };
-    }
-    const langRegion = (navigator.language || '').split('-')[1]?.toUpperCase() || '';
-    if (/^[A-Z]{2}$/.test(langRegion)) {
-      return { code: langRegion, name: formatCountryNameId(langRegion) };
-    }
-  } catch {
-    // Ignore environment lookup errors.
-  }
-  return { code: 'ID', name: 'Indonesia' };
-}
-
 export async function recordSiteVisitor(): Promise<void> {
   if (!supabase) return;
   try {
@@ -99,11 +49,9 @@ export async function recordSiteVisitor(): Promise<void> {
   const visitorId = getOrCreateVisitorId();
   if (!visitorId) return;
 
-  const { code, name } = await detectCountry();
+  // SEC-09: Negara dideteksi murni di server dari header proxy (cf-ipcountry), tanpa parameter klien.
   const { error } = await supabase.rpc('record_turots_site_visitor', {
     p_visitor_id: visitorId,
-    p_country_code: code,
-    p_country_name: name,
   });
   if (!error) {
     try {

@@ -96,6 +96,7 @@ function toOperation(action: ImportAction) {
     row: action.row,
     code: action.code,
     key: action.key,
+    kind: action.kind,
     id: action.id || null,
     values: action.values,
     collection: action.collection || null,
