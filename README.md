@@ -6,7 +6,7 @@ Konsep arsitektur baru Turots berbasis:
 - Internet Archive sebagai salah satu sumber citra publik dan Manifest IIIF.
 - IIIF Presentation sebagai struktur objek digital: bendel, unit teks, dan halaman.
 - Turots sebagai katalog pedagogis untuk santri dan ruang penelitian.
-- Nawra sebagai lapisan pencarian dan jawaban berbasis bukti.
+- NARA sebagai lapisan pencarian dan jawaban berbasis bukti.
 
 Proyek ini sengaja dibuat terpisah dari aplikasi Turots lama. Ia adalah blueprint yang dapat menjadi dasar implementasi ulang setelah struktur database dikonfirmasi.
 

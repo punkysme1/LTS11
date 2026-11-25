@@ -16,6 +16,7 @@ await db.exec(`
   CREATE ROLE authenticated;
   CREATE ROLE service_role BYPASSRLS;
   CREATE ROLE nawra_app;
+  CREATE ROLE nara_app;
   CREATE ROLE nara_research_reader;
 
   CREATE SCHEMA auth;

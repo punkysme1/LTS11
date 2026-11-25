@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const supabaseRoot = resolve(root, '../../../Services/Supabase/turots-local/supabase');
 const requiredFiles = [
-  'src/AppV11.tsx', 'src/services/turotsRepository.ts', 'src/services/nawraAdapter.ts',
-  'docs/nawra-contract-v1.json', 'docs/metadata-mapping-v1.md',
-  'scripts/verify-nawra-contract.mjs',
+  'src/AppV11.tsx', 'src/services/turotsRepository.ts', 'src/services/naraAdapter.ts',
+  'docs/nara-contract-v1.json', 'docs/metadata-mapping-v1.md',
+  'scripts/verify-nara-contract.mjs',
 ];
 const missingFiles = requiredFiles.filter((file) => !existsSync(resolve(root, file)));
 if (missingFiles.length) throw new Error(`Ontbrekende bestanden: ${missingFiles.join(', ')}`);

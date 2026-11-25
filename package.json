@@ -10,7 +10,7 @@
     "test:upload-service": "node deploy/upload-service/test.mjs",
     "dev": "vite --host 127.0.0.1 --port 3005",
     "build": "vite build",
-    "verify:nawra": "node scripts/verify-nawra-contract.mjs",
+    "verify:nara": "node scripts/verify-nara-contract.mjs",
     "verify:v1": "node scripts/verify-v1.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 3005",
     "test:metadata-db": "node scripts/verify-metadata-db.mjs"

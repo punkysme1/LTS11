@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 
-/** Read-only adapter for Nawra. It deliberately exposes metadata and evidence
+/** Read-only adapter for NARA. It deliberately exposes metadata and evidence
  * references, never assumes that metadata is the manuscript image itself. */
 export async function searchCatalog(query = '', limit = 20) {
   if (!supabase) return [];
@@ -26,7 +26,7 @@ export async function catalogPages(id: string) {
   return data ?? [];
 }
 
-export const nawraContract = {
+export const naraContract = {
   version: '1.0.0',
   scope: 'published',
   operations: ['catalog.search', 'catalog.detail', 'catalog.pages', 'catalog.relations', 'catalog.research', 'catalog.citation'],
